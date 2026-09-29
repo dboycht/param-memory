@@ -377,11 +377,22 @@ verbosity structure instead.
   $12$-memory stream the generic prompts are no longer answered verbatim and the
   all-position KL is $\approx 1$ nat. Parametric memory is not free, and the cost
   grows with the number of writes.
-\item \textbf{No public benchmark yet.} We report protocol-controlled synthetic
-  results only. MemoryAgentBench~\cite{mab} (the one public skeleton that
-  isolates test-time learning \emph{and} selective forgetting) and
-  LongMemEval~\cite{longmemeval} are the natural next step; we do not claim
-  comparability we have not measured.
+\item \textbf{Public benchmarks: a scoped diagnosis, not a comparison.} We report
+  protocol-controlled synthetic results only. We did cost the adaptation of
+  LongMemEval~\cite{longmembench} on this machine instead of waving at it: its
+  oracle split is small enough that a pilot is minutes of compute, so compute is
+  \emph{not} the obstacle. Two obstacles are. First, a memory item here is a
+  $(q,v)$ pair, while a benchmark turn is a sentence, so a turn$\rightarrow$pair
+  extraction step is required --- genuine new code, and noisy extraction lands
+  directly in the weights. Second, and more fundamental: the benchmark's hard
+  question types (multi-session and temporal reasoning) require combining evidence
+  from \emph{several} stored items, whereas our read path deliberately activates
+  exactly one slot (Section~\ref{sec:routing} shows two already collapse recall).
+  That is a mechanism boundary, not a compute limit, and it would not move on a
+  larger machine. MemoryAgentBench~\cite{mab}, the one public skeleton that
+  isolates test-time learning \emph{and} selective forgetting, remains the right
+  target once a cross-item read path exists; we do not claim comparability we have
+  not measured.
 \item \textbf{Two-timescale consolidation is not implemented} --- the
   session-fast / cross-session-slow split remains future work, and after the
   inertia refutation its motivation needs restating.
@@ -450,7 +461,7 @@ which is generated from \texttt{runs/summary.json}.
 \bibitem{semcache} On eviction policies for semantic caches. arXiv:2608.20280.
 \bibitem{mab} MemoryAgentBench: Evaluating Memory in LLM Agents.
   arXiv:2507.05257.
-\bibitem{longmemeval} LongMemEval: Benchmarking Chat Assistants on Long-Term
+\bibitem{longmembench} LongMemEval: Benchmarking Chat Assistants on Long-Term
   Interactive Memory. arXiv:2410.10813 (ICLR 2025).
 \end{thebibliography}
 
