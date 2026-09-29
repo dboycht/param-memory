@@ -484,7 +484,17 @@ located with the benchmark's own flags (retrieval is oracle-indexed), the write 
 is the read query (so \tLongMemRouting{} is an upper bound; paraphrased routing
 measured \tRouterAcc{} in Section~\ref{sec:routing}), the calibration rests on
 \tJudgeCalibMarks{} marks, and a residual preference for near-verbatim answers cannot
-be excluded. This is a scoped diagnosis, not a LongMemEval result.
+be excluded.
+
+The same comparison on a 1.7B backbone (Table~\ref{tab:t7}) gives \tScaleWeights{} for
+the parametric arm against \tScaleContextTarget{}--\tScaleContextAll{} for context
+delivery, with the cost column unchanged (\tTokWeights{} against up to
+\tScaleTokens{} tokens) and again no question lost by the parametric arm. The margin
+does narrow with scale, because a larger backbone uses the context better
+(\tScaleFrozen{} of these questions are answered from its prior, against
+\tLongMemFrozen{} at 0.6B). So the cost advantage is scale-invariant while the quality
+advantage is not --- which is the honest reading of a two-point curve. This is a
+scoped diagnosis, not a LongMemEval result.
 
 \section{Negative results}
 \label{sec:negative}

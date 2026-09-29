@@ -247,6 +247,31 @@ $\\alpha$、模块集合与每个张量的形状，任一不符即拒绝：这�
 ② 保留项**真正被评估的那个条件**（全开）单向改善（{tRetentionAllBase} → {tRetentionAllBest}，
 {tRetentionAllHelped} 帮助 / {tRetentionAllHurt} 损害，p={tRetentionAllP}）—— 幅度小，但不是噪声。
 
+### 4.6 规模对照（1.7B）：结论成立，但**瓶颈会挪位置**
+
+把两条头条结论都在 **1.7B** 上按同一协议重跑（含判官 180 次判定）：
+
+| 指标 | 0.6B | **1.7B** |
+| --- | --- | --- |
+| 组合：oracle | {tOracle} | {tScaleTwoOracle} |
+| 组合：top1 / top2 | {tTopOne} / {tTopTwo} | **{tScaleTwoTopOne}** / {tScaleTwoTopTwo} |
+| 组合：**全开（求和）** | **{tSum}** | **{tScaleTwoSum}** |
+| 路由准确率 | {tRouterAcc} | **{tScaleTwoRouter}** |
+| 真实内容：参数臂（判官） | {tJudgeWeights} | **{tScaleWeights}** |
+| 真实内容：`context_all` / `context_target` | {tJudgeContextAll} / {tJudgeContextTarget} | {tScaleContextAll} / **{tScaleContextTarget}** |
+| 真实内容：冻结臂（地板） | {tJudgeFrozen} | {tScaleFrozen} |
+| 参数臂额外 prompt token | **{tTokWeights}** | **{tTokWeights}** |
+
+- ✅ **组合结论跨规模成立**，而且"**oracle − top1 = 路由错误**"在两个规模上都**精确闭合**
+  （0.6B：`0.950 − 0.875 = 0.075 = 1 − 0.925`；1.7B：`0.950 − 0.675 = 0.275 = 1 − 0.725`）
+  ⇒ **选择规则自身仍不引入任何损失**。
+- 🔴 **规模改变的是"损失在哪里"**：路由 0.925 → **0.725** ⇒ 在更大模型上，与 oracle 的差距
+  **主要是检索问题而不是干扰问题** ⇒ 下一步该改进的是**路由器**，不是槽位机制。
+- ⚠️ **质量领先幅度随规模收窄**（`context_target` 0.867 → 0.967，冻结臂也从 0.033 升到 0.100：
+  更大的模型**更会用上下文、也更会凭先验答对**），但**成本优势完全不变**（0 vs 117–1688 token）。
+  两点曲线，就这样写。
+- ⚠️ **仍未做**：T5 惯性实验与遗忘实验仍只有 0.6B；3B 及以上受本机 8 GB 限制未测。
+
 ## 5. 两个负结果
 
 ### 5.1 参数记忆并不能减轻上下文惯性（假设被否证）

@@ -107,10 +107,10 @@
 \newcommand{\tVerboseParisKL}{1.11}
 \newcommand{\tSurpriseMedianUnknown}{7.72}
 \newcommand{\tSurpriseMedianKnown}{6.16}
-\newcommand{\tScaleWeights}{n/a}
-\newcommand{\tScaleContextAll}{n/a}
-\newcommand{\tScaleContextTarget}{n/a}
-\newcommand{\tScaleFrozen}{n/a}
+\newcommand{\tScaleWeights}{1.000}
+\newcommand{\tScaleContextAll}{0.967}
+\newcommand{\tScaleContextTarget}{0.967}
+\newcommand{\tScaleFrozen}{0.100}
 \newcommand{\tScaleContainment}{1.000}
 \newcommand{\tScaleTokens}{1688}
 \newcommand{\tScaleTwoOracle}{0.950}
@@ -282,6 +282,12 @@ pre-registered verdict (docs/06 \textbackslash\{\}S9) & within the pre-registere
 \textbackslash\{\}quad paired wins / losses & 8 / 0 \\
 \textbackslash\{\}quad extra prompt tokens (weights) & n/a \\
 \textbackslash\{\}quad extra prompt tokens (context\textbackslash\{\}\_all) & 1688 \\
+\textbackslash\{\}midrule &  \\
+\textbackslash\{\}emph\{scale control\}, 1.7B weights & 1.000 \\
+\textbackslash\{\}quad \textbackslash\{\}texttt\{context\textbackslash\{\}\_all\} & 0.967 \\
+\textbackslash\{\}quad \textbackslash\{\}texttt\{context\textbackslash\{\}\_target\} & 0.967 \\
+\textbackslash\{\}quad \textbackslash\{\}texttt\{frozen\} & 0.100 \\
+\textbackslash\{\}quad containment (weights) & 1.000 \\
 \bottomrule
 \end{tabular}
 \end{table}
