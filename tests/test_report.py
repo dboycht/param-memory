@@ -417,3 +417,37 @@ def test_retention_markdown_states_the_paired_result():
     assert "T8-a" in md
     assert "2 probes helped, 0 hurt, 2 tied" in md
     assert "interference, not retrieval" in md
+
+
+def test_larger_backbone_files_do_not_shadow_the_06b_results(tmp_path, monkeypatch):
+    """Regression: t7e_17b.json also starts with "t7e", so a prefix-first dispatch
+    would silently overwrite the 0.6B context baselines with the 1.7B run -- and the
+    paper would quote the wrong backbone's numbers under the 0.6B heading."""
+    import importlib.util
+    import json
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[1]
+    spec = importlib.util.spec_from_file_location("run_all_scale",
+                                                 root / "experiments" / "run_all.py")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    monkeypatch.setattr(module, "RUNS", tmp_path)
+
+    for name, marker in (("t7d_longmemeval.json", "06b-weights"),
+                         ("t7e_context_baselines.json", "06b-baselines"),
+                         ("t7f_judge.json", "06b-judge"),
+                         ("t7d_17b.json", "17b-weights"),
+                         ("t7e_17b.json", "17b-baselines"),
+                         ("t7f_judge_17b.json", "17b-judge")):
+        (tmp_path / name).write_text(json.dumps({"marker": marker}), encoding="utf-8")
+
+    recipe = {"inputs": ["t7d_longmemeval.json", "t7e_context_baselines.json",
+                         "t7f_judge.json", "t7d_17b.json", "t7e_17b.json",
+                         "t7f_judge_17b.json"]}
+    merged = module.collect("t7", recipe, "full")
+    assert merged["baselines"]["marker"] == "06b-baselines"
+    assert merged["judge"]["marker"] == "06b-judge"
+    assert merged["scale_17b"]["baselines"]["marker"] == "17b-baselines"
+    assert merged["scale_17b"]["judge"]["marker"] == "17b-judge"
+    assert merged["scale_17b"]["weights"]["marker"] == "17b-weights"

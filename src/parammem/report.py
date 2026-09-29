@@ -338,6 +338,22 @@ def _t7(bundle) -> str:
             )
         wins, losses = _judge_paired(data)
         lines.append(f"| — paired vs `weights` | {wins} won / {losses} lost | | |")
+        if _scale_judge_arms(data):
+            lines += [
+                "",
+                "**Scale control (1.7B backbone, same protocol):**",
+                "",
+                "| arm | judged correct | extra prompt tokens |",
+                "| --- | --- | --- |",
+                f"| `weights` | {_scale_rate(data, 'weights')} | 0 |",
+                f"| `context_all` | {_scale_rate(data, 'context_all')} | "
+                f"{_scale_tokens(data, 'context_all')} |",
+                f"| `context_target` | {_scale_rate(data, 'context_target')} | "
+                f"{_scale_tokens(data, 'context_target')} |",
+                f"| `frozen` | {_scale_rate(data, 'frozen')} | — |",
+                "",
+                f"- containment on the weights arm at 1.7B: {_scale_containment(data, 'mem_on')}",
+            ]
         lines += ["",
                   "The containment column above is **not** the comparison to quote: it "
                   "rewards reproducing the reference string verbatim, which is what a "
@@ -626,6 +642,29 @@ def _retention_probes(t8: dict, arm: str = "top2") -> int | None:
     return len(base) if base else None
 
 
+def _scale_judge_arms(t7: dict) -> dict:
+    payload = ((t7.get("scale_17b") or {}).get("judge")) or {}
+    return (((payload.get("standards") or {}).get("lenient") or {}).get("arms")) or {}
+
+
+def _scale_baseline_arms(t7: dict) -> dict:
+    return (((t7.get("scale_17b") or {}).get("baselines") or {}).get("arms")) or {}
+
+
+def _scale_rate(t7: dict, arm: str) -> str:
+    return _na((_scale_judge_arms(t7).get(arm) or {}).get("correct_rate"), ".3f")
+
+
+def _scale_tokens(t7: dict, arm: str) -> str:
+    return _na((_scale_baseline_arms(t7).get(arm) or {}).get("mean_prompt_tokens"),
+               ".0f")
+
+
+def _scale_containment(t7: dict, key: str) -> str:
+    payload = ((t7.get("scale_17b") or {}).get("weights")) or {}
+    return _na((payload.get("containment") or {}).get(key), ".3f")
+
+
 def _judge_block(t7: dict, standard: str = "lenient") -> dict:
     """The judge's per-arm summary for one grading standard."""
     return (((t7.get("judge") or {}).get("standards") or {}).get(standard) or {})
@@ -860,6 +899,13 @@ def headline_values(bundle: dict[str, Any]) -> dict[str, str]:
         "tVerboseParisKL": _na(_forced_span(bundle, "verbose_loss"), ".2f"),
         "tSurpriseMedianUnknown": _na(_surprise_median(bundle, "unknown"), ".2f"),
         "tSurpriseMedianKnown": _na(_surprise_median(bundle, "known"), ".2f"),
+        # ---- the 1.7B scale control for the real-content diagnostic ----
+        "tScaleWeights": _scale_rate(t7, "weights"),
+        "tScaleContextAll": _scale_rate(t7, "context_all"),
+        "tScaleContextTarget": _scale_rate(t7, "context_target"),
+        "tScaleFrozen": _scale_rate(t7, "frozen"),
+        "tScaleContainment": _scale_containment(t7, "mem_on"),
+        "tScaleTokens": _scale_tokens(t7, "context_all"),
     }
 
 
@@ -1101,6 +1147,16 @@ def _latex_t7(bundle) -> str:
              f"{_judge_tokens(data, 'weights')}"],
             ["\\quad extra prompt tokens (context\\_all)",
              f"{_judge_tokens(data, 'context_all')}"],
+        ]
+    if _scale_judge_arms(data):
+        rows += [
+            ["\\midrule", ""],
+            ["\\emph{scale control}, 1.7B weights",
+             _scale_rate(data, "weights")],
+            ["\\quad \\texttt{context\\_all}", _scale_rate(data, "context_all")],
+            ["\\quad \\texttt{context\\_target}", _scale_rate(data, "context_target")],
+            ["\\quad \\texttt{frozen}", _scale_rate(data, "frozen")],
+            ["\\quad containment (weights)", _scale_containment(data, "mem_on")],
         ]
     return _table(
         "T7-d: a controlled diagnostic on real benchmark content. The history is "

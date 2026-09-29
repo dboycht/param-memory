@@ -120,11 +120,13 @@ STAGES: dict[str, dict] = {
         "script": "t7d_longmemeval_pilot.py",
         "inputs": ["t7d_longmemeval.json", "t7d_longmemeval_holdout.json",
                    "t7e_context_baselines.json", "t7f_judge.json",
-                   "t7d_longmemeval_gen32.json", "judge_calibration_result.json"],
+                   "t7d_longmemeval_gen32.json", "judge_calibration_result.json",
+                   "t7d_17b.json", "t7e_17b.json", "t7f_judge_17b.json"],
         # Four phases: the weights run, its pre-registered held-out replication
         # (docs/06 section 9), the context/RAG baselines, and the LLM judge. The
         # judge needs the user's API key and ~70 minutes at 3 requests/minute, so it
         # is only re-run deliberately -- but its report is what the paper quotes.
+        # The 1.7B files are the scale control: same protocol, larger backbone.
         "phases": [
             ["--subset", "30", "--negatives", "5", "--max-new-tokens", "96",
              "--out", "runs/t7d_longmemeval.json"],
@@ -226,9 +228,20 @@ def collect(stage: str, recipe: dict, mode: str) -> dict:
                 "read": by_name.get("t6_read.json", {})}
     if stage == "t7":
         merged: dict = {}
+        scale: dict = {}
         for name, payload in pairs:
+            # "17b" is checked FIRST: t7e_17b.json also starts with "t7e", and
+            # letting the generic prefix win would silently overwrite the 0.6B
+            # baselines with the larger-backbone run's numbers.
             if "holdout" in name:
                 merged["holdout"] = payload
+            elif "17b" in name:
+                if name.startswith("t7d"):
+                    scale["weights"] = payload
+                elif name.startswith("t7e"):
+                    scale["baselines"] = payload
+                elif name.startswith("t7f"):
+                    scale["judge"] = payload
             elif name.startswith("t7e"):
                 merged["baselines"] = payload
             elif name.startswith("t7f"):
@@ -242,6 +255,8 @@ def collect(stage: str, recipe: dict, mode: str) -> dict:
                 merged["calibration"] = payload
             else:
                 merged.update(payload)
+        if scale:
+            merged["scale_17b"] = scale
         return merged
     if stage == "t3":
         by_name = dict(pairs)
