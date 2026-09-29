@@ -27,12 +27,21 @@ venv/
 /.scratch/
 
 # ---- 论文编译中间产物（源码 paper/main.tex 与 paper/generated_tables.tex 入库；
-#      PDF 与 aux 由 pdflatex 生成，不入库）----
+#      PDF 与其余中间产物由 pdflatex 生成，不入库）----
+#      教训：漏列 *.synctex.gz 时，一次提交就把这个构建产物推上了仓库。
 /paper/*.aux
 /paper/*.out
 /paper/*.toc
 /paper/*.pdf
 /paper/*.txt
+/paper/*.synctex.gz
+/paper/*.fls
+/paper/*.fdb_latexmk
+/paper/*.bbl
+/paper/*.blg
+/paper/*.nav
+/paper/*.snm
+/paper/*.vrb
 
 # ---- 开发副本专用文档（只留开发副本，不同步 GitHub）----
 DEVELOPMENT.md
