@@ -80,6 +80,8 @@ def parse_args() -> argparse.Namespace:
     ap.add_argument("--temperature", type=float, default=None,
                     help="omit to let the server use its own value (kimi-k2.6 only "
                          "accepts 1)")
+    ap.add_argument("--max-tokens", type=int, default=8192,
+                    help="judge completion budget; 2048 truncated 12/180 replies")
     ap.add_argument("--out", default="")
     return ap.parse_args()
 
@@ -182,6 +184,7 @@ def main() -> int:
         timeout=float(config.get("timeout", 90)),
         min_interval=args.min_interval,
         temperature=args.temperature,
+        max_tokens=args.max_tokens,
     )
     log(f"judge: {judge!r}")      # repr masks the key
 

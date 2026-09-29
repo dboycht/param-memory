@@ -67,7 +67,9 @@ def parse_args() -> argparse.Namespace:
     ap.add_argument("--topk", type=int, nargs="*", default=[1, 3])
     ap.add_argument("--weights-result", default="runs/t7d_longmemeval.json",
                     help="the T7-d report whose question ids this run must match")
-    ap.add_argument("--max-new-tokens", type=int, default=32)
+    ap.add_argument("--max-new-tokens", type=int, default=96,
+                    help="32 truncated long reference answers; raise with T7-d so the "
+                         "arms are compared at the same generation budget")
     ap.add_argument("--out", default="runs/t7e_context_baselines.json")
     return ap.parse_args()
 

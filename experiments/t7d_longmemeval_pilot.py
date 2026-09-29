@@ -62,7 +62,9 @@ def parse_args() -> argparse.Namespace:
     ap.add_argument("--steps", type=int, default=12)
     ap.add_argument("--lr", type=float, default=1e-3)
     ap.add_argument("--lambda-kl", type=float, default=1.0)
-    ap.add_argument("--max-new-tokens", type=int, default=32)
+    ap.add_argument("--max-new-tokens", type=int, default=96,
+                    help="32 truncated long reference answers, which both depressed "
+                         "the weights arm and made the judge call it incomplete")
     ap.add_argument("--manual-samples", type=int, default=10)
     ap.add_argument("--out", default="runs/t7d_longmemeval.json")
     return ap.parse_args()

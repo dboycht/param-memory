@@ -230,7 +230,10 @@ class LLMJudge:
     # fixed value (kimi-k2.6 rejects anything but temperature=1 with HTTP 400), so
     # omitting it is more portable than guessing a "safe" number.
     temperature: float | None = None
-    max_tokens: int = 2048
+    # 2048 was not enough: 12 of 180 verdicts came back with finish_reason=length and
+    # had to be recovered from a truncated reasoning field, and the disagreements
+    # between arms concentrated on exactly those rows.
+    max_tokens: int = 8192
     post: Callable[[str, dict, dict], str] | None = None
     sleep: Callable[[float], None] = time.sleep
     _last_call: float = field(default=0.0, repr=False)
