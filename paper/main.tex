@@ -377,7 +377,8 @@ retrieval: the correct slot is among the two best-routed ones on
 \tRetentionTopTwoBase{}. The interference is manufactured by the writes --- each one
 is trained to produce its own value and told nothing about the queries the bank
 already answers --- so we make it explicit. The write objective gains a
-\textbf{retention term}: earlier memories' queries must keep their next-token
+\textbf{retention term} (Equation~\ref{eq:retention}): earlier memories' queries must
+keep their next-token
 distributions under the read condition where interference actually appears (all
 written slots active), with the reference captured from the bank as it stands before
 the write. It reuses the anchor machinery of Section~\ref{sec:results}, pointed at
@@ -574,8 +575,9 @@ pdflatex main && pdflatex main
 
 Every stage is a separate process writing its own JSON report; a failing stage is
 labelled \texttt{FAILED} in the bundle and its numbers render as \texttt{n/a},
-never as zero. All numbers in this paper come from \texttt{generated\_tables.tex},
-which is generated from \texttt{runs/summary.json}.
+never as zero. Table~\ref{tab:status} is that bundle's own summary: which stages are
+present in the run that produced this paper. All numbers in this paper come from
+\texttt{generated\_tables.tex}, which is generated from \texttt{runs/summary.json}.
 
 Two boundaries are worth stating precisely rather than implying full
 reproducibility. First, the T7-f grading phase calls a hosted model: it needs a
