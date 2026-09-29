@@ -246,6 +246,36 @@ def test_quick_mode_never_overwrites_a_full_run_artifact():
         )
 
 
+def test_a_full_run_refreshes_what_collect_reads():
+    """Two stages wrote their full run somewhere other than the file `inputs`
+    names, so `--mode full` silently failed to refresh the numbers the paper
+    quotes -- the collected values would have stayed from an older run."""
+    import importlib.util
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[1]
+    spec = importlib.util.spec_from_file_location("run_all_under_test_full",
+                                                 root / "experiments" / "run_all.py")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+
+    for stage, recipe in module.STAGES.items():
+        collected = {str(p).split("/")[-1] for p in recipe["inputs"]}
+        if "phases" in recipe:
+            args = [token for phase in recipe["phases"] for token in phase]
+        else:
+            args = list(recipe["full"])
+        written = set()
+        for index, token in enumerate(args):
+            if token in ("--out", "--snapshot") and index + 1 < len(args):
+                written.add(args[index + 1].split("/")[-1])
+        assert written & collected, (
+            f"{stage}: --mode full writes {sorted(written) or ['<defaults>']}, none of "
+            f"which is a collected input ({sorted(collected)}), so a full run would "
+            "not refresh the reported numbers"
+        )
+
+
 # ------------------------------------------------------------ headline values
 
 def test_headline_values_exposes_the_quoted_numbers():

@@ -47,15 +47,21 @@ STAGES: dict[str, dict] = {
     "t1": {
         "script": "t1_write_read.py",
         "inputs": ["t1_06b.json"],
-        "full": ["--episodes", "3", "--n-slots", "16", "--out", "runs/t1_write_read.json"],
+        # The output name carries the backbone size on purpose (the 1.7B control run
+        # lives beside it), and it must match what collect() reads: writing
+        # somewhere else meant --mode full did not refresh the quoted numbers.
+        "full": ["--episodes", "3", "--n-slots", "16", "--out", "runs/t1_06b.json"],
         "quick": ["--episodes", "1", "--n-slots", "8", "--steps", "4",
                   "--out", "runs/t1_quick.json"],
     },
     "t2": {
         "script": "t2_composition.py",
         "inputs": ["t2_paraphrase.json"],
-        "full": ["--items", "8", "--episodes", "3", "--paraphrase",
-                 "--out", "runs/t2_composition_paraphrase.json"],
+        # Five episodes, not three: the per-episode spread on two-slot recall is
+        # large (4, 0, 4, 4, 3 of 8), so an aggregate is only meaningful when one
+        # bad seed cannot carry it.
+        "full": ["--items", "8", "--episodes", "5", "--paraphrase",
+                 "--out", "runs/t2_paraphrase.json"],
         "quick": ["--items", "4", "--episodes", "1", "--steps", "4", "--paraphrase",
                   "--out", "runs/t2_quick.json"],
     },
