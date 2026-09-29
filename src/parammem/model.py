@@ -347,6 +347,15 @@ class Backbone:
         for wrapper in self.wrappers.values():
             wrapper.erase_all()
 
+    def is_slot_virgin(self, slot: int) -> bool:
+        """True when ``slot`` is bit-identical to its never-written state.
+
+        The forgetting claim is only worth anything if it can be checked at
+        scale, so eviction asserts this on every erased slot: a memory is either
+        present or provably absent, never "mostly gone".
+        """
+        return all(w.is_virgin(slot) for w in self.wrappers.values())
+
     def slot_norm(self, slot: int) -> float:
         return sum(w.slot_norm(slot) for w in self.wrappers.values())
 
