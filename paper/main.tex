@@ -234,6 +234,27 @@ degenerate repetition disappears and the sum-based read improves from $1/4$ to
 $2/4$; both alternatives remain available as an ablation
 (\texttt{--anchor-mode sum}).
 
+The anchor term protects the \emph{backbone}: generic prompts must not move. It does
+not protect the \emph{bank}. A write is told nothing about the queries the slots
+already answer, which is why reads that activate more than one slot collide
+(Section~\ref{sec:results}). We therefore also measure an optional \textbf{retention
+term} of the same shape,
+\begin{equation}
+\mathcal{L} = \mathrm{CE}(v \mid q)
+\; + \; \lambda \, D_{\mathrm{KL}}\!\left(p_{\text{frozen}}^{(t)} \,\|\,
+p_{\text{slot}}^{(t)}\right)
+\; + \; \lambda_{\mathrm{ret}} \, D_{\mathrm{KL}}\!\left(p_{\text{bank}}^{(t)}
+\,\|\, p_{\text{bank}+k}^{(t)}\right),
+\label{eq:retention}
+\end{equation}
+whose reference $p_{\text{bank}}$ is captured from the bank \emph{as it stands before
+the write} --- previously written slots active, new slot zero-initialised and
+therefore contributing nothing --- on the queries of earlier memories, and whose
+current term is evaluated with the new slot added, i.e. under the read condition
+where the interference actually appears. Its weight is swept in
+Table~\ref{tab:t8}; $\lambda_{\mathrm{ret}} = 0$ recovers
+Equation~\ref{eq:loss}.
+
 \subsection{Reading: select, do not sum}
 \label{sec:routing}
 
@@ -459,6 +480,13 @@ verbosity structure instead.
   $12$-memory stream the generic prompts are no longer answered verbatim and the
   all-position KL is $\approx 1$ nat. Parametric memory is not free, and the cost
   grows with the number of writes.
+\item \textbf{The retention repair is suggestive, not established.} It was measured
+  on $8$ memories over \tRetentionProbes{} probes drawn from one seed family:
+  paired probe by probe it helped \tRetentionHelped{} and hurt \tRetentionHurt{}
+  (exact sign test $p = \tRetentionP{}$), so the direction is consistent but this
+  sample does not settle it. It also does not repair many-way superposition --- with
+  every slot active recall is still \tRetentionAllBest{} at best --- so the claim it
+  supports is about \emph{pairs} of memories, not about a bank of many.
 \item \textbf{Public benchmarks: a scoped diagnosis, not a comparison.} We report
   protocol-controlled synthetic results plus one scoped public-benchmark
   diagnostic (Section~\ref{sec:results}). We did cost the adaptation of
@@ -470,7 +498,8 @@ verbosity structure instead.
   directly in the weights. Second, and more fundamental: the benchmark's hard
   question types (multi-session and temporal reasoning) require combining evidence
   from \emph{several} stored items, whereas our read path deliberately activates
-  exactly one slot (Section~\ref{sec:routing} shows two already collapse recall).
+  exactly one slot (Section~\ref{sec:routing} shows two already collapse recall,
+  and the retention term of Section~\ref{sec:results} repairs that only partly).
   That is a mechanism boundary, not a compute limit, and it would not move on a
   larger machine. MemoryAgentBench~\cite{mab}, the one public skeleton that
   isolates test-time learning \emph{and} selective forgetting, remains the right
