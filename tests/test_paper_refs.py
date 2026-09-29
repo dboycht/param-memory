@@ -22,10 +22,14 @@ def _read(name: str) -> str:
 def test_every_generated_table_and_equation_is_referenced():
     main_tex = _read("main.tex")
     generated = _read("generated_tables.tex")
-    for kind in ("tab", "eq"):
-        defined = set(re.findall(r"\\label\{(" + kind + r":[^}]*)\}", generated))
+    # Tables are emitted into generated_tables.tex; equations are written in the
+    # paper itself. Looking for both in the generated file finds no equations and
+    # makes this test fail for the wrong reason.
+    sources = {"tab": generated, "eq": main_tex}
+    for kind, definitions in sources.items():
+        defined = set(re.findall(r"\\label\{(" + kind + r":[^}]*)\}", definitions))
         referenced = set(re.findall(r"\\ref\{(" + kind + r":[^}]*)\}", main_tex))
-        assert defined, f"no {kind} labels found in generated_tables.tex"
+        assert defined, f"no {kind} labels found in the expected source"
         assert not (defined - referenced), (
             f"{kind} defined but never referenced: {sorted(defined - referenced)}"
         )
