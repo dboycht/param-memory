@@ -101,6 +101,21 @@ def test_inertia_block_can_be_disabled():
     assert make_episode(2, with_inertia=False).inertia is None
 
 
+def test_inertia_premise_is_writable():
+    """The premise must exist as a query->answer pair so the three-arm comparison
+    (absent / in context / in the weights) can actually write it."""
+    for seed in range(30):
+        inertia = make_episode(seed).inertia
+        assert inertia is not None
+        assert inertia.premise_query, seed
+        assert inertia.premise_answer, seed
+        assert inertia.old_topic in inertia.premise_query, seed
+        assert inertia.premise_query not in inertia.new_task, seed
+        # The written answer must actually be part of the premise, otherwise the
+        # parametric arm would be storing something the context arm never saw.
+        assert inertia.premise_answer.lower() in inertia.premise.lower(), seed
+
+
 def test_capacity_k_is_recorded():
     episode = make_episode(4, capacity_k=8, n_facts=3)
     assert episode.capacity_k == 8

@@ -124,16 +124,22 @@ _NOISE_STATEMENTS = (
 _INERTIA_CASES = (
     {
         "premise": "{country} drives on the left-hand side of the road.",
+        "premise_query": "Which side of the road do cars use in {country}?",
+        "premise_answer": "left",
         "new_task": "Now let's talk about {other}. Which side of the road do cars use there?",
         "inherited_keywords": ("left", "left-hand", "left hand"),
     },
     {
         "premise": "In {country} the standard unit of length is the {unit}.",
+        "premise_query": "What is the standard unit of length in {country}?",
+        "premise_answer": "{unit}",
         "new_task": "Switching topics: what unit of length should I use for {other}?",
         "inherited_keywords": ("{unit_lower}",),
     },
     {
         "premise": "{country} has a population of exactly 12 million people.",
+        "premise_query": "What is the population of {country}?",
+        "premise_answer": "12 million",
         "new_task": "Different topic now: what is the population of {other}?",
         "inherited_keywords": ("12 million", "12,000,000", "12000000"),
     },
@@ -195,13 +201,21 @@ class Probe:
 
 @dataclass(frozen=True)
 class InertiaBlock:
-    """Topic-A wrong premise -> topic-B switch; measures I1/I2/I3."""
+    """Topic-A wrong premise -> topic-B switch; measures I1/I2/I3.
+
+    ``premise_query`` / ``premise_answer`` exist so the premise can be *written*
+    into a memory slot as a normal query->answer pair. That is what makes the
+    three-arm comparison possible: the same premise is either absent, kept in the
+    context, or stored in the weights.
+    """
 
     old_topic: str
     premise: str
     new_task: str
     inherited_keywords: tuple[str, ...]
     old_topic_keywords: tuple[str, ...]
+    premise_query: str = ""
+    premise_answer: str = ""
 
 
 @dataclass
@@ -421,6 +435,8 @@ def make_episode(
         unit = next_value("capital").value
         premise = case["premise"].format(country=country, unit=unit)
         new_task = case["new_task"].format(other=other)
+        premise_query = case["premise_query"].format(country=country, unit=unit)
+        premise_answer = case["premise_answer"].format(country=country, unit=unit)
         keywords = tuple(
             k.format(unit_lower=unit.lower()) for k in case["inherited_keywords"]
         )
@@ -430,6 +446,8 @@ def make_episode(
             new_task=new_task,
             inherited_keywords=keywords,
             old_topic_keywords=(country.lower(), unit.lower()),
+            premise_query=premise_query,
+            premise_answer=premise_answer,
         )
 
     if vcur > _MAX_VALUE_INDEX:
