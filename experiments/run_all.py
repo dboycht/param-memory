@@ -67,9 +67,18 @@ STAGES: dict[str, dict] = {
     },
     "t3": {
         "script": "t3_write_policy.py",
-        "inputs": ["t3_write_policy.json"],
-        "full": ["--facts", "5", "--out", "runs/t3_write_policy.json"],
-        "quick": ["--facts", "2", "--steps", "4", "--out", "runs/t3_quick.json"],
+        "inputs": ["t3_write_policy.json", "t3_seed1.json", "t3_seed2.json"],
+        # Three seeds: the write counts are deterministic but the backbone drift is
+        # not, so the paper quotes a range rather than one seed's number.
+        "phases": [
+            ["--facts", "5", "--seed", "0", "--out", "runs/t3_write_policy.json"],
+            ["--facts", "5", "--seed", "1", "--out", "runs/t3_seed1.json"],
+            ["--facts", "5", "--seed", "2", "--out", "runs/t3_seed2.json"],
+        ],
+        "quick_phases": [
+            ["--facts", "2", "--seed", "0", "--steps", "4",
+             "--out", "runs/t3_quick.json"],
+        ],
     },
     "t4": {
         "script": "t4_capacity.py",
@@ -229,6 +238,14 @@ def collect(stage: str, recipe: dict, mode: str) -> dict:
                 merged["calibration"] = payload
             else:
                 merged.update(payload)
+        return merged
+    if stage == "t3":
+        by_name = dict(pairs)
+        merged = dict(by_name.get("t3_write_policy.json") or {})
+        extra = [by_name[name] for name in ("t3_seed1.json", "t3_seed2.json")
+                 if name in by_name]
+        if extra:
+            merged["extra_seeds"] = extra
         return merged
     if stage == "t8":
         by_name = dict(pairs)

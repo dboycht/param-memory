@@ -46,8 +46,8 @@ capacity, is the bottleneck}: summing the slots destroys recall
 ($\mathrm{top\text{-}1} = \tTopOne{}$ against an oracle of $\tOracle{}$, a
 paraphrased query, and the residual gap equals the routing error exactly). A
 label-free self-check criterion matches full-write recall with
-$\tSelfWrites$ instead of $\tAlwaysWrites$ writes ($-72\%$) and
-$\tSelfKL$ instead of $\tAlwaysKL$ nats of backbone drift ($-79\%$).
+$\tSelfWrites$ instead of $\tAlwaysWrites$ writes ($-\tSelfWriteReduction$) and
+$\tSelfKL$ instead of $\tAlwaysKL$ nats of backbone drift (about four fifths less).
 \textbf{Two claims fail, and we report them rather than the ones that flatter
 the idea.} A likelihood-threshold ``surprise'' criterion measures \emph{wording}
 rather than knowledge --- the model never answers with the bare value, so a fact
@@ -406,8 +406,11 @@ Writing everything costs $\tAlwaysWrites$ gradient writes, of which
 $\tAlwaysWasted$ are spent on facts the model already answers, and moves the
 frozen backbone by $\tAlwaysKL$ nats. The self-check criterion spends
 $\tSelfWrites$ writes, wastes $\tSelfWasted$, misses $\tSelfMissed$ targets, and
-moves the backbone by $\tSelfKL$ nats --- the same recall for $72\%$ fewer writes
-and $79\%$ less drift. The likelihood-based criterion is the cautionary tale:
+moves the backbone by $\tSelfKL$ nats --- the same recall for
+$\tSelfWriteReduction$ fewer writes and $\tSelfKlReductionMin$--$\tSelfKlReductionMax$
+less drift across \tSelfSeeds{} seeds (the counts are deterministic; the drift is
+not, which is why it is a range). The likelihood-based criterion is the cautionary
+tale:
 it separates the classes only barely (Table~\ref{tab:t3loss}), because a fixed
 phrasing measures whether the model would use \emph{that wording}, not whether it
 knows the fact. Asked ``What is the capital of France?'' the model answers

@@ -475,6 +475,46 @@ def _table(caption: str, label: str, columns: list[str], rows: list[list[str]],
     return "\n".join(lines)
 
 
+def _write_reduction(bundle: dict[str, Any]) -> float | None:
+    """How many fewer writes the self-check criterion needs than writing everything.
+
+    Computed rather than written into the prose: the paper used to carry ``72\\%`` by
+    hand, which is exactly the kind of number that drifts once a criterion changes.
+    """
+    t3 = _get(bundle, "t3") or {}
+    records = (t3.get("summary") or t3).get("records") or []
+    by_policy = {r.get("policy"): r for r in records}
+    always, selfcheck = by_policy.get("always"), by_policy.get("selfcheck")
+    if not always or not selfcheck:
+        return None
+    total = always.get("n_writes") or 0
+    if not total:
+        return None
+    return 1 - (selfcheck.get("n_writes") or 0) / total
+
+
+def _t3_seed_reductions(bundle: dict[str, Any]) -> list[float]:
+    """Backbone-drift reduction (selfcheck vs always) for each T3 seed.
+
+    The write counts are deterministic given the criteria, but which facts the model
+    already answers --- and therefore how far the backbone moves --- depends on the
+    seed, so the paper quotes a range instead of one number.
+    """
+    t3 = _get(bundle, "t3") or {}
+    payloads = [t3] + list(t3.get("extra_seeds") or [])
+    reductions = []
+    for payload in payloads:
+        records = (payload.get("summary") or payload).get("records") or []
+        by_policy = {r.get("policy"): r for r in records}
+        base, best = by_policy.get("always"), by_policy.get("selfcheck")
+        if not base or not best:
+            continue
+        baseline_kl = base.get("anchor_kl") or 0.0
+        if baseline_kl:
+            reductions.append(1 - (best.get("anchor_kl") or 0.0) / baseline_kl)
+    return reductions
+
+
 def _retention_small(t8: dict) -> dict:
     """The earlier, smaller retention run, when the bundle carries both.
 
@@ -786,6 +826,13 @@ def headline_values(bundle: dict[str, Any]) -> dict[str, str]:
         "tRetentionSmallBest": _retention_em(_retention_small(t8),
                                             _retention_best(_retention_small(t8)),
                                             "top2"),
+        # ---- T3 robustness across seeds ----
+        "tSelfSeeds": _na(len(_t3_seed_reductions(bundle)) or None),
+        "tSelfKlReductionMin": _na(
+            min(_t3_seed_reductions(bundle), default=None), ".0%"),
+        "tSelfKlReductionMax": _na(
+            max(_t3_seed_reductions(bundle), default=None), ".0%"),
+        "tSelfWriteReduction": _na(_write_reduction(bundle), ".0%"),
     }
 
 
