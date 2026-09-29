@@ -150,7 +150,17 @@ class RankBlockedLoRA(nn.Module):
         MEM_ON / MEM_OFF / MEM_SHUFFLE for protocol P4 without touching any
         weight, so the compared passes are byte-identical apart from the mask.
         """
-        mask = self._new_mask(slots)
+        self.set_read_mask(self._new_mask(slots))
+
+    def read_mask(self) -> torch.Tensor:
+        """Current read mask, shape ``(total_rank, 1)``.
+
+        Public on purpose: a caller that must run a forward with the memory off
+        (e.g. to capture a retrieval key) has to save and restore it.
+        """
+        return self._read_mask_A
+
+    def set_read_mask(self, mask: torch.Tensor) -> None:
         self._read_mask_A = mask
         self._read_mask_B = mask.reshape(1, -1)
 

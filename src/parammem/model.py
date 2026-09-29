@@ -308,6 +308,31 @@ class Backbone:
             total = term if total is None else total + term
         return total / len(anchors)
 
+    # ------------------------------------------------------------ retrieval
+    @torch.no_grad()
+    def query_key(self, query: str, *, memory_off: bool = True) -> torch.Tensor:
+        """L2-normalised retrieval key for ``query``: the final hidden state.
+
+        Captured with the memory switched **off** by default. That is deliberate:
+        a key taken with slots active would depend on which memories happen to be
+        written, so a key stored when slot k was written would no longer match the
+        same query's key at read time. The key must be a property of the query
+        under the frozen backbone, and the read path must use the same convention.
+        """
+        saved = None
+        if memory_off:
+            saved = {name: w.read_mask() for name, w in self.wrappers.items()}
+            self.set_read_slots([])
+        try:
+            prompt_ids = self._ids(self._chat(query))
+            out = self.model(input_ids=prompt_ids, output_hidden_states=True)
+            hidden = out.hidden_states[-1][0, -1].float()
+            return hidden / hidden.norm().clamp_min(1e-6)
+        finally:
+            if memory_off and saved is not None:
+                for name, mask in saved.items():
+                    self.wrappers[name].set_read_mask(mask)
+
     # ------------------------------------------------------------------ arms
     def set_read_slots(self, slots: Iterable[int] | None) -> None:
         for wrapper in self.wrappers.values():
