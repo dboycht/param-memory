@@ -99,11 +99,21 @@ STAGES: dict[str, dict] = {
     },
     "t7": {
         "script": "t7d_longmemeval_pilot.py",
-        "inputs": ["t7d_longmemeval.json"],
-        "full": ["--subset", "30", "--negatives", "5",
-                 "--out", "runs/t7d_longmemeval.json"],
-        "quick": ["--subset", "4", "--negatives", "2", "--steps", "4",
-                  "--out", "runs/t7d_quick.json"],
+        "inputs": ["t7d_longmemeval.json", "t7d_longmemeval_holdout.json"],
+        # Two phases: the pre-registered subset, then the pre-registered held-out
+        # replication on the next 30 questions (docs/06 section 9).
+        "phases": [
+            ["--subset", "30", "--negatives", "5",
+             "--out", "runs/t7d_longmemeval.json"],
+            ["--subset", "30", "--offset", "30", "--negatives", "5",
+             "--out", "runs/t7d_longmemeval_holdout.json"],
+        ],
+        "quick_phases": [
+            ["--subset", "3", "--negatives", "2", "--steps", "4",
+             "--out", "runs/t7d_quick.json"],
+            ["--subset", "3", "--offset", "3", "--negatives", "2", "--steps", "4",
+             "--out", "runs/t7d_quick_holdout.json"],
+        ],
     },
 }
 
@@ -160,6 +170,11 @@ def collect(stage: str, recipe: dict, mode: str) -> dict:
     if stage == "t6":
         return {"write": payloads[0] if payloads else {},
                 "read": payloads[1] if len(payloads) > 1 else {}}
+    if stage == "t7":
+        merged = dict(payloads[0]) if payloads else {}
+        if len(payloads) > 1:
+            merged["holdout"] = payloads[1]
+        return merged
     return payloads[0] if payloads else {}
 
 

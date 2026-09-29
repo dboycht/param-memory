@@ -52,6 +52,9 @@ def parse_args() -> argparse.Namespace:
     ap.add_argument("--model", default="Qwen/Qwen3-0.6B")
     ap.add_argument("--data", default=str(DATA))
     ap.add_argument("--subset", type=int, default=30)
+    ap.add_argument("--offset", type=int, default=0,
+                    help="skip this many single-session questions first; used for the "
+                         "pre-registered held-out replication (docs/06 section 9)")
     ap.add_argument("--negatives", type=int, default=5,
                     help="unwritten questions asked with the full memory active (P3)")
     ap.add_argument("--rank", type=int, default=4)
@@ -109,10 +112,12 @@ def main() -> int:
     singles = [d for d in raw
                if str(d.get("question_type", "")).startswith("single-session")]
     singles.sort(key=lambda d: d["question_id"])
-    chosen = singles[: args.subset]
-    negatives = singles[args.subset: args.subset + args.negatives]
+    chosen = singles[args.offset: args.offset + args.subset]
+    negatives = singles[args.offset + args.subset:
+                        args.offset + args.subset + args.negatives]
     print(f"file sha256 {digest[:16]}…  single-session pool {len(singles)}  "
-          f"subset {len(chosen)}  negatives {len(negatives)}", flush=True)
+          f"offset {args.offset}  subset {len(chosen)}  negatives {len(negatives)}",
+          flush=True)
 
     cfg = BackboneConfig(
         model_id=resolve_model_path(args.model), n_slots=max(32, args.subset + 1),

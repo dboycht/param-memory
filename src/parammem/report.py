@@ -11,7 +11,7 @@ from __future__ import annotations
 from typing import Any
 
 __all__ = ["build_results_markdown", "build_results_latex", "headline_values",
-           "stage_status"]
+           "replication_verdict", "stage_status"]
 
 NOT_AVAILABLE = "_not available in this run_"
 
@@ -265,6 +265,26 @@ def _t7(bundle) -> str:
         "Caveats that must travel with these numbers:",
     ]
     lines += [f"- {cav}" for cav in data.get("caveats", [])]
+
+    holdout = data.get("holdout") or {}
+    if holdout:
+        hc = holdout.get("containment") or {}
+        lines += [
+            "",
+            "**Held-out replication** (pre-registered rule, docs/06 section 9; "
+            f"{holdout.get('n_subset', '?')} *different* questions):",
+            "",
+            "| arm | containment |",
+            "| --- | --- |",
+            f"| `frozen` | {hc.get('frozen', float('nan')):.3f} |",
+            f"| `mem_on` | {hc.get('mem_on', float('nan')):.3f} |",
+            f"| `mem_off` | {hc.get('mem_off', float('nan')):.3f} |",
+            "",
+            f"- routing accuracy: {holdout.get('routing_accuracy', float('nan')):.3f}",
+            f"- `mem_off` bit-identical to `frozen`: "
+            f"{holdout.get('mem_off_equals_frozen_rate', float('nan')):.3f}",
+            f"- **pre-registered verdict: {replication_verdict(bundle)}**",
+        ]
     lines.append("")
     return "\n".join(lines)
 
@@ -358,6 +378,22 @@ def _table(caption: str, label: str, columns: list[str], rows: list[list[str]],
         lines.append(" & ".join(cells) + r" \\")
     lines += [r"\bottomrule", r"\end{tabular}", r"\end{table}", ""]
     return "\n".join(lines)
+
+
+def replication_verdict(bundle: dict[str, Any], tolerance: float = 0.15) -> str:
+    """Apply the pre-registered replication rule (docs/06 section 9) mechanically.
+
+    Doing this in code rather than by eye is the point: the criterion was written
+    down before the run, so the verdict must not depend on who reads the number.
+    """
+    t7 = _get(bundle, "t7") or {}
+    first = (t7.get("containment") or {}).get("mem_on")
+    holdout = ((t7.get("holdout") or {}).get("containment") or {}).get("mem_on")
+    if first is None or holdout is None:
+        return "n/a"
+    return ("within the pre-registered band"
+            if abs(holdout - first) <= tolerance
+            else "outside the pre-registered band")
 
 
 def headline_values(bundle: dict[str, Any]) -> dict[str, str]:
@@ -461,6 +497,13 @@ def headline_values(bundle: dict[str, Any]) -> dict[str, str]:
             if t7.get("write") else "n/a"
         ),
         "tLongMemCe": _na((t7.get("write") or {}).get("mean_ce_after"), ".4f"),
+        # ---- T7-d held-out replication (pre-registered rule, docs/06 section 9) ----
+        "tHoldoutOn": _na(
+            ((t7.get("holdout") or {}).get("containment") or {}).get("mem_on"), ".3f"),
+        "tHoldoutOff": _na(
+            ((t7.get("holdout") or {}).get("containment") or {}).get("mem_off"), ".3f"),
+        "tHoldoutRouting": _na((t7.get("holdout") or {}).get("routing_accuracy"), ".3f"),
+        "tHoldoutVerdict": replication_verdict(bundle),
     }
 
 
@@ -655,6 +698,16 @@ def _latex_t7(bundle) -> str:
         ["write cost", f"{write.get('count', 'n/a')} items / "
                        f"{write.get('total_seconds', 0) / 60:.1f} min"],
     ]
+    holdout = data.get("holdout") or {}
+    if holdout:
+        hc = holdout.get("containment") or {}
+        rows += [
+            ["\\emph{held-out replication}, mem\\_on",
+             f"{hc.get('mem_on', float('nan')):.3f}"],
+            ["\\emph{held-out replication}, mem\\_off",
+             f"{hc.get('mem_off', float('nan')):.3f}"],
+            ["pre-registered verdict (docs/06 \\S9)", replication_verdict(bundle)],
+        ]
     return _table(
         "T7-d: a controlled diagnostic on real benchmark content. The history is "
         "absent throughout; the answer is written into a slot and read back, so this "

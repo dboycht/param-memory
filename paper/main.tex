@@ -360,8 +360,11 @@ measures whether the parameters can hold real content, not whether retrieval
 generalises; the evidence turn is located with the benchmark's own flags, i.e.
 retrieval is oracle-indexed; and the write query is the read query, so
 \tLongMemRouting{} is an upper bound --- paraphrased routing measured
-\tRouterAcc{} in Section~\ref{sec:routing}. We report it as a scoped diagnosis,
-not a LongMemEval result.
+\tRouterAcc{} in Section~\ref{sec:routing}. On a held-out replication over the
+next 30 questions, containment is \tHoldoutOn{} --- \tHoldoutVerdict{} of the
+pre-registered band (first value $\pm 0.15$), so the effect is not an artefact of
+which questions were drawn. We report it as a scoped diagnosis, not a LongMemEval
+result.
 
 \section{Negative results}
 \label{sec:negative}
@@ -421,7 +424,13 @@ verbosity structure instead.
 \item \textbf{Metric crudeness.} Base degradation is partly judged by exact
   answer identity, which counts ``$2+2=4$'' as a change from the frozen ``2'';
   the KL numbers are the more informative quantity.
-\end{itemize}
+\item \textbf{Single seed for most synthetic stages.} The synthetic experiments
+  (T1--T5) were run once each; what we did instead of a full multi-seed matrix was
+  to replicate the \emph{public-benchmark diagnostic} on a held-out subset of
+  questions (Section~\ref{sec:results}), which is where a lucky draw would have
+  mattered most. Seed-level variance for the synthetic results is therefore
+  unquantified, and every experiment script takes a seed argument so it can be
+  measured.\end{itemize}
 
 \section{Conclusion}
 

@@ -55,7 +55,11 @@ BUNDLE = {
            "routing_accuracy": 1.0, "mem_off_equals_frozen_rate": 1.0,
            "negative_control": {"frozen": 0.1, "mem_on": 0.0},
            "write": {"count": 30, "total_seconds": 1364.0, "mean_ce_after": 0.001},
-           "caveats": ["oracle indexing"]},
+           "caveats": ["oracle indexing"],
+           "holdout": {"n_subset": 30,
+                       "containment": {"frozen": 0.0, "mem_on": 0.80, "mem_off": 0.0,
+                                       "mem_on_full_match": 0.60},
+                       "routing_accuracy": 1.0, "mem_off_equals_frozen_rate": 1.0}},
 }
 
 
@@ -158,7 +162,6 @@ def test_latex_marks_missing_stage_and_still_compiles_structurally():
 
 
 def test_latex_and_markdown_agree_on_the_headline_numbers():
-    """Both renderers read the same JSON, so the same claim must not differ."""
     from parammem.report import build_results_latex, build_results_markdown
     md, tex = build_results_markdown(BUNDLE), build_results_latex(BUNDLE)
     for fragment in ("14/16", "0/16", "16/16", "0.54", "25/30", "6/6"):
@@ -292,3 +295,32 @@ def test_letters_only_guard_fires_on_a_bad_name(monkeypatch):
     )
     with pytest.raises(ValueError, match="letters only"):
         report_module.build_results_latex(BUNDLE)
+
+
+# --------------------------------------------------- held-out replication
+
+def test_replication_verdict_applies_the_pre_registered_band():
+    """The band (first value ±0.15) was fixed in docs/06 section 9 *before* the
+    replication ran, so it is applied by code rather than by eye."""
+    from parammem.report import replication_verdict
+
+    base = {"t7": {"containment": {"mem_on": 0.817}, "holdout": {"containment": {}}}}
+    assert replication_verdict(base) == "n/a"          # nothing to compare yet
+
+    base["t7"]["holdout"]["containment"]["mem_on"] = 0.80   # inside ±0.15
+    assert replication_verdict(base) == "within the pre-registered band"
+
+    base["t7"]["holdout"]["containment"]["mem_on"] = 0.50   # outside
+    assert replication_verdict(base) == "outside the pre-registered band"
+
+
+def test_replication_is_reported_in_both_renderings():
+    from parammem.report import build_results_latex, build_results_markdown
+    md = build_results_markdown(BUNDLE)
+    tex = build_results_latex(BUNDLE)
+    assert "Held-out replication" in md
+    assert "pre-registered verdict: within the pre-registered band" in md
+    for text in (md, tex):
+        assert "0.800" in text, text[:200]
+    assert r"\newcommand{\tHoldoutOn}{0.800}" in tex
+    assert r"\newcommand{\tHoldoutVerdict}{within the pre-registered band}" in tex

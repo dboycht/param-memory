@@ -168,6 +168,7 @@ $\\alpha$、模块集合与每个张量的形状，任一不符即拒绝：这�
 | 快照体积 | {tSnapshotMB} MB（{tSnapshotSlots} 槽） | T6 |
 | **公开基准**：真实问答下 frozen → mem_on | **{tLongMemFrozen} → {tLongMemOn}**（擦除后 {tLongMemOff}） | T7-d |
 | 公开基准：逐字包含率 / 路由准确率 | {tLongMemFull} / {tLongMemRouting} | T7-d |
+| 公开基准：**留出集复制**（另 30 题）mem_on / 判定 | {tHoldoutOn} / {tHoldoutVerdict} | T7-d |
 
 ### 4.2 五条结论
 
