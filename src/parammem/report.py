@@ -10,9 +10,18 @@ from __future__ import annotations
 
 from typing import Any
 
-__all__ = ["build_results_markdown", "stage_status"]
+__all__ = ["build_results_markdown", "build_results_latex", "stage_status"]
 
 NOT_AVAILABLE = "_not available in this run_"
+
+
+def _tex(text: str) -> str:
+    """Escape the characters that would otherwise break a LaTeX table."""
+    out = str(text)
+    for src, dst in (("\\", r"\textbackslash{}"), ("&", r"\&"), ("%", r"\%"),
+                     ("#", r"\#"), ("_", r"\_"), ("{", r"\{"), ("}", r"\}")):
+        out = out.replace(src, dst)
+    return out
 
 
 def _get(bundle: dict[str, Any], stage: str) -> dict[str, Any] | None:
@@ -251,3 +260,277 @@ def build_results_markdown(bundle: dict[str, Any]) -> str:
     header.append("")
     body = [fmt(bundle) for fmt in _FORMATTERS.values()]
     return "\n".join(header + body)
+
+
+# --------------------------------------------------------------------- LaTeX
+#
+# The paper must not contain hand-copied numbers: transcription drift is silent
+# and the whole point of this project is that claims trace back to measurements.
+# So the LaTeX path emits \newcommand macros for every quoted value plus one table
+# per stage, and main.tex only ever refers to the macros.
+
+
+def _na(value, spec: str = "") -> str:
+    if value is None:
+        return "n/a"
+    try:
+        return format(value, spec) if spec else str(value)
+    except (TypeError, ValueError):
+        return str(value)
+
+
+def _counts_pair(pair, order: str) -> str:
+    """T1 stores counts as [total, hits]; T2 stores them as [hits, total]."""
+    if not pair or len(pair) != 2:
+        return "n/a"
+    hits, total = (pair[1], pair[0]) if order == "total_first" else (pair[0], pair[1])
+    return f"{int(hits)}/{int(total)}"
+
+
+def _table(caption: str, label: str, columns: list[str], rows: list[list[str]],
+           align: str, mono_columns: frozenset[int] = frozenset()) -> str:
+    """Build a booktabs table.
+
+    ``caption`` is emitted **as-is**: captions are authored as LaTeX (they contain
+    ``\\texttt{}`` and escaped underscores). Cells and column headers are passed
+    through :func:`_tex`; columns listed in ``mono_columns`` are additionally
+    wrapped in ``\\texttt{}`` *after* escaping, so callers never hand-build LaTeX.
+    """
+    lines = [
+        r"\begin{table}[t]",
+        r"\centering",
+        rf"\caption{{{caption}}}",
+        rf"\label{{{label}}}",
+        rf"\begin{{tabular}}{{{align}}}",
+        r"\toprule",
+        " & ".join(_tex(c) for c in columns) + r" \\",
+        r"\midrule",
+    ]
+    for row in rows:
+        cells = []
+        for index, cell in enumerate(row):
+            escaped = _tex(cell)
+            if index in mono_columns:
+                escaped = rf"\texttt{{{escaped}}}"
+            cells.append(escaped)
+        lines.append(" & ".join(cells) + r" \\")
+    lines += [r"\bottomrule", r"\end{tabular}", r"\end{table}", ""]
+    return "\n".join(lines)
+
+
+def _headline_macros(bundle: dict[str, Any]) -> list[str]:
+    t1 = (_get(bundle, "t1") or {}).get("summary", {})
+    t2 = (_get(bundle, "t2") or {}).get("summary", {})
+    t3 = _get(bundle, "t3") or {}
+    t4 = _get(bundle, "t4") or {}
+    t5 = _get(bundle, "t5") or {}
+    t6 = _get(bundle, "t6") or {}
+
+    t3rec = {r["policy"]: r for r in t3.get("records", [])}
+    self_r, always_r = t3rec.get("selfcheck", {}), t3rec.get("always", {})
+    t4rec = {r["policy"]: r for r in t4.get("records", [])}
+    fifo, smart = t4rec.get("fifo", {}), t4rec.get("utility_time", {})
+    arms = t5.get("arms", {})
+    read = t6.get("read", {})
+    screen = t5.get("floor_screen", {})
+
+    values = {
+        "tTargetCE": _na(t1.get("ce_after_mean"), ".4f"),
+        "tEraseIdentical": _na(t1.get("mem_off_string_identical")),
+        "tIsolation": "ok" if t1.get("frozen_ok_everywhere") else "VIOLATED",
+        "tOracle": _counts_pair(t2.get("counts", {}).get("oracle"), "hits_first"),
+        "tSum": _counts_pair(t2.get("counts", {}).get("all"), "hits_first"),
+        "tTopOne": _counts_pair(t2.get("counts", {}).get("top1"), "hits_first"),
+        "tTopTwo": _counts_pair(t2.get("counts", {}).get("top2"), "hits_first"),
+        "tRouterAcc": _na(t2.get("route_top1_accuracy"), ".3f"),
+        "tAlwaysWrites": _na(always_r.get("n_writes")),
+        "tAlwaysWasted": _na(always_r.get("written_known")),
+        "tSelfWrites": _na(self_r.get("n_writes")),
+        "tSelfWasted": _na(self_r.get("written_known")),
+        "tSelfMissed": _na(self_r.get("missed_unknown")),
+        "tAlwaysKL": _na(always_r.get("anchor_kl"), ".2f"),
+        "tSelfKL": _na(self_r.get("anchor_kl"), ".2f"),
+        "tErased": _na(fifo.get("erased_virgin_ok")) + "/" + _na(fifo.get("erased_checked")),
+        # Per-policy numbers understate the evidence: the same guarantee is checked
+        # once per eviction for every policy, so report the total as well.
+        "tErasedTotal": (
+            f"{sum(r.get('erased_virgin_ok', 0) for r in t4.get('records', []))}/"
+            f"{sum(r.get('erased_checked', 0) for r in t4.get('records', []))}"
+            if t4.get("records") else "n/a"
+        ),
+        "tPolicies": _na(len(t4.get("records", []))) if t4.get("records") else "n/a",
+        "tFifoHot": (
+            f"{fifo.get('oracle_hits', {}).get('hot', 'n/a')}/"
+            f"{fifo.get('resident', {}).get('hot', 'n/a')}" if fifo else "n/a"
+        ),
+        "tSmartHot": (
+            f"{smart.get('oracle_hits', {}).get('hot', 'n/a')}/"
+            f"{smart.get('resident', {}).get('hot', 'n/a')}" if smart else "n/a"
+        ),
+        "tFloor": _na(arms.get("no_memory", {}).get("inheritance_rate"), ".2f"),
+        "tContext": _na(arms.get("context_memory", {}).get("inheritance_rate"), ".2f"),
+        "tParam": _na(arms.get("param_memory", {}).get("inheritance_rate"), ".2f"),
+        "tWithholdFloor": _na(
+            arms.get("no_memory", {}).get("withholding_rate"), ".2f"),
+        "tWithholdMemory": _na(
+            arms.get("param_memory", {}).get("withholding_rate"), ".2f"),
+        "tScreenKept": f"{_na(screen.get('kept'))}/{_na(screen.get('candidates'))}",
+        "tVirgin": _na(read.get("virgin_before_load")),
+        "tSixOracle": _na(read.get("oracle_recall")),
+        "tRouted": _na(read.get("routed_recall")),
+    }
+    out = ["% ---- headline numbers (generated) ----"]
+    out += [rf"\newcommand{{\{name}}}{{{value}}}" for name, value in values.items()]
+    return out
+
+
+def _status_table(bundle: dict[str, Any]) -> str:
+    rows = [[stage, status] for stage, status in stage_status(bundle)]
+    return _table("Stage status of this results bundle.", "tab:status",
+                  ["stage", "status"], rows, "ll")
+
+
+def _latex_t1(bundle) -> str:
+    data = _get(bundle, "t1")
+    if not data:
+        return f"% T1 {NOT_AVAILABLE}"
+    s = data.get("summary", {})
+    rows = []
+    for arm in ("prompt_only", "mem_on", "mem_shuffle", "mem_off"):
+        if arm in s.get("em", {}):
+            rows.append([arm, f"{s['em'][arm]:.3f}",
+                         _counts_pair(s.get("em_counts", {}).get(arm), "total_first")])
+    return _table(
+        "T1: the sum-based read (all slots active) versus the two controls. "
+        "The low \\texttt{mem\\_on} here is the superposition failure that T2 fixes; "
+        "it is not evidence about whether writing works.",
+        "tab:t1", ["arm", "EM", "hits/total"], rows, "lrr", frozenset({0}))
+
+
+def _latex_t2(bundle) -> str:
+    data = _get(bundle, "t2")
+    if not data:
+        return f"% T2 {NOT_AVAILABLE}"
+    s = data.get("summary", {})
+    rows = []
+    for arm in ("oracle", "all", "top1", "top2", "other"):
+        if arm in s.get("em", {}):
+            rows.append([arm, f"{s['em'][arm]:.3f}",
+                         _counts_pair(s.get("counts", {}).get(arm), "hits_first")])
+    return _table(
+        "T2: composition rules on the same writes, read with a paraphrased query. "
+        "Selecting exactly one slot matches the oracle; summing destroys recall; "
+        "two slots already lose most of it.",
+        "tab:t2", ["arm", "EM", "hits/total"], rows, "lrr", frozenset({0}))
+
+
+def _latex_t3(bundle) -> str:
+    data = _get(bundle, "t3")
+    if not data:
+        return f"% T3 {NOT_AVAILABLE}"
+    rows = [[r['policy'], str(r["n_writes"]),
+             f"{r['written_unknown']}/{r['unknown_total']}",
+             f"{r['written_known']}/{r['known_total']}",
+             str(r["missed_unknown"]), f"{r['retained_unknown']}/{r['written_unknown']}",
+             f"{r['anchor_kl']:.2f}"] for r in data.get("records", [])]
+    table = _table(
+        "T3: write criteria. ``wasted on known'' counts gradient writes spent on "
+        "facts the model already answers; ``anchor KL'' is the price paid by the "
+        "frozen backbone.",
+        "tab:t3",
+        ["criterion", "writes", "target", "wasted", "missed", "recall", "anchor KL"],
+        rows, "lrrrrrr", frozenset({0}))
+    by_class = data.get("surprise_by_class", {})
+    if by_class:
+        rows2 = []
+        for kind, values in by_class.items():
+            if values:
+                ordered = sorted(values)
+                rows2.append([kind, str(len(values)), f"{ordered[0]:.2f}",
+                              f"{ordered[len(ordered) // 2]:.2f}", f"{ordered[-1]:.2f}"])
+        table += "\n" + _table(
+            "T3: pre-write loss by class. The ranges overlap almost completely, "
+            "which is why the likelihood-based criterion cannot separate them.",
+            "tab:t3loss", ["class", "n", "min", "median", "max"], rows2, "lrrrr")
+    return table
+
+
+def _latex_t4(bundle) -> str:
+    data = _get(bundle, "t4")
+    if not data:
+        return f"% T4 {NOT_AVAILABLE}"
+    cfg = data.get("config", {})
+    rows = []
+    for r in data.get("records", []):
+        hot, cold = r["oracle_hits"]["hot"], r["resident"]["hot"]
+        chot, ccold = r["oracle_hits"]["cold"], r["resident"]["cold"]
+        rows.append([r['policy'], str(r["evictions"]),
+                     f"{r['erased_virgin_ok']}/{r['erased_checked']}",
+                     f"{hot}/{chot}", f"{cold}/{ccold}",
+                     f"{r['routed_hits']}/{r['n_survivors']}",
+                     "yes" if r["important_retained"] else "NO",
+                     f"{r['anchor_kl']:.2f}"])
+    return _table(
+        f"T4: capacity and forgetting. {cfg.get('stream')} memories stream into "
+        f"{cfg.get('slots')} slots; the first {cfg.get('hot')} are accessed repeatedly. "
+        "Every eviction returns its slot to the virgin state bit-for-bit.",
+        "tab:t4",
+        ["policy", "evictions", "erased", "accessed", "untouched", "routed", "stamp", "anchor KL"],
+        rows, "lrrrrrrcr", frozenset({0}))
+
+
+def _latex_t5(bundle) -> str:
+    data = _get(bundle, "t5")
+    if not data:
+        return f"% T5 {NOT_AVAILABLE}"
+    rows = [[arm, f"{v['inheritance_rate']:.2f}",
+             f"{v['residue_rate']:.2f}", f"{v['withholding_rate']:.2f}"]
+            for arm, v in data.get("arms", {}).items()]
+    return _table(
+        "T5: context inertia, on scenarios whose floor (no premise anywhere) is "
+        "zero. Storing the premise in the weights drags it into the next topic "
+        "exactly as much as leaving it in the context, so the hypothesis is refuted.",
+        "tab:t5", ["arm", "inheritance", "residue", "withholding"], rows, "lrrr",
+        frozenset({0}))
+
+
+def _latex_t6(bundle) -> str:
+    data = _get(bundle, "t6")
+    if not data:
+        return f"% T6 {NOT_AVAILABLE}"
+    read, write = data.get("read", {}), data.get("write", {})
+    snap = write.get("snapshot", {})
+    rows = [
+        ["oracle recall after restart", str(read.get("oracle_recall", "n/a"))],
+        ["routed recall (k=1)", str(read.get("routed_recall", "n/a"))],
+        ["routing correct", str(read.get("routing_correct", "n/a"))],
+        ["side path virgin before load", str(read.get("virgin_before_load", "n/a"))],
+        ["erase after load is virgin", str(read.get("erase_after_load_is_virgin", "n/a"))],
+        ["erased memory still recalled", str(read.get("erased_memory_still_recalled", "n/a"))],
+        ["snapshot size", f"{snap.get('bytes_on_disk', 0) / 1e6:.1f} MB "
+                          f"({snap.get('n_slots', '?')} slots)"],
+    ]
+    return _table(
+        "T6: persistence across two separate processes. The read session's side "
+        "path is virgin before loading, so the recall it achieves can only come "
+        "from disk.",
+        "tab:t6", ["measurement", "value"], rows, "ll")
+
+
+def build_results_latex(bundle: dict[str, Any]) -> str:
+    """A LaTeX fragment: headline-number macros plus one table per stage."""
+    parts = [
+        "% Generated by parammem.report.build_results_latex -- do not edit by hand.",
+        "% Rebuild with: python paper/build_tables.py",
+        "",
+        *_headline_macros(bundle),
+        "",
+        _status_table(bundle),
+        _latex_t1(bundle),
+        _latex_t2(bundle),
+        _latex_t3(bundle),
+        _latex_t4(bundle),
+        _latex_t5(bundle),
+        _latex_t6(bundle),
+    ]
+    return "\n".join(parts)

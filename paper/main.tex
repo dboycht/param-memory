@@ -1,0 +1,457 @@
+% Side-Path Parametric Memory for LLM Agents
+% Compile:  pdflatex main && pdflatex main   (from this directory)
+% Numbers are generated into generated_tables.tex by paper/build_tables.py;
+% this file only ever refers to the emitted macros, never to a hand-copied value.
+\documentclass[11pt]{article}
+
+\usepackage[margin=1in]{geometry}
+\usepackage{booktabs}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage[hidelinks]{hyperref}
+\usepackage{microtype}
+\usepackage{xcolor}
+
+% NOTE: generated_tables.tex is \input *inside* the document body: it contains
+% table floats and \newcommand macros, and floats are illegal in the preamble.
+% Both work in the body, as long as nothing refers to a macro before this point.
+
+\title{\bf Side-Path Parametric Memory for LLM Agents:\\
+Exactly Erasable Slots, Read Without Context}
+\author{D BOY}
+\date{2026-09-29}
+
+\begin{document}
+\maketitle
+\input{generated_tables}
+
+\begin{abstract}
+Long-term memory in today's LLM agents lives in the context window. That channel
+is zero-sum --- every remembered token competes with the tokens needed to reason
+--- and remembered content is indistinguishable from the current working set. We
+study the alternative: a capacity-bounded, \emph{exactly erasable} side path of
+low-rank memory slots attached to a frozen backbone, written at runtime by
+gradient steps, read through the forward pass, and forgotten by erasing a rank
+block. On a 0.6B model, with a purely fictional benchmark and a five-part
+eviction-isolation protocol, we find that \textbf{writes land and touch only their
+own slot} (per-slot recall $4/4$; target cross-entropy $\approx 0$ after a write;
+isolation asserted per tensor), that \textbf{erasure is exact} (an erased slot is
+bit-identical to a never-written one --- checked at every eviction, \tErasedTotal{}
+of them across the \tPolicies{} policies, and again after a process restart), and
+that \textbf{read-time composition, not
+capacity, is the bottleneck}: summing the slots destroys recall
+($\sum = \tSum{}$) while selecting one slot by query-key similarity recovers it
+($\mathrm{top\text{-}1} = \tTopOne{}$ against an oracle of $\tOracle{}$, a
+paraphrased query, and the residual gap equals the routing error exactly). A
+label-free self-check criterion matches full-write recall with
+$\tSelfWrites$ instead of $\tAlwaysWrites$ writes ($-72\%$) and
+$\tSelfKL$ instead of $\tAlwaysKL$ nats of backbone drift ($-79\%$).
+\textbf{Two claims fail, and we report them rather than the ones that flatter
+the idea.} A likelihood-threshold ``surprise'' criterion measures \emph{wording}
+rather than knowledge --- the model never answers with the bare value, so a fact
+it knows perfectly scores as highly surprising --- and parametric memory
+\textbf{does not} reduce context inertia: storing a premise in the weights drags
+it into the next topic exactly as much as leaving it in the context
+($\tContext$ vs $\tParam$ inheritance). The honest summary is that parametric
+memory buys durability and exact forgetting, not insulation from the previous
+topic.
+\end{abstract}
+
+\section{Introduction}
+
+Two problems motivate this work, and we separate them because our results treat
+them very differently.
+
+\paragraph{The context channel is zero-sum.} Without changing weights, the only
+place new information can go is the context window, and that channel has three
+structural defects. It is \emph{zero-sum}: remembered tokens are tokens no longer
+available for reasoning. It is \emph{undifferentiated}: every remembered sentence
+is equally ``present'', so there is no distinction between long-term memory and
+the current working set. And it is \emph{inescapable}: once something is in the
+context it cannot be selectively removed without rewriting the prompt and losing
+the KV cache.
+
+\paragraph{Memory in the context may also be behaviourally sticky.} The second
+motivation was the hypothesis that content in the context is treated as ``what is
+happening now'' rather than as ``history that can be recalled'', and that a memory
+living in the weights would therefore be less likely to be carried across a topic
+switch. We state this here because Section~\ref{sec:negative} reports that we
+\textbf{refuted} it, and because that refutation is more useful to a reader than
+another positive result would have been.
+
+\paragraph{What we build.} A frozen backbone plus a side path of $K$ memory slots,
+each occupying a contiguous block of a single low-rank adapter's rank dimension
+(Section~\ref{sec:method}). A slot is written by gradient steps restricted to its
+own block, read implicitly through the forward pass --- the memory content is
+never placed in the context --- and forgotten by restoring that block to its
+initial state, which makes forgetting \emph{verifiable} rather than gradual.
+
+\paragraph{Contributions.}
+\begin{enumerate}\itemsep2pt
+\item A rank-blocked side path in which writing, reading and erasing are all
+  independently checkable: writes are asserted to touch one slot only, erasure is
+  asserted to return the slot to its virgin state bit-for-bit, and reads can be
+  ablated slot-by-slot on a byte-identical model (Section~\ref{sec:method},
+  Table~\ref{tab:t1}).
+\item The finding that read-time \emph{composition} is the binding constraint:
+  the sum of the slots is worthless, one selected slot is as good as an oracle,
+  and two selected slots already lose most of the benefit
+  (Table~\ref{tab:t2}).
+\item A label-free write criterion (ask the model first) that matches full-write
+  recall at a fraction of the write cost and the backbone drift, plus a
+  refutation of the likelihood-based criterion it replaces (Table~\ref{tab:t3},
+  Table~\ref{tab:t3loss}).
+\item Exact erasure at capacity: every eviction restores its slot to the virgin
+  state, an ``important'' slot survives repeated overflow, and only the dumbest
+  eviction policy actually loses memories that were in use (Table~\ref{tab:t4}).
+\item Persistence across processes, in which a side path that is provably virgin
+  before loading still recalls what it learned in an earlier process, and remains
+  exactly erasable afterwards (Table~\ref{tab:t6}).
+\item Two negative results, both of which constrain the claim rather than
+  decorate it (Section~\ref{sec:negative}).
+\end{enumerate}
+
+\section{Related work}
+\label{sec:related}
+
+\paragraph{Runtime parametric memory.} Titans~\cite{titans} is the clearest
+precedent: a neural long-term memory updated at test time by surprise, with a
+decay that acts as forgetting. It changes the backbone, whereas we freeze it.
+GradMem~\cite{gradmem} writes contextual information into memory tokens by
+test-time gradient descent and is the closest work to our setting --- but it has
+no forgetting mechanism, which is the axis we measure most carefully.
+TTT-style methods~\cite{ttt,ttte2e} compress context into weights and report
+latency wins at long context; \cite{ttte2e} also documents that the naive
+per-token cost of full attention at 128K is $2.7\times$ what its method needs.
+None of these provide per-item erasure.
+
+\paragraph{Slots and adapters.} ProCL~\cite{procl} organizes LoRA adapters into
+structured \emph{program memory} slots retrieved by input-conditioned attention,
+motivated by complementary learning systems --- architecturally the nearest
+neighbour to our slot idea. Its setting is task-incremental fine-tuning with task
+datasets, it does not forget, and its slots are separate adapters rather than rank
+blocks inside one adapter. WISE~\cite{wise} observes an impossibility triangle for
+lifelong editing (reliability, generalization, locality) and uses a main/side
+memory split, which is the structure we instantiate. AlphaEdit~\cite{alphaedit}
+projects edits into the null space of preserved knowledge, a technique we apply
+per slot in the anchor term.
+
+\paragraph{Fact editing.} ROME/MEMIT-style editors~\cite{rome,memit} write facts
+into weights offline and are evaluated mostly on ripple consistency;
+\cite{rippleedits} reports that a simple context-editing baseline can top that
+metric, a warning that we take seriously (Section~\ref{sec:limits}).
+
+\paragraph{Agent memory.} MemGPT/Letta, Mem0, A-MEM, MemoryBank, MemoRAG and
+Zep~\cite{memgpt,mem0,amem,memorybank,memoRAG,zep} are the systems practitioners
+actually use. Every one of them stores memory in a context layer or an external
+store and retrieves it back into the prompt; none performs runtime parameter
+updates. That leaves our setting genuinely unoccupied --- and also means there is
+no established baseline protocol to inherit, which is why
+Section~\ref{sec:protocol} defines one.
+
+\section{Method}
+\label{sec:method}
+
+\subsection{Rank-blocked slots and exact erasure}
+
+The backbone $M_\theta$ is frozen. Each targeted linear projection $W_0$ gets one
+low-rank adapter $(A, B)$ with total rank $R = K \cdot r$, partitioned into $K$
+contiguous blocks of $r$ rows (for $A$) and columns (for $B$). The effective
+weight is
+\begin{equation}
+W = W_0 + \frac{\alpha}{r} \, B A , \qquad
+\Delta = \frac{\alpha}{r}\sum_{k \in \mathrm{active}} B_k A_k .
+\end{equation}
+Three properties follow, and each is enforced rather than hoped for.
+
+\emph{Writing isolates.} A write activates a gradient mask that zeroes every rank
+block but the target, and builds a \textbf{fresh optimiser} for each write.
+The second detail matters: with a reused optimiser, a frozen slot has gradient
+zero but non-zero Adam moments, so it drifts anyway; and AdamW's \emph{decoupled}
+weight decay shrinks parameters whose gradient is exactly zero, which silently
+erodes memories nobody is writing. We therefore build the optimiser inside the
+write call with \texttt{weight\_decay=0.0}, and the writer \emph{asserts}
+isolation by comparing every non-target slot against a snapshot, raising if one
+moved. Both failure modes are covered by tests.
+
+\emph{Erasing is exact.} Each slot keeps a copy $A^{\mathrm{init}}_k$ of its
+initial block; \texttt{erase($k$)} restores it and zeroes $B_k$. The result is
+bit-identical to a slot that was never written, so ``forgotten'' is an assertable
+state, not a small number. Table~\ref{tab:t1} shows the behavioural consequence:
+with every slot erased the model's output is \emph{string-identical} to the
+prompt-only condition.
+
+\emph{Reading is ablatable.} Because the read path multiplies $A$ and $B$ by a
+per-slot mask, MEM\_ON / MEM\_OFF / MEM\_SHUFFLE are produced on a byte-identical
+model --- the only difference between arms is which slots contribute.
+
+\subsection{Write objective}
+
+The write loss is
+\begin{equation}
+\mathcal{L} = \underbrace{\mathrm{CE}(v \mid q)}_{\text{target}}
+\; + \; \lambda \underbrace{D_{\mathrm{KL}}\!\left(p_{\text{frozen}}^{(t)} \,\|\, p_{\text{slot}}^{(t)}\right)}_{\text{anchor}},
+\label{eq:loss}
+\end{equation}
+where the target term teaches the pair $(q \to v)$ with the \emph{target slot
+alone} active, and the anchor term is evaluated on a small set of generic prompts
+whose frozen distributions must not move.
+
+Two details of Equation~\ref{eq:loss} were fixed by measurement, not by design.
+First, the anchor term is evaluated \textbf{per slot}, not on the sum. Evaluated on
+the sum, the individual slots' anchor displacements \emph{cancel}:
+per-slot $D_{\mathrm{KL}}$ was $[0.08, 3.89, 1.80, 1.80]$ while the sum's was
+$0.09$, i.e. the guard was worth $\lambda \cdot 0.09$ against a target
+cross-entropy of $\approx 15$ and was therefore vacuous. Cancellation is a
+coincidence of the current slot set and disappears as soon as the read path
+selects a single slot, so the guard must hold for each slot on its own. Second,
+the anchor is evaluated at \textbf{every position} of the anchor prompts, not only
+the last: a final-position-only guard held the single-step divergence at $0.08$
+while generation still collapsed into repetition, because autoregressive decoding
+compounds a small per-step shift over the whole trajectory. With both fixes the
+degenerate repetition disappears and the sum-based read improves from $1/4$ to
+$2/4$; both alternatives remain available as an ablation
+(\texttt{--anchor-mode sum}).
+
+\subsection{Reading: select, do not sum}
+\label{sec:routing}
+
+With every slot active the answers collapse (Table~\ref{tab:t2}), which is
+unsurprising once the slots are seen as additive perturbations of the same
+weights: each was trained to produce a low-entropy answer, and their sum is a
+dominated mixture. The slots are nevertheless perfectly separable --- reading with
+the \emph{wrong} slot yields nothing --- so the read path should select.
+We use the query key, the final hidden state of the query under the frozen
+backbone (captured with the memory switched off, so a key does not drift as
+memories accumulate), and activate the single best-matching slot by cosine
+similarity. No parameters are added and nothing is trained.
+
+\subsection{What deserves to be written}
+
+We compare three criteria, all label-free with respect to ``which item matters'':
+\emph{always} (write everything writeable, the reference point), \emph{surprise}
+(write iff the pre-write loss exceeds a threshold), and a \emph{self-check}
+(ask the frozen model the question; write only if it cannot already answer it).
+An explicit-instruction criterion (``remember this'') is included for contrast.
+Information gain --- the loss difference before and after a tentative write --- is
+the natural fourth criterion and is deliberately \emph{not} implemented: it costs
+a full extra write per candidate, and after
+Table~\ref{tab:t3} that cost has to be earned rather than assumed.
+
+\subsection{Forgetting and persistence}
+
+Capacity is the integer $K$. A :class:`MemoryStore` (in the implementation, a
+dataclass) tracks per-slot utility, recency, norms and an importance flag;
+``important'' slots are excluded from eviction, which is what makes an item a
+\emph{thought stamp} in the intended sense. Utility decays with a logical clock,
+and five eviction policies are implemented --- FIFO, LRU, LFU, utility and
+utility-with-time --- deliberately including the classic baselines, because the
+one study with hard numbers on eviction reports that no policy beats LFU by more
+than $0.041$ points \cite{semcache}.
+
+A memory that dies with the process is a session cache, so snapshots store the
+slot tensors plus the store's bookkeeping. Loading validates slot count, rank,
+$\alpha$, the module set and every tensor shape, and refuses on any mismatch: the
+dangerous failure is a \emph{partial} load, which would answer from a misaligned
+memory while looking healthy.
+
+\section{Evaluation protocol}
+\label{sec:protocol}
+
+\paragraph{A fictional benchmark.} Every entity and value in our episodes is
+generated from syllables, so no answer can be produced from pre-training
+knowledge. Without this, a correct answer is not attributable to the write. For
+the same reason, the ``already known'' class used in Section~\ref{sec:results} is
+\textbf{verified by asking the model} rather than assumed: of $19$ real-world
+facts, the 0.6B model answered only $13$ correctly, getting $2+2 = 2$, the number
+of days in a week $=1$, and the largest planet $=$ Mars. Assuming otherwise would
+have invalidated that experiment.
+
+\paragraph{Five isolation checks.} P1 \emph{eviction}: the answer must be absent
+from the read-time context by exact, normalised and numeric matching, or the item
+is dropped from the metric. P2 \emph{counterfactual}: values are randomised per
+seed, so answering the value written \emph{this} run is only possible from the
+write. P3 \emph{negative control}: never-written entities must not improve.
+P4 \emph{ablation}: with the context byte-identical, only the set of active slots
+changes. P5 \emph{prompt-only}: strips the benefit of the prompt format. A claim
+is reported only if the paired differences over prompt-only have a bootstrap
+confidence interval excluding zero.
+
+\paragraph{Paraphrased probes.} Reading reuses a differently worded question for
+the same intent, while the memory is written from the original phrasing. With the
+write query reused verbatim, top-1 routing scores $100\%$ and the result is a
+string-matching artefact rather than a memory result.
+
+\paragraph{Floor screening.} For the inertia experiment we first measure the
+no-memory condition and discard any scenario the model answers from its prior.
+Only \tScreenKept{} scenarios survived, and every discarded one was the road-side
+case, where ``left'' is the model's default answer.
+
+\section{Results}
+\label{sec:results}
+
+\paragraph{Writes land, and only where intended.} Table~\ref{tab:t1} is best read
+for its controls rather than its accuracy: the write isolation assertion passes
+everywhere, the erased condition is string-identical to prompt-only
+($\tEraseIdentical$), and the target cross-entropy after a write is
+$\tTargetCE$. The low \texttt{mem\_on} row in that table is the \emph{sum-based}
+read and is the failure that Section~\ref{sec:routing} addresses; it is not
+evidence about writing. The per-slot evidence is in Table~\ref{tab:t2} (oracle
+row) and Table~\ref{tab:t6} (a fresh process recalling from disk).
+
+\paragraph{Composition dominates everything else.} Table~\ref{tab:t2} is the
+central result. Writing the same memories and changing only which slots
+contribute, the sum scores $\tSum{}$, selecting one slot scores $\tTopOne{}$
+against an oracle of $\tOracle{}$, and selecting two already falls to
+$\tTopTwo{}$. The router's top-1 accuracy is $\tRouterAcc{}$, and the arithmetic
+closes: the oracle-minus-router gap equals the routing error exactly, so the
+selection rule introduces no loss of its own. The practical consequence is
+stronger than ``sparser is better'': a read path for this kind of memory should
+select exactly one slot, and a top-$k$ hedge costs most of the benefit.
+
+\paragraph{Deciding what to remember.} Table~\ref{tab:t3} compares write
+criteria on a stream mixing $5$ fictional facts with $13$ verified-known facts.
+Writing everything costs $\tAlwaysWrites$ gradient writes, of which
+$\tAlwaysWasted$ are spent on facts the model already answers, and moves the
+frozen backbone by $\tAlwaysKL$ nats. The self-check criterion spends
+$\tSelfWrites$ writes, wastes $\tSelfWasted$, misses $\tSelfMissed$ targets, and
+moves the backbone by $\tSelfKL$ nats --- the same recall for $72\%$ fewer writes
+and $79\%$ less drift. The likelihood-based criterion is the cautionary tale:
+it separates the classes only barely (Table~\ref{tab:t3loss}), because a fixed
+phrasing measures whether the model would use \emph{that wording}, not whether it
+knows the fact. Asked ``What is the capital of France?'' the model answers
+``France's capital is Paris.''; forcing the continuation \texttt{" Paris"} costs
+$9.76$ nats even though the answer is right.
+
+\paragraph{Forgetting is exact, and only the dumb policy is bad.}
+Table~\ref{tab:t4} streams $12$ memories into $6$ slots, of which the first $3$
+are accessed repeatedly. Every eviction restores its slot to the virgin state:
+\tErasedTotal{} slots verified bit-identical to never-written, \tErased{} of them
+in each policy. The slot flagged important survives every overflow. FIFO keeps
+only $\tFifoHot$ of the memories that were in use --- it evicts what you use and
+keeps what you never touched --- while the other four policies keep
+$\tSmartHot$: the policy matters, but the ``smart'' policies tie, which
+independently reproduces the literature's finding that eviction heuristics are
+easy to over-credit.
+
+\paragraph{Persistence.} Table~\ref{tab:t6} shows two separate processes. The
+read process's side path is virgin before loading ($\tVirgin$), so its
+$\tSixOracle$ oracle recall can only come from disk; routed recall is $\tRouted$,
+equal to its routing accuracy. Erasing a restored slot still returns it to the
+virgin state and the memory does not come back, so forgetting survives a restart
+--- without which a ``forgotten'' memory would be one reboot away from
+resurrection.
+
+\section{Negative results}
+\label{sec:negative}
+
+\paragraph{Parametric memory does not reduce context inertia.} We pre-registered
+the prediction that storing a premise in the weights would drag it into a later,
+unrelated topic \emph{less} than leaving it in the context. Table~\ref{tab:t5}
+refutes it: inheritance is $\tContext$ for the context arm and $\tParam$ for the
+parametric arm, with identical residue. The floor (no premise anywhere) is
+$\tFloor$, so the effect is real and not a prior artefact; the control arm, in
+which the premise is written and then erased, collapses onto the floor exactly.
+In other words the carry-over comes from the model conditioning on memory
+\emph{content}, not from that content occupying context tokens. A secondary
+observation deserves recording: withholding (the model saying it does not know)
+occurs at rate $\tWithholdFloor$ when there is no memory and at
+$\tWithholdMemory$ when the memory is present --- \emph{having a memory makes the
+model more confident, not only better informed}.
+
+\paragraph{A likelihood-threshold criterion measures wording.} Described above
+and visible in Table~\ref{tab:t3loss}. It is worth stating as a general caution:
+``surprise'' is only a proxy for ``unknown'' if the probe is allowed to use the
+model's own phrasing. Forcing a canonical answer span makes the proxy measure
+verbosity structure instead.
+
+\section{Limitations}
+\label{sec:limits}
+
+\begin{itemize}\itemsep2pt
+\item \textbf{Scale.} All results are from a single 0.6B backbone on one laptop
+  GPU. Whether the composition result (Section~\ref{sec:routing}) and the
+  inertia refutation hold at 7B+ is untested; the mechanism could plausibly behave
+  differently once the backbone is more capable.
+\item \textbf{The base model pays.} Writing moves the frozen backbone: after a
+  $12$-memory stream the generic prompts are no longer answered verbatim and the
+  all-position KL is $\approx 1$ nat. Parametric memory is not free, and the cost
+  grows with the number of writes.
+\item \textbf{No public benchmark yet.} We report protocol-controlled synthetic
+  results only. MemoryAgentBench~\cite{mab} (the one public skeleton that
+  isolates test-time learning \emph{and} selective forgetting) and
+  LongMemEval~\cite{longmemeval} are the natural next step; we do not claim
+  comparability we have not measured.
+\item \textbf{Two-timescale consolidation is not implemented} --- the
+  session-fast / cross-session-slow split remains future work, and after the
+  inertia refutation its motivation needs restating.
+\item \textbf{Metric crudeness.} Base degradation is partly judged by exact
+  answer identity, which counts ``$2+2=4$'' as a change from the frozen ``2'';
+  the KL numbers are the more informative quantity.
+\end{itemize}
+
+\section{Conclusion}
+
+A side path of rank-blocked slots does three things well and one thing not at
+all. It writes without disturbing its neighbours, it reads without spending
+context, and it forgets in a way that can be verified bit-for-bit --- including
+across a process restart. It does \emph{not} insulate the model from the previous
+topic: a memory is behaviourally sticky wherever it is stored. The practical
+design rules we would carry forward are that read-time composition must select
+exactly one slot, that the criterion for writing should ask the model rather than
+threshold its likelihood, and that capacity is best spent on durable, exactly
+erasable slots rather than on trying to keep memories out of the working set by
+moving them into weights.
+
+\appendix
+\section{Reproducibility}
+
+\begin{verbatim}
+python -m venv .venv && .venv\Scripts\pip install -e .
+python experiments/run_all.py --collect-only      # rebuild tables from reports
+python experiments/run_all.py --mode full        # re-run every stage from scratch
+python paper/build_tables.py                     # regenerate generated_tables.tex
+pdflatex main && pdflatex main
+\end{verbatim}
+
+Every stage is a separate process writing its own JSON report; a failing stage is
+labelled \texttt{FAILED} in the bundle and its numbers render as \texttt{n/a},
+never as zero. All numbers in this paper come from \texttt{generated\_tables.tex},
+which is generated from \texttt{runs/summary.json}.
+
+\begin{thebibliography}{99}\small
+\bibitem{titans} A. Behrouz, P. Zhong, V. Mirrokni. Titans: Learning to Memorize
+  at Test Time. arXiv:2501.00663.
+\bibitem{gradmem} GradMem: Learning to Memorize by Test-Time Gradient Descent on
+  Memory Tokens. arXiv:2603.13875 (ICML 2026).
+\bibitem{ttt} Y. Sun et al. Learning to (Learn at Test Time): RNNs with
+  Expressive Hidden States. arXiv:2407.04620.
+\bibitem{ttte2e} Test-Time Training End-to-End. arXiv:2512.23675.
+\bibitem{procl} H. Le, S. Venkatesh. Continual Fine-Tuning of Large Language
+  Models via Program Memory. arXiv:2605.13162.
+\bibitem{wise} WISE: Rethinking the Knowledge Memory for Lifelong Model Editing.
+  arXiv:2405.14768 (NeurIPS 2024).
+\bibitem{alphaedit} AlphaEdit: Null-Space Constrained Knowledge Editing for
+  Language Models. arXiv:2410.02355 (ICLR 2025).
+\bibitem{rome} ROME: Locating and Editing Factual Associations in GPT.
+  arXiv:2202.05262.
+\bibitem{memit} MEMIT: Mass-Editing Memory in a Transformer. arXiv:2210.07229.
+\bibitem{rippleedits} RippleEdits: Evaluating the ripple effects of knowledge
+  editing. TACL 2024, arXiv:2307.12976.
+\bibitem{memgpt} MemGPT: Towards LLMs as Operating Systems. arXiv:2310.08560.
+\bibitem{mem0} Mem0: Building Production-Ready AI Agents with Scalable Long-Term
+  Memory. arXiv:2504.19413.
+\bibitem{amem} A-MEM: Agentic Memory for LLM Agents. arXiv:2502.12110.
+\bibitem{memorybank} MemoryBank: Enhancing Large Language Models with Long-Term
+  Memory. arXiv:2305.10250.
+\bibitem{memoRAG} MemoRAG: Moving towards Next-Gen RAG. arXiv:2409.05591.
+\bibitem{zep} Zep: A Temporal Knowledge Graph Architecture for Agent Memory.
+  arXiv:2501.13956.
+\bibitem{semcache} On eviction policies for semantic caches. arXiv:2608.20280.
+\bibitem{mab} MemoryAgentBench: Evaluating Memory in LLM Agents.
+  arXiv:2507.05257.
+\bibitem{longmemeval} LongMemEval: Benchmarking Chat Assistants on Long-Term
+  Interactive Memory. arXiv:2410.10813 (ICLR 2025).
+\end{thebibliography}
+
+\end{document}

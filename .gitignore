@@ -26,6 +26,14 @@ venv/
 /_scratch/
 /.scratch/
 
+# ---- 论文编译中间产物（源码 paper/main.tex 与 paper/generated_tables.tex 入库；
+#      PDF 与 aux 由 pdflatex 生成，不入库）----
+/paper/*.aux
+/paper/*.out
+/paper/*.toc
+/paper/*.pdf
+/paper/*.txt
+
 # ---- 开发副本专用文档（只留开发副本，不同步 GitHub）----
 DEVELOPMENT.md
 ERROR.md
