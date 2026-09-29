@@ -57,10 +57,10 @@ it into the next topic exactly as much as leaving it in the context
 ($\tContext$ vs $\tParam$ inheritance). The honest summary is that parametric
 memory buys durability and exact forgetting, not insulation from the previous
 topic.
-A scoped diagnostic on real benchmark content (30 single-session LongMemEval
+A scoped diagnostic on real benchmark content (\tLongMemSubset{} single-session LongMemEval
 questions, history absent) reproduces \tLongMemOn{} of the reference answers at zero
 prompt-token cost, whereas delivering the same information through the context ---
-one retrieved pair, three, or all thirty --- answers \tJudgeContextTarget{} to
+one retrieved pair, three, or all \tLongMemSubset{} --- answers \tJudgeContextTarget{} to
 \tJudgeContextAll{} of them while paying \tTokContextTarget{} to \tTokContextAll{}
 extra tokens; the erased condition collapses back to the frozen answers bit-for-bit.
 We also report how we nearly got that comparison wrong: an earlier reading of parity
@@ -444,7 +444,7 @@ questions and with the same router, and graded every arm's answer against the
 reference with an LLM judge calibrated against \tJudgeCalibMarks{} human marks: the
 parametric arm is correct on \tJudgeWeights{} of the questions and \emph{never loses
 one} to any context arm (paired: \tJudgeWins{} won, \tJudgeLosses{} lost).
-\texttt{context\_all} reaches \tJudgeContextAll{} while carrying all 30 pairs and
+\texttt{context\_all} reaches \tJudgeContextAll{} while carrying all \tLongMemSubset{} pairs and
 paying \tTokContextAll{} extra prompt tokens per question; retrieval into the
 context reaches \tJudgeRagOne{} with one item (\tTokRagOne{} tokens) and
 \tJudgeRagThree{} with three; a single oracle-selected pair reaches
@@ -501,7 +501,7 @@ verbosity structure instead.
   all-position KL is $\approx 1$ nat. Parametric memory is not free, and the cost
   grows with the number of writes.
 \item \textbf{The retention repair is suggestive, not established.} It was measured
-  on $8$ memories over \tRetentionProbes{} probes drawn from one seed family:
+  on \tRetentionItems{} memories over \tRetentionProbes{} probes drawn from one seed family:
   paired probe by probe it helped \tRetentionHelped{} and hurt \tRetentionHurt{}
   (exact sign test $p = \tRetentionP{}$), so the direction is consistent but this
   sample does not settle it. It also does not repair many-way superposition --- with

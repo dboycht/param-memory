@@ -730,6 +730,8 @@ def headline_values(bundle: dict[str, Any]) -> dict[str, str]:
         "tRetentionHurt": _na(_retention_pair(t8)[1]),
         "tRetentionP": _na(_retention_p(t8), ".3f"),
         "tRetentionProbes": _na(_retention_probes(t8)),
+        "tRetentionItems": _na(
+            ((t8.get("summary") or {}).get("config") or {}).get("items")),
         "tRetentionBest": _retention_best(t8),
         "tRetentionAllBest": _retention_em(t8, _retention_best(t8), "all"),
         "tRetentionRouteTwo": _na(
