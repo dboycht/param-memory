@@ -45,7 +45,11 @@ ARMS = ("prompt_only", "mem_on", "mem_shuffle", "mem_off")
 
 def parse_args() -> argparse.Namespace:
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("--model", default="Qwen/Qwen3-1.7B")
+    ap.add_argument(
+        "--model", default="Qwen/Qwen3-0.6B",
+        help="main platform is the smallest model that shows the mechanism; "
+             "Qwen/Qwen3-1.7B is kept as a size control",
+    )
     ap.add_argument("--episodes", type=int, default=5)
     ap.add_argument("--base-seed", type=int, default=0)
     ap.add_argument("--n-slots", type=int, default=16)
