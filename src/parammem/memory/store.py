@@ -248,7 +248,11 @@ class MemoryStore:
 
     @classmethod
     def load(cls, path: str | Path) -> "MemoryStore":
-        data = json.loads(Path(path).read_text(encoding="utf-8"))
+        return cls.load_from_dict(json.loads(Path(path).read_text(encoding="utf-8")))
+
+    @classmethod
+    def load_from_dict(cls, data: dict) -> "MemoryStore":
+        """Rebuild a store from ``to_dict()`` output (used by the snapshot loader)."""
         store = cls(
             n_slots=data["n_slots"],
             policy=data.get("policy", "utility_time"),
