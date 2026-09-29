@@ -130,6 +130,19 @@ def _t2(bundle) -> str:
             rates = spread[arm]
             lines.append(f"| `{arm}` | {min(rates):.3f} | {max(rates):.3f} | "
                          f"{max(rates) - min(rates):.3f} |")
+
+    scale = (data.get("scale_17b") or {}).get("summary") or {}
+    if scale.get("em"):
+        em = scale["em"]
+        lines += [
+            "",
+            f"**Scale control (1.7B backbone, same protocol):** "
+            f"`oracle` {em.get('oracle', float('nan')):.3f}, "
+            f"`top1` {em.get('top1', float('nan')):.3f}, "
+            f"`top2` {em.get('top2', float('nan')):.3f}, "
+            f"`all` {em.get('all', float('nan')):.3f}, "
+            f"router {scale.get('route_top1_accuracy', float('nan')):.3f}",
+        ]
     lines.append("")
     return "\n".join(lines)
 
@@ -551,6 +564,19 @@ def _t3_seed_reductions(bundle: dict[str, Any]) -> list[float]:
     return reductions
 
 
+def _t2_scale_em(bundle: dict[str, Any], arm: str) -> str:
+    """The composition result on the 1.7B backbone, when the control has been run."""
+    t2 = _get(bundle, "t2") or {}
+    payload = t2.get("scale_17b") or {}
+    return _na(((payload.get("summary") or {}).get("em") or {}).get(arm), ".3f")
+
+
+def _t2_scale_router(bundle: dict[str, Any]) -> str:
+    t2 = _get(bundle, "t2") or {}
+    payload = t2.get("scale_17b") or {}
+    return _na((payload.get("summary") or {}).get("route_top1_accuracy"), ".3f")
+
+
 def _retention_small(t8: dict) -> dict:
     """The earlier, smaller retention run, when the bundle carries both.
 
@@ -906,6 +932,12 @@ def headline_values(bundle: dict[str, Any]) -> dict[str, str]:
         "tScaleFrozen": _scale_rate(t7, "frozen"),
         "tScaleContainment": _scale_containment(t7, "mem_on"),
         "tScaleTokens": _scale_tokens(t7, "context_all"),
+        # ---- the composition result on the larger backbone ----
+        "tScaleTwoOracle": _t2_scale_em(bundle, "oracle"),
+        "tScaleTwoTopOne": _t2_scale_em(bundle, "top1"),
+        "tScaleTwoTopTwo": _t2_scale_em(bundle, "top2"),
+        "tScaleTwoSum": _t2_scale_em(bundle, "all"),
+        "tScaleTwoRouter": _t2_scale_router(bundle),
     }
 
 

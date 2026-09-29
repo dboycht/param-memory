@@ -56,14 +56,22 @@ STAGES: dict[str, dict] = {
     },
     "t2": {
         "script": "t2_composition.py",
-        "inputs": ["t2_paraphrase.json"],
+        "inputs": ["t2_paraphrase.json", "t2_paraphrase_17b.json"],
         # Five episodes, not three: the per-episode spread on two-slot recall is
         # large (4, 0, 4, 4, 3 of 8), so an aggregate is only meaningful when one
-        # bad seed cannot carry it.
-        "full": ["--items", "8", "--episodes", "5", "--paraphrase",
-                 "--out", "runs/t2_paraphrase.json"],
-        "quick": ["--items", "4", "--episodes", "1", "--steps", "4", "--paraphrase",
-                  "--out", "runs/t2_quick.json"],
+        # bad seed cannot carry it. The second phase repeats it on a 1.7B backbone,
+        # because the composition result is this paper's central claim and was
+        # otherwise untested above 0.6B.
+        "phases": [
+            ["--items", "8", "--episodes", "5", "--paraphrase",
+             "--out", "runs/t2_paraphrase.json"],
+            ["--model", "Qwen/Qwen3-1.7B", "--items", "8", "--episodes", "5",
+             "--paraphrase", "--out", "runs/t2_paraphrase_17b.json"],
+        ],
+        "quick_phases": [
+            ["--items", "4", "--episodes", "1", "--steps", "4", "--paraphrase",
+             "--out", "runs/t2_quick.json"],
+        ],
     },
     "t3": {
         "script": "t3_write_policy.py",
@@ -257,6 +265,12 @@ def collect(stage: str, recipe: dict, mode: str) -> dict:
                 merged.update(payload)
         if scale:
             merged["scale_17b"] = scale
+        return merged
+    if stage == "t2":
+        by_name = dict(pairs)
+        merged = dict(by_name.get("t2_paraphrase.json") or {})
+        if "t2_paraphrase_17b.json" in by_name:
+            merged["scale_17b"] = by_name["t2_paraphrase_17b.json"]
         return merged
     if stage == "t3":
         by_name = dict(pairs)
