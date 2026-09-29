@@ -281,3 +281,36 @@ context_target : 'The name of your hamster is not mentioned.'                   
 
 产物：`experiments/t7e_context_baselines.py`、`runs/t7e_context_baselines.json`、
 `src/parammem/bench/longmemeval.py`（两轮共用的取数与判分，12 例单测）。
+
+---
+
+## 11. 语义判据（LLM judge）的落地与**判官本身的坑**（2026-09-29）
+
+用户选定"用 API key 做 LLM judge"。凭据取自已配置的 `ai-information-search/config.json`
+（`llm.api_key`，**全程未打印、未落盘、repr 打码**）。
+
+### 11.1 三次失败（都是"判官会静默撒谎"的具体形态）
+
+| # | 现象 | 根因 | 修法 |
+| --- | --- | --- | --- |
+| 1 | `HTTP 400` 但我只看到"400" | 我把服务端的响应体丢掉了 | 捕获 `HTTPError` 并**保留响应体**；4xx 不重试 |
+| 2 | 同上，真实原因 | **`kimi-k2.6` 只接受 `temperature=1`** | **默认不传 `temperature`**，由服务端用它自己的默认值 |
+| 3 | 大批条目"读不出结论" | 推理模型**输出被截断**（`finish_reason=length`），且内容有时落在 `reasoning_content` | 记录 `finish_reason` 与内容来源；`max_tokens` 提到 2048；空 `content` 时回退 `reasoning_content` |
+
+### 11.2 🔴 最关键的一条：**"一题一次、批量判多个候选"不成立**
+
+第一版让模型一次给 3 个候选打标签，结果它**答错了对象**并**编造理由**：
+把"逐字等于参考答案"的那个候选判成 false，理由却引用了**另一道题**的内容。
+
+⇒ **改成一候选一次调用、只答 CORRECT/INCORRECT**。慢，但"微妙地判错"比"没有判官"更糟。
+（代价：30 题 × 5 臂 = 150 次调用；按配置的 21 秒间隔约 53 分钟 —— 所以**按题批量曾是省时设计，现已放弃**。）
+
+### 11.3 校准（进行中）
+
+12 条**匿名且打乱**的样本（frozen/weights/context_target 各 4 条），
+判官结论放在标注表**末尾**以免锚定人工标注：`runs/judge_calibration.md`。
+当前 12/12 可读出，其中**第 4、5 条来自被截断的回复（`finish=length`）⇒ 必须打折**；
+第 5 条的理由甚至把提示词模板原样抄出（`<one short sentence>`）—— 说明该模型在长推理后容易失控。
+
+判官与"显然"答案一致：4 条 frozen（明显错）**全部**被判 incorrect ✓。
+⇒ **等用户人工标注后再决定是否信任**（2 例已知不可用，一致率按 10 例计）。
