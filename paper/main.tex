@@ -370,6 +370,16 @@ selection rule introduces no loss of its own. The practical consequence is
 stronger than ``sparser is better'': a read path for this kind of memory should
 select exactly one slot, and a top-$k$ hedge costs most of the benefit.
 
+The shape survives the scale control. On a 1.7B backbone the sum is still
+$\tScaleTwoSum{}$, one selected slot is $\tScaleTwoTopOne{}$ against an oracle of
+$\tScaleTwoOracle{}$, two slots are $\tScaleTwoTopTwo{}$, and the same arithmetic
+closes exactly (oracle minus top-1 equals the routing error, $1 -
+\tScaleTwoRouter{}$). What moves with scale is \emph{where} the loss sits: the router
+is markedly weaker at 1.7B ($\tRouterAcc{}$ at 0.6B against $\tScaleTwoRouter{}$), so
+the gap to the oracle becomes a retrieval problem rather than an interference one.
+That points at the router --- not the slot mechanism --- as the component to improve
+next.
+
 \paragraph{Testing a repair for the composition failure.} The boundary is not
 retrieval: the correct slot is among the two best-routed ones on
 \tRetentionRouteTwo{} of the probes, yet two-slot recall is only
@@ -503,10 +513,14 @@ verbosity structure instead.
 \label{sec:limits}
 
 \begin{itemize}\itemsep2pt
-\item \textbf{Scale.} All results are from a single 0.6B backbone on one laptop
-  GPU. Whether the composition result (Section~\ref{sec:routing}) and the
-  inertia refutation hold at 7B+ is untested; the mechanism could plausibly behave
-  differently once the backbone is more capable.
+\item \textbf{Scale.} Two of the four headline results are repeated on a 1.7B
+  backbone and both survive: the composition shape (Table~\ref{tab:t2}: the sum is
+  still worthless and the selection rule still introduces no loss of its own) and the
+  real-content diagnostic (Table~\ref{tab:t7}). What does \emph{not} survive is the
+  router, whose accuracy falls from $\tRouterAcc{}$ to $\tScaleTwoRouter{}$ --- a
+  scale effect that shifts the bottleneck from interference to retrieval rather than
+  removing it. The inertia refutation and the forgetting experiments remain
+  0.6B-only, and 3B and above is untested on this hardware.
 \item \textbf{The base model pays.} Writing moves the frozen backbone: after a
   $12$-memory stream the generic prompts are no longer answered verbatim and the
   all-position KL is $\approx 1$ nat. Parametric memory is not free, and the cost
