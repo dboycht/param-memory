@@ -76,10 +76,23 @@ paper/         英文论文（LaTeX）
 
 ## 8. 状态
 
-- [x] T0-a 项目骨架与仓库
-- [ ] T0-b 文献侦察与差异表
-- [ ] T0-c 设计文档定稿
-- [ ] T1 最小闭环 …
+- [x] **T0-a** 项目骨架与仓库
+- [x] **T0-b** 三路文献侦察（快权重/TTT、持续学习与遗忘、记忆评测与惯性）并回填定位
+- [x] **T0-c** 设计文档：问题陈述、系统设计、**P1–P5 驱逐隔离协议**
+- [ ] T0-d 文献差异表（`docs/03-related-work.md`，撰写中）
+- [x] **T1-a** 协议原语 + 虚构世界 + episode 生成器 + rank-blocked LoRA 槽位 + 写入器（**85 例单测全绿**）
+- [ ] **T1-b** 端到端跑通：写入 → 上下文驱逐 → 读出（等基座权重就绪）
+- [ ] T2 遗忘 / T3 惯性 / T4 论文
+
+### 当前实现要点
+
+| 文件 | 作用 |
+| --- | --- |
+| `src/parammem/bench/protocol.py` | P1 驱逐检查 / P2 反事实写入 / P3 负对照 / P4 适配器消融 / P5 提示词对照 + bootstrap CI |
+| `src/parammem/bench/entities.py` | 可证明不碰撞的虚构实体生成（编码式，跨种子必然不同） |
+| `src/parammem/memory/slots.py` | 秩块划分的 LoRA 槽位：读掩码做消融、`erase` 做**精确遗忘** |
+| `src/parammem/memory/writer.py` | 写入器：每次写新建优化器（避免冻结槽漂移），并在运行时**断言隔离** |
+| `src/parammem/memory/store.py` | 槽位元数据 + 四种淘汰策略对比（fifo/lru/lfu/utility） |
 
 ## License
 
