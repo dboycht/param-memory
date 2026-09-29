@@ -1,0 +1,8 @@
+# Store text as LF in the repository regardless of the local platform.
+# Without this, every sync between the dev copy and the canonical repo shows the
+# whole file set as "modified" purely because of CRLF expansion on checkout.
+* text=auto eol=lf
+*.safetensors binary
+*.pt binary
+*.png binary
+*.ico binary
