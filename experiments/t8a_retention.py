@@ -134,11 +134,13 @@ def run_episode(bb: Backbone, episode, args, lambda_ret: float) -> dict:
                                                   probe.value, probe.aliases)))
 
     # base damage: off is a sanity check (must be ~0 if the masks really disable),
-    # on is the damage the bank inflicts while in use
+    # on is the damage the bank inflicts while in use. Detached: these are
+    # measurements, and reading a scalar off a grad-tracking tensor warns (and keeps
+    # the graph alive for no reason).
     bb.set_read_slots([])
-    kl_off = float(bb.kl_to_anchors(generic)) if generic else 0.0
+    kl_off = float(bb.kl_to_anchors(generic).detach()) if generic else 0.0
     bb.set_read_slots(written)
-    kl_on = float(bb.kl_to_anchors(generic)) if generic else 0.0
+    kl_on = float(bb.kl_to_anchors(generic).detach()) if generic else 0.0
 
     return {"episode_id": episode.episode_id, "seed": episode.seed,
             "lambda_ret": lambda_ret, "arms": answers,

@@ -50,17 +50,32 @@
 \newcommand{\tSnapshotMB}{18.4}
 \newcommand{\tSnapshotSlots}{8}
 \newcommand{\tLongMemFrozen}{0.017}
-\newcommand{\tLongMemOn}{0.817}
+\newcommand{\tLongMemOn}{1.000}
 \newcommand{\tLongMemOff}{0.017}
-\newcommand{\tLongMemFull}{0.633}
+\newcommand{\tLongMemFull}{1.000}
 \newcommand{\tLongMemRouting}{1.000}
 \newcommand{\tLongMemSubset}{30}
-\newcommand{\tLongMemWriteMin}{22.7}
+\newcommand{\tLongMemWriteMin}{8.2}
 \newcommand{\tLongMemCe}{0.0007}
 \newcommand{\tHoldoutOn}{0.917}
 \newcommand{\tHoldoutOff}{0.067}
 \newcommand{\tHoldoutRouting}{1.000}
 \newcommand{\tHoldoutVerdict}{within the pre-registered band}
+\newcommand{\tJudgeWeights}{1.000}
+\newcommand{\tJudgeContextAll}{0.967}
+\newcommand{\tJudgeContextTarget}{0.867}
+\newcommand{\tJudgeRagOne}{0.900}
+\newcommand{\tJudgeRagThree}{0.900}
+\newcommand{\tJudgeFrozen}{0.033}
+\newcommand{\tJudgeWins}{8}
+\newcommand{\tJudgeLosses}{0}
+\newcommand{\tTokWeights}{0}
+\newcommand{\tTokContextAll}{1688}
+\newcommand{\tTokContextTarget}{117}
+\newcommand{\tTokRagOne}{117}
+\newcommand{\tLongMemOnArchived}{0.817}
+\newcommand{\tJudgeCalibMarks}{10/10}
+\newcommand{\tJudgeCalibRate}{1.000}
 
 \begin{table}[t]
 \centering
@@ -206,16 +221,24 @@ measurement & value \\
 \midrule
 questions (single-session subset) & 30 \\
 \textbackslash\{\}texttt\{frozen\} containment & 0.017 \\
-\textbackslash\{\}texttt\{mem\textbackslash\{\}\_on\} containment & 0.817 \\
+\textbackslash\{\}texttt\{mem\textbackslash\{\}\_on\} containment & 1.000 \\
 \textbackslash\{\}texttt\{mem\textbackslash\{\}\_off\} containment & 0.017 \\
-verbatim containment (mem\textbackslash\{\}\_on) & 0.633 \\
+verbatim containment (mem\textbackslash\{\}\_on) & 1.000 \\
 routing accuracy & 1.000 \\
 mem\textbackslash\{\}\_off bit-identical to frozen & 1.000 \\
 negative control (frozen $\textbackslash\{\}rightarrow$ mem\textbackslash\{\}\_on) & 0.100 $\textbackslash\{\}rightarrow$ 0.000 \\
-write cost & 30 items / 22.7 min \\
+write cost & 30 items / 8.2 min \\
 \textbackslash\{\}emph\{held-out replication\}, mem\textbackslash\{\}\_on & 0.917 \\
 \textbackslash\{\}emph\{held-out replication\}, mem\textbackslash\{\}\_off & 0.067 \\
 pre-registered verdict (docs/06 \textbackslash\{\}S9) & within the pre-registered band \\
+\textbackslash\{\}midrule &  \\
+\textbackslash\{\}emph\{LLM judge\}, weights & 1.000 \\
+\textbackslash\{\}quad \textbackslash\{\}texttt\{context\textbackslash\{\}\_all\} & 0.967 \\
+\textbackslash\{\}quad \textbackslash\{\}texttt\{rag\textbackslash\{\}\_top1\} & 0.900 \\
+\textbackslash\{\}quad \textbackslash\{\}texttt\{context\textbackslash\{\}\_target\} & 0.867 \\
+\textbackslash\{\}quad paired wins / losses & 8 / 0 \\
+\textbackslash\{\}quad extra prompt tokens (weights) & n/a \\
+\textbackslash\{\}quad extra prompt tokens (context\textbackslash\{\}\_all) & 1688 \\
 \bottomrule
 \end{tabular}
 \end{table}

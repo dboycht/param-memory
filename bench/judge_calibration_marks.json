@@ -1,0 +1,29 @@
+{
+  "what": "The human marks used to calibrate the LLM judge (T7-f). Kept in the repository because the marks are data: without them the reported agreement rate cannot be re-derived by anyone else.",
+  "how_collected": "12 anonymised, deterministically shuffled candidates (4 from the frozen arm, 4 from the weights arm, 4 from context_target) were written to runs/judge_calibration.md with the judge's own verdicts at the END of the file, so the human could not be anchored by them. The human marked Y (conveys the same information) or N.",
+  "standard": "lenient: the candidate must convey the substance of the reference answer; omitting a trailing clause (for example a note about what the user does not want) does not make it incorrect.",
+  "marks": "1Y 2N 3Y 4Y 5Y 6Y 7N 8Y 9Y 10N 11Y 12N",
+  "parsed": {
+    "1": true, "2": false, "3": true, "4": true, "5": true, "6": true,
+    "7": false, "8": true, "9": true, "10": false, "11": true, "12": false
+  },
+  "discounted_rows": [4, 5],
+  "discounted_reason": "the judge's reply for these two rows was truncated (finish_reason=length), so its verdict is not evidence either way; the agreement rate is reported over the remaining 10.",
+  "result": {
+    "agreement": "10/10",
+    "false_positives": 0,
+    "too_strict": 0,
+    "first_pass_agreement": "8/10",
+    "first_pass_disagreements": [8, 9],
+    "first_pass_note": "both disagreements were the judge applying a stricter reading than the chosen standard, which is why the prompt was revised once.",
+    "caveats": [
+      "n = 10 usable marks, so a 0/10 error rate is consistent with a true error rate of roughly 0-26% at 95% confidence",
+      "the prompt was revised once after seeing the first pass, so the second agreement figure is partly in-sample and must not be reported as a 0% error rate"
+    ]
+  },
+  "provenance": {
+    "judge_model": "kimi-k2.6 via https://api.moonshot.cn/v1",
+    "grading_style": "one candidate per call, binary verdict; batching several candidates into one call made the judge grade the wrong candidate",
+    "rate_limit": "3 requests/minute (organisation limit), so calls are spaced 21s apart"
+  }
+}

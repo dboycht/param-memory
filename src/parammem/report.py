@@ -285,6 +285,36 @@ def _t7(bundle) -> str:
             f"{holdout.get('mem_off_equals_frozen_rate', float('nan')):.3f}",
             f"- **pre-registered verdict: {replication_verdict(bundle)}**",
         ]
+
+    judge = _judge_block(data)
+    if judge:
+        arms = judge.get("arms") or {}
+        lines += [
+            "",
+            "**Fair comparison (LLM judge, calibrated against human marks; docs/06"
+            " section 13):**",
+            "",
+            "| arm | judged correct | 95% CI | extra prompt tokens |",
+            "| --- | --- | --- | --- |",
+        ]
+        for arm, label in (("weights", "`weights` (parametric)"),
+                           ("context_all", "`context_all` (all 30 pairs)"),
+                           ("rag_top3", "`rag_top3`"), ("rag_top1", "`rag_top1`"),
+                           ("context_target", "`context_target`"),
+                           ("frozen", "`frozen` (floor)")):
+            stats = arms.get(arm) or {}
+            ci = list(stats.get("ci95") or [float("nan"), float("nan")])
+            tokens = "0" if arm == "weights" else _judge_tokens(data, arm)
+            lines.append(
+                f"| {label} | {stats.get('correct_rate', float('nan')):.3f} | "
+                f"[{ci[0]:.2f}, {ci[1]:.2f}] | {tokens} |"
+            )
+        wins, losses = _judge_paired(data)
+        lines.append(f"| — paired vs `weights` | {wins} won / {losses} lost | | |")
+        lines += ["",
+                  "The containment column above is **not** the comparison to quote: it "
+                  "rewards reproducing the reference string verbatim, which is what a "
+                  "trained write is *for* (docs/06 section 10.2)."]
     lines.append("")
     return "\n".join(lines)
 
@@ -378,6 +408,45 @@ def _table(caption: str, label: str, columns: list[str], rows: list[list[str]],
         lines.append(" & ".join(cells) + r" \\")
     lines += [r"\bottomrule", r"\end{tabular}", r"\end{table}", ""]
     return "\n".join(lines)
+
+
+def _judge_block(t7: dict, standard: str = "lenient") -> dict:
+    """The judge's per-arm summary for one grading standard."""
+    return (((t7.get("judge") or {}).get("standards") or {}).get(standard) or {})
+
+
+def _judge_rate(t7: dict, arm: str, standard: str = "lenient") -> str:
+    arms = _judge_block(t7, standard).get("arms") or {}
+    return _na((arms.get(arm) or {}).get("correct_rate"), ".3f")
+
+
+def _judge_tokens(t7: dict, arm: str) -> str:
+    """Extra prompt tokens an arm pays per question, from the baseline run."""
+    arms = ((t7.get("baselines") or {}).get("arms")) or {}
+    return _na((arms.get(arm) or {}).get("mean_prompt_tokens"), ".0f")
+
+
+CONTEXT_ARMS = ("context_all", "context_target", "rag_top1", "rag_top3")
+
+
+def _judge_paired(t7: dict, standard: str = "lenient") -> tuple[int, int]:
+    """(questions the weights arm wins outright, questions it loses outright).
+
+    A win is a question where the weights arm is correct and at least one context
+    arm is not; a loss is the mirror image. Computed here so the paper cannot quote
+    a paired count that disagrees with the per-question verdicts.
+    """
+    rows = _judge_block(t7, standard).get("rows") or {}
+    wins = losses = 0
+    for verdicts in rows.values():
+        mine = (verdicts.get("weights") or {}).get("correct")
+        others = [(verdicts.get(a) or {}).get("correct") for a in CONTEXT_ARMS
+                  if a in verdicts]
+        if mine is True and any(v is False for v in others):
+            wins += 1
+        if mine is False and any(v is True for v in others):
+            losses += 1
+    return wins, losses
 
 
 def replication_verdict(bundle: dict[str, Any], tolerance: float = 0.15) -> str:
@@ -504,6 +573,30 @@ def headline_values(bundle: dict[str, Any]) -> dict[str, str]:
             ((t7.get("holdout") or {}).get("containment") or {}).get("mem_off"), ".3f"),
         "tHoldoutRouting": _na((t7.get("holdout") or {}).get("routing_accuracy"), ".3f"),
         "tHoldoutVerdict": replication_verdict(bundle),
+        # ---- T7 judge: the fair comparison (docs/06 section 13) ----
+        # These are the numbers the paper's main claim rests on, so the paired win
+        # and loss counts are computed from the per-question verdicts rather than
+        # being transcribed from a table someone printed once.
+        "tJudgeWeights": _judge_rate(t7, "weights"),
+        "tJudgeContextAll": _judge_rate(t7, "context_all"),
+        "tJudgeContextTarget": _judge_rate(t7, "context_target"),
+        "tJudgeRagOne": _judge_rate(t7, "rag_top1"),
+        "tJudgeRagThree": _judge_rate(t7, "rag_top3"),
+        "tJudgeFrozen": _judge_rate(t7, "frozen"),
+        "tJudgeWins": str(_judge_paired(t7)[0]),
+        "tJudgeLosses": str(_judge_paired(t7)[1]),
+        "tTokWeights": "0",
+        "tTokContextAll": _judge_tokens(t7, "context_all"),
+        "tTokContextTarget": _judge_tokens(t7, "context_target"),
+        "tTokRagOne": _judge_tokens(t7, "rag_top1"),
+        # The superseded 32-token run, quoted so the paper can show that an earlier
+        # "the arms are indistinguishable" reading was an artefact of our own
+        # generation budget rather than a property of the mechanisms.
+        "tLongMemOnArchived": _na(
+            ((t7.get("archived_gen32") or {}).get("containment") or {}).get("mem_on"),
+            ".3f"),
+        "tJudgeCalibMarks": _na((t7.get("calibration") or {}).get("agreement")),
+        "tJudgeCalibRate": _na((t7.get("calibration") or {}).get("rate"), ".3f"),
     }
 
 
@@ -707,6 +800,26 @@ def _latex_t7(bundle) -> str:
             ["\\emph{held-out replication}, mem\\_off",
              f"{hc.get('mem_off', float('nan')):.3f}"],
             ["pre-registered verdict (docs/06 \\S9)", replication_verdict(bundle)],
+        ]
+    judge = _judge_block(data)
+    if judge:
+        arms = judge.get("arms") or {}
+        wins, losses = _judge_paired(data)
+        rows += [
+            ["\\midrule", ""],
+            ["\\emph{LLM judge}, weights",
+             f"{arms.get('weights', {}).get('correct_rate', float('nan')):.3f}"],
+            ["\\quad \\texttt{context\\_all}", 
+             f"{arms.get('context_all', {}).get('correct_rate', float('nan')):.3f}"],
+            ["\\quad \\texttt{rag\\_top1}",
+             f"{arms.get('rag_top1', {}).get('correct_rate', float('nan')):.3f}"],
+            ["\\quad \\texttt{context\\_target}",
+             f"{arms.get('context_target', {}).get('correct_rate', float('nan')):.3f}"],
+            ["\\quad paired wins / losses", f"{wins} / {losses}"],
+            ["\\quad extra prompt tokens (weights)",
+             f"{_judge_tokens(data, 'weights')}"],
+            ["\\quad extra prompt tokens (context\\_all)",
+             f"{_judge_tokens(data, 'context_all')}"],
         ]
     return _table(
         "T7-d: a controlled diagnostic on real benchmark content. The history is "

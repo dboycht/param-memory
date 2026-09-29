@@ -169,6 +169,11 @@ $\\alpha$、模块集合与每个张量的形状，任一不符即拒绝：这�
 | **公开基准**：真实问答下 frozen → mem_on | **{tLongMemFrozen} → {tLongMemOn}**（擦除后 {tLongMemOff}） | T7-d |
 | 公开基准：逐字包含率 / 路由准确率 | {tLongMemFull} / {tLongMemRouting} | T7-d |
 | 公开基准：**留出集复制**（另 30 题）mem_on / 判定 | {tHoldoutOn} / {tHoldoutVerdict} | T7-d |
+| **公平对比（LLM 判官）**：参数臂 / 最强上下文臂 | **{tJudgeWeights}** / {tJudgeContextAll} | T7-f |
+| 公平对比：配对胜负 | {tJudgeWins} 胜 / {tJudgeLosses} 负 | T7-f |
+| 公平对比：额外 prompt token（参数 vs 全塞上下文） | **{tTokWeights}** / {tTokContextAll} | T7-e |
+| 判官与人工标注校准 | {tJudgeCalibMarks} | T7-f |
+| ⚠️ 同一实验在 32 token 生成预算下的旧读数（截断假象） | {tLongMemOnArchived} | E12 |
 
 ### 4.2 五条结论
 

@@ -99,14 +99,22 @@ STAGES: dict[str, dict] = {
     },
     "t7": {
         "script": "t7d_longmemeval_pilot.py",
-        "inputs": ["t7d_longmemeval.json", "t7d_longmemeval_holdout.json"],
-        # Two phases: the pre-registered subset, then the pre-registered held-out
-        # replication on the next 30 questions (docs/06 section 9).
+        "inputs": ["t7d_longmemeval.json", "t7d_longmemeval_holdout.json",
+                   "t7e_context_baselines.json", "t7f_judge.json",
+                   "t7d_longmemeval_gen32.json", "judge_calibration_result.json"],
+        # Four phases: the weights run, its pre-registered held-out replication
+        # (docs/06 section 9), the context/RAG baselines, and the LLM judge. The
+        # judge needs the user's API key and ~70 minutes at 3 requests/minute, so it
+        # is only re-run deliberately -- but its report is what the paper quotes.
         "phases": [
-            ["--subset", "30", "--negatives", "5",
+            ["--subset", "30", "--negatives", "5", "--max-new-tokens", "96",
              "--out", "runs/t7d_longmemeval.json"],
             ["--subset", "30", "--offset", "30", "--negatives", "5",
-             "--out", "runs/t7d_longmemeval_holdout.json"],
+             "--max-new-tokens", "96", "--out", "runs/t7d_longmemeval_holdout.json"],
+            ["t7e_context_baselines.py", "--subset", "30", "--max-new-tokens", "96",
+             "--out", "runs/t7e_context_baselines.json"],
+            ["t7f_judge_answers.py", "--full", "--questions", "30",
+             "--standards", "lenient"],
         ],
         "quick_phases": [
             ["--subset", "3", "--negatives", "2", "--steps", "4",
@@ -143,12 +151,21 @@ def _run(command: list[str], log_path: Path) -> int:
 
 
 def run_stage(stage: str, recipe: dict, mode: str, log_dir: Path) -> list[str]:
-    """Run one stage (one or two processes). Returns the JSON files it produced."""
+    """Run one stage (one or more processes). Returns the JSON files it produced.
+
+    A phase whose first token ends in ``.py`` runs *that* script instead of the
+    stage's default one, which lets a single stage (T7) cover the weights run, the
+    context baselines and the judge while still reading as one unit.
+    """
     script = str(ROOT / "experiments" / recipe["script"])
     if "phases" in recipe:
         plan = recipe["quick_phases"] if mode == "quick" else recipe["phases"]
         for index, phase_args in enumerate(plan):
-            code = _run([script, *phase_args], log_dir / f"{stage}_phase{index}.log")
+            phase_args = list(phase_args)
+            phase_script = script
+            if phase_args and str(phase_args[0]).endswith(".py"):
+                phase_script = str(ROOT / "experiments" / phase_args.pop(0))
+            code = _run([phase_script, *phase_args], log_dir / f"{stage}_phase{index}.log")
             if code != 0:
                 raise RuntimeError(f"{stage} phase {index} exited with {code}")
     else:
@@ -160,22 +177,41 @@ def run_stage(stage: str, recipe: dict, mode: str, log_dir: Path) -> list[str]:
 
 
 def collect(stage: str, recipe: dict, mode: str) -> dict:
-    """Read a stage's reports back into the bundle."""
-    inputs = list(recipe["inputs"])
-    payloads = []
-    for name in inputs:
+    """Read a stage's reports back into the bundle.
+
+    Payloads are paired with their *filenames* before anything else: zipping the
+    input list against whatever files happen to exist would silently misalign the
+    merge as soon as one report is missing.
+    """
+    pairs = []
+    for name in recipe["inputs"]:
         path = RUNS / name
         if path.is_file():
-            payloads.append(json.loads(path.read_text(encoding="utf-8")))
+            pairs.append((path.name, json.loads(path.read_text(encoding="utf-8"))))
     if stage == "t6":
-        return {"write": payloads[0] if payloads else {},
-                "read": payloads[1] if len(payloads) > 1 else {}}
+        by_name = dict(pairs)
+        return {"write": by_name.get("t6_write.json", {}),
+                "read": by_name.get("t6_read.json", {})}
     if stage == "t7":
-        merged = dict(payloads[0]) if payloads else {}
-        if len(payloads) > 1:
-            merged["holdout"] = payloads[1]
+        merged: dict = {}
+        for name, payload in pairs:
+            if "holdout" in name:
+                merged["holdout"] = payload
+            elif name.startswith("t7e"):
+                merged["baselines"] = payload
+            elif name.startswith("t7f"):
+                merged["judge"] = payload
+            elif "gen32" in name:
+                # the superseded 32-token run: the paper quotes it to show that an
+                # earlier "the arms are indistinguishable" reading was an artefact
+                # of our own generation budget
+                merged["archived_gen32"] = payload
+            elif name.startswith("judge_calibration"):
+                merged["calibration"] = payload
+            else:
+                merged.update(payload)
         return merged
-    return payloads[0] if payloads else {}
+    return pairs[0][1] if pairs else {}
 
 
 def git_commit() -> str:
