@@ -226,20 +226,26 @@ $\\alpha$、模块集合与每个张量的形状，任一不符即拒绝：这�
    {tLongMemOnArchived}），而判官回复也有 12/180 被截断，**分歧恰好集中在那些行**。
    修掉两处后参数臂 {tLongMemOn}。⇒ **生成预算属于处理的一部分**（`ERROR.md` E12）。
 
-### 4.5 B1：把"第二个槽"修回来
+### 4.5 B1：保留项——**假设没被复现**（第三次自我更正）
 
-两槽读取的失败**不是检索**——正确槽位落在前两名之内的比例是 {tRetentionRouteTwo}——
-而是**写入**制造的干扰。在写入目标里加入保留项后（$\\lambda_{{\\mathrm{{ret}}}}$ = {tRetentionBest}）：
+两槽读取的失败**不是检索**（正确槽位落在前两名之内的比例 {tRetentionRouteTwo}），而是**写入**制造的干扰。
+在写入目标里加入保留项后（$\\lambda_{{\\mathrm{{ret}}}}$ = {tRetentionBest}）：
 
-| | 基线 | 加保留项 |
-| --- | --- | --- |
-| **两槽召回（k=2）** | {tRetentionTopTwoBase} | **{tRetentionTopTwoBest}** |
-| 自身槽位召回 | {tRetentionOwnBase} | {tRetentionOwnBest} |
-| 基座损伤（nats） | {tRetentionKlBase} | **{tRetentionKlBest}** |
+| | 基线 | 加保留项 | 逐探针配对 |
+| --- | --- | --- | --- |
+| **两槽召回（k=2）** | {tRetentionTopTwoBase} | {tRetentionTopTwoBest} | **{tRetentionHelped} 帮助 / {tRetentionHurt} 损害，p={tRetentionP}** |
+| 全部槽一起激活 | {tRetentionAllBase} | **{tRetentionAllBest}** | {tRetentionAllHelped} 帮助 / {tRetentionAllHurt} 损害，p={tRetentionAllP} |
+| 自身槽位召回 | {tRetentionOwnBase} | {tRetentionOwnBest} | — |
+| 基座损伤（nats） | {tRetentionKlBase} | **{tRetentionKlBest}** | — |
 
-**逐探针配对：{tRetentionHelped} 帮助 / {tRetentionHurt} 损害**（符号检验 p={tRetentionP}，n={tRetentionProbes}）
-⇒ **方向一致、每个臂都是帮助多于损害，但尚未达到显著**。
-⚠️ **没修好的**：全部槽一起激活时仍只有 {tRetentionAllBest} ⇒ **保留项修的是"成对"，不是多路叠加**。
+> ⚠️ **小样本曾看起来成功了**：{tRetentionSmallProbes} 个探针时 k=2 升到 {tRetentionSmallBest}
+> （{tRetentionSmallHelped} 帮助 / {tRetentionSmallHurt} 损害，p={tRetentionSmallP}），
+> 但**四倍样本（{tRetentionProbes} 探针）没有复现**（{tRetentionHelped}/{tRetentionHurt}，p={tRetentionP}）。
+> **两次都写进论文，因为"效应随样本缩小"本身就是结论。**
+
+**站得住的两条**：① 基座损伤降约五分之四（{tRetentionKlBase} → {tRetentionKlBest} nats）；
+② 保留项**真正被评估的那个条件**（全开）单向改善（{tRetentionAllBase} → {tRetentionAllBest}，
+{tRetentionAllHelped} 帮助 / {tRetentionAllHurt} 损害，p={tRetentionAllP}）—— 幅度小，但不是噪声。
 
 ## 5. 两个负结果
 
