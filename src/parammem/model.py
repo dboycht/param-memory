@@ -16,15 +16,20 @@ blocks and exact-match scoring would measure the wrapper, not the memory.
 
 from __future__ import annotations
 
+import os
+import re
 import time
+import warnings
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Iterable, Sequence
 
 import torch
+import torch.nn.functional as F
 
 from .memory.slots import RankBlockedLoRA, attach_slot_lora, count_memory_parameters
 
-__all__ = ["BackboneConfig", "Backbone", "PROMPT_TEMPLATE"]
+__all__ = ["BackboneConfig", "Backbone", "PROMPT_TEMPLATE", "resolve_model_path"]
 
 SYSTEM_PROMPT = (
     "You are a helpful assistant. Answer the question as briefly as possible, "
@@ -33,6 +38,97 @@ SYSTEM_PROMPT = (
 PROMPT_TEMPLATE = "{system}\nQuestion: {query}\nAnswer:"
 
 DEFAULT_TARGETS = ("q_proj", "k_proj", "v_proj", "o_proj")
+
+# Prompts used as the "do not damage the base model" anchor during a write.
+# They are deliberately generic and answerable by the frozen model: the side path
+# must not move the distribution on them. Without such an anchor the write term
+# alone collapses the model into a constant continuation (observed 2026-09-29:
+# every query returned fragments of the most recently written value, see
+# DEVELOPMENT.md T1-a).
+GENERIC_ANCHORS = (
+    "What is the capital of France?",
+    "Name a primary colour.",
+    "What is 2 + 2?",
+    "What is the opposite of hot?",
+    "Name a day of the week.",
+    "Say hello.",
+)
+
+
+def _normalized_name(text: str) -> str:
+    """Compare cache directory names loosely: ModelScope rewrites '.' to '___'
+    (``Qwen3-1.7B`` is stored as ``Qwen3-1___7B``), so exact string matching
+    silently misses a perfectly good local copy."""
+    return re.sub(r"[^a-z0-9]", "", text.lower())
+
+
+def _has_config(path: Path) -> bool:
+    return (path / "config.json").is_file()
+
+
+def _hf_snapshot(path: Path) -> str:
+    snapshots = path / "snapshots"
+    if snapshots.is_dir():
+        for snap in sorted(snapshots.iterdir()):
+            if snap.is_dir() and _has_config(snap):
+                return str(snap)
+    return str(path)
+
+
+def resolve_model_path(model_id: str) -> str:
+    """Resolve a model id to a local directory when a usable cached copy exists.
+
+    HuggingFace downloads are unreliable on the development machine (TLS
+    interception, see ERROR.md E2/E3), so the backbone is fetched from ModelScope
+    instead (E5). Rather than hardcoding a machine path we probe, in order:
+
+    1. an existing local directory (a path was passed directly);
+    2. ``$PARAMMEM_MODEL_DIR`` (explicit override);
+    3. the ModelScope cache, ``~/.cache/modelscope/models/<org>/<name>``
+       (directory names are compared *normalised*, see :func:`_normalized_name`);
+    4. the HuggingFace cache, but **only if it is complete**.
+
+    A half-finished HuggingFace cache is refused with a warning rather than used:
+    on this machine one exists from a stalled download, and silently loading it
+    is exactly the kind of false result this project must not produce.
+    """
+    candidate = Path(model_id).expanduser()
+    if candidate.is_dir():
+        if not _has_config(candidate):
+            warnings.warn(f"{candidate} has no config.json; using it anyway")
+        return str(candidate)
+
+    override = os.environ.get("PARAMMEM_MODEL_DIR")
+    if override:
+        path = Path(override).expanduser()
+        if path.is_dir():
+            return str(path)
+
+    org, _, name = model_id.partition("/")
+    if name:
+        ms_base = Path.home() / ".cache" / "modelscope" / "models" / org
+        if ms_base.is_dir():
+            want = _normalized_name(name)
+            for entry in sorted(ms_base.iterdir()):
+                if entry.is_dir() and _normalized_name(entry.name) == want and _has_config(entry):
+                    return str(entry)
+
+    hf = Path.home() / ".cache" / "huggingface" / "hub" / (
+        "models--" + model_id.replace("/", "--")
+    )
+    if hf.is_dir():
+        blobs = hf / "blobs"
+        incomplete = list(blobs.glob("*.incomplete")) if blobs.is_dir() else []
+        resolved_hf = _hf_snapshot(hf)
+        if not incomplete and _has_config(Path(resolved_hf)):
+            return resolved_hf
+        warnings.warn(
+            f"ignoring incomplete HuggingFace cache at {hf} "
+            f"({len(incomplete)} leftover *.incomplete blob(s), snapshot usable: "
+            f"{_has_config(Path(resolved_hf))}); fetch the model from ModelScope "
+            "instead - see ERROR.md E3/E5"
+        )
+    return model_id
 
 
 @dataclass
@@ -62,6 +158,7 @@ class Backbone:
     tokenizer: object
     model: object
     wrappers: dict[str, RankBlockedLoRA] = field(default_factory=dict)
+    resolved_path: str = ""
 
     # ------------------------------------------------------------------ load
     @classmethod
@@ -69,11 +166,12 @@ class Backbone:
         from transformers import AutoModelForCausalLM, AutoTokenizer
 
         cfg = cfg or BackboneConfig()
-        tokenizer = AutoTokenizer.from_pretrained(cfg.model_id)
+        resolved = resolve_model_path(cfg.model_id)
+        tokenizer = AutoTokenizer.from_pretrained(resolved)
         kwargs = dict(torch_dtype=cfg.torch_dtype())
         if cfg.attn_implementation:
             kwargs["attn_implementation"] = cfg.attn_implementation
-        model = AutoModelForCausalLM.from_pretrained(cfg.model_id, **kwargs)
+        model = AutoModelForCausalLM.from_pretrained(resolved, **kwargs)
         model.to(cfg.device)
         model.eval()
         for param in model.parameters():
@@ -94,7 +192,10 @@ class Backbone:
             )
         if cfg.gradient_checkpointing:
             model.gradient_checkpointing_enable()
-        return cls(cfg=cfg, tokenizer=tokenizer, model=model, wrappers=wrappers)
+        return cls(
+            cfg=cfg, tokenizer=tokenizer, model=model,
+            wrappers=wrappers, resolved_path=resolved,
+        )
 
     # -------------------------------------------------------------- helpers
     @property
@@ -160,6 +261,35 @@ class Backbone:
 
     def answer_many(self, queries: Iterable[str], **kwargs) -> list[str]:
         return [self.answer(q, **kwargs) for q in queries]
+
+    # ------------------------------------------------------- write anchoring
+    def next_token_logits(self, query: str) -> torch.Tensor:
+        """Final-position logits for ``query`` at the current slot state (float32)."""
+        prompt_ids = self._ids(self._chat(query))
+        logits = self.model(input_ids=prompt_ids).logits[0, -1]
+        return logits.float()
+
+    @torch.no_grad()
+    def anchor_logits(self, queries: Iterable[str]) -> dict[str, torch.Tensor]:
+        """Reference distributions for the anchor prompts.
+
+        Call with **all slots switched off** so the reference is the frozen model;
+        that is what "do not damage the base model" is measured against.
+        """
+        return {q: self.next_token_logits(q).clone() for q in queries}
+
+    def kl_to_anchors(self, anchors: dict[str, torch.Tensor]) -> torch.Tensor:
+        """Mean KL(current || reference) over the anchor prompts (a loss term)."""
+        if not anchors:
+            return torch.zeros((), device=self.device)
+        total = None
+        for query, ref in anchors.items():
+            cur = self.next_token_logits(query)
+            log_cur = F.log_softmax(cur, dim=-1)
+            log_ref = F.log_softmax(ref, dim=-1)
+            term = (log_ref.exp() * (log_ref - log_cur)).sum()
+            total = term if total is None else total + term
+        return total / len(anchors)
 
     # ------------------------------------------------------------------ arms
     def set_read_slots(self, slots: Iterable[int] | None) -> None:

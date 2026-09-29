@@ -124,6 +124,25 @@ class RankBlockedLoRA(nn.Module):
         return float(torch.linalg.matrix_norm(b @ a).item()) * abs(self.scale)
 
     # ------------------------------------------------------------ read masks
+    def _new_mask(self, slots: Iterable[int] | None) -> torch.Tensor:
+        """A fresh (total_rank, 1) enable-mask for ``slots`` (None = all).
+
+        A **new** tensor is returned rather than an in-place update of the
+        existing buffer. That matters because one write can run several forward
+        passes with *different* masks inside a single autograd graph (a target
+        term that sees only its own slot, plus an anchor term that sees every
+        written slot); mutating a buffer the graph already captured raises
+        "one of the variables needed for gradient computation has been modified
+        by an inplace operation".
+        """
+        mask = torch.zeros(
+            self.total_rank, 1, device=self.A.device, dtype=self.A.dtype
+        )
+        active = range(self.n_slots) if slots is None else slots
+        for slot in active:
+            mask[self.slot_slice(slot)] = 1.0
+        return mask
+
     def set_read_slots(self, slots: Iterable[int] | None) -> None:
         """Ablation switch: only ``slots`` contribute to the forward pass.
 
@@ -131,12 +150,9 @@ class RankBlockedLoRA(nn.Module):
         MEM_ON / MEM_OFF / MEM_SHUFFLE for protocol P4 without touching any
         weight, so the compared passes are byte-identical apart from the mask.
         """
-        active = list(range(self.n_slots)) if slots is None else list(slots)
-        mask = torch.zeros_like(self._read_mask_A)
-        for slot in active:
-            mask[self.slot_slice(slot)] = 1.0
-        self._read_mask_A.copy_(mask)
-        self._read_mask_B.copy_(mask.reshape(1, -1))
+        mask = self._new_mask(slots)
+        self._read_mask_A = mask
+        self._read_mask_B = mask.reshape(1, -1)
 
     @property
     def any_slot_active(self) -> bool:
@@ -146,14 +162,16 @@ class RankBlockedLoRA(nn.Module):
     def begin_write(self, slot: int) -> None:
         """Restrict gradients to ``slot`` for the next backward pass."""
         self._check_slot(slot)
-        mask = torch.zeros_like(self._grad_mask_A)
-        mask[self.slot_slice(slot)] = 1.0
-        self._grad_mask_A.copy_(mask)
-        self._grad_mask_B.copy_(mask.reshape(1, -1))
+        mask = self._new_mask([slot]).reshape(1, -1)
+        # Rebinding, not copy_: the previous mask may already be captured by an
+        # autograd graph (see _new_mask).
+        self._grad_mask_A = mask.reshape(-1, 1)
+        self._grad_mask_B = mask
 
     def end_write(self) -> None:
-        self._grad_mask_A.fill_(1.0)
-        self._grad_mask_B.fill_(1.0)
+        full = self._new_mask(None)
+        self._grad_mask_A = full
+        self._grad_mask_B = full.reshape(1, -1)
 
     # ---------------------------------------------------------------- forward
     def forward(self, x: torch.Tensor) -> torch.Tensor:

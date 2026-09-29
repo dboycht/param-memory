@@ -28,6 +28,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import time
 from pathlib import Path
 
@@ -37,7 +38,7 @@ from parammem.bench import protocol as P
 from parammem.bench.synthetic import make_episode
 from parammem.memory.store import MemoryStore
 from parammem.memory.writer import write_slot
-from parammem.model import Backbone, BackboneConfig
+from parammem.model import GENERIC_ANCHORS, Backbone, BackboneConfig, resolve_model_path
 
 ARMS = ("prompt_only", "mem_on", "mem_shuffle", "mem_off")
 
@@ -51,7 +52,11 @@ def parse_args() -> argparse.Namespace:
     ap.add_argument("--rank", type=int, default=4)
     ap.add_argument("--alpha", type=float, default=16.0)
     ap.add_argument("--steps", type=int, default=8, help="gradient steps per write")
-    ap.add_argument("--lr", type=float, default=5e-3)
+    ap.add_argument("--lr", type=float, default=1e-3)
+    ap.add_argument(
+        "--lambda-kl", type=float, default=1.0,
+        help="weight of the 'do not damage the frozen model' anchor term (0 disables)",
+    )
     ap.add_argument("--n-facts", type=int, default=3)
     ap.add_argument("--n-noise", type=int, default=2)
     ap.add_argument("--max-new-tokens", type=int, default=16)
@@ -80,6 +85,13 @@ def run_episode(bb: Backbone, episode, args: argparse.Namespace) -> dict:
     neg_baseline = {i: bb.answer(n.query) for i, n in enumerate(episode.negatives)}
 
     # ---- write every probeable item into its own slot -------------------
+    # The anchors must be captured with the memory switched off, i.e. before any
+    # write in this episode: they are the "frozen model" reference.
+    anchors: dict = {}
+    if args.lambda_kl > 0:
+        bb.set_read_slots([])
+        anchors = bb.anchor_logits(GENERIC_ANCHORS)
+
     slot_of: dict[int, int] = {}
     writes: list[dict] = []
     for item in episode.writes:
@@ -91,13 +103,30 @@ def run_episode(bb: Backbone, episode, args: argparse.Namespace) -> dict:
                 f"episode needs more slots than n_slots={bb.cfg.n_slots}; "
                 "T1 deliberately keeps K >= number of items so nothing is evicted"
             )
-        report = write_slot(
-            bb.wrappers,
-            slot,
-            lambda item=item: bb.write_loss(item.query, item.value_text),
-            lr=args.lr,
-            steps=args.steps,
-        )
+
+        def loss_fn(item=item, slot=slot):
+            # Target term: only this slot is active, so what is learned is the
+            # association "query -> value", not a rewrite of the model's whole
+            # behaviour (which is what an all-slots-on write collapses into).
+            bb.set_read_slots([slot])
+            loss = bb.write_loss(item.query, item.value_text)
+            if anchors:
+                # Anchor term: every written slot is active, so cross-talk the new
+                # memory would introduce is penalised too.
+                bb.set_read_slots(sorted(set(slot_of.values()) | {slot}))
+                loss = loss + args.lambda_kl * bb.kl_to_anchors(anchors)
+            return loss
+
+        report = write_slot(bb.wrappers, slot, loss_fn, lr=args.lr, steps=args.steps)
+
+        with torch.no_grad():
+            bb.set_read_slots([slot])
+            ce_after = float(bb.write_loss(item.query, item.value_text))
+            if anchors:
+                kl_after = float(bb.kl_to_anchors(anchors))
+            else:
+                kl_after = float("nan")
+
         store.occupy(
             slot,
             item_id=item.item_id,
@@ -116,6 +145,8 @@ def run_episode(bb: Backbone, episode, args: argparse.Namespace) -> dict:
                 "value": item.value_text,
                 "loss_start": report.loss_start,
                 "loss_end": report.loss_end,
+                "ce_after_isolation": ce_after,
+                "kl_after": kl_after,
                 "frozen_ok": report.frozen_ok,
                 "seconds": report.seconds,
                 "norm_after": report.norm_after,
@@ -229,6 +260,11 @@ def aggregate(records: list[dict]) -> dict:
     loss_drop = [
         w["loss_start"] - w["loss_end"] for r in records for w in r["writes"]
     ]
+    ce_after = [w["ce_after_isolation"] for r in records for w in r["writes"]]
+    kl_after = [
+        w["kl_after"] for r in records for w in r["writes"]
+        if not math.isnan(w["kl_after"])
+    ]
     identical = sum(
         int(r["mem_off_identical_to_prompt_only"].split("/")[0]) for r in records
     )
@@ -246,6 +282,8 @@ def aggregate(records: list[dict]) -> dict:
         "write_seconds_mean": (sum(write_seconds) / len(write_seconds)) if write_seconds else 0.0,
         "write_seconds_max": max(write_seconds) if write_seconds else 0.0,
         "write_loss_drop_mean": (sum(loss_drop) / len(loss_drop)) if loss_drop else 0.0,
+        "ce_after_mean": (sum(ce_after) / len(ce_after)) if ce_after else float("nan"),
+        "kl_after_mean": (sum(kl_after) / len(kl_after)) if kl_after else float("nan"),
         "frozen_ok_everywhere": frozen_ok,
         "mem_off_string_identical": f"{identical}/{total_probes}",
     }
@@ -269,6 +307,10 @@ def format_table(summary: dict) -> str:
         f"write cost       : mean {summary['write_seconds_mean']*1000:.0f} ms, "
         f"max {summary['write_seconds_max']*1000:.0f} ms per item"
     )
+    lines.append(
+        f"target CE after write (slot only) = {summary['ce_after_mean']:.3f}; "
+        f"anchor KL after write = {summary['kl_after_mean']:.4f}"
+    )
     lines.append(f"mem_off string-identical to prompt_only: {summary['mem_off_string_identical']}")
     return "\n".join(lines)
 
@@ -283,7 +325,11 @@ def main() -> int:
         max_new_tokens=args.max_new_tokens,
     )
     print(f"loading {cfg.model_id} (n_slots={cfg.n_slots}, rank={cfg.rank}) ...", flush=True)
+    resolved = resolve_model_path(cfg.model_id)
+    print(f"resolved -> {resolved}", flush=True)
+    cfg.model_id = resolved
     bb = Backbone.load(cfg)
+    print(f"resolved: {bb.resolved_path}", flush=True)
     print(
         f"side path: {len(bb.wrappers)} modules, "
         f"{bb.n_memory_parameters/1e6:.2f}M trainable params",
@@ -309,6 +355,7 @@ def main() -> int:
     summary = aggregate(records)
     summary["elapsed_s"] = time.perf_counter() - t0
     summary["config"] = vars(args)
+    summary["model_path"] = bb.resolved_path
     summary["vram"] = bb.memory_footprint()
 
     out = Path(args.out)

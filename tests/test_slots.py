@@ -98,6 +98,36 @@ def test_all_slots_virgin_at_start():
     assert all(wrapper.is_virgin(slot) for slot in range(wrapper.n_slots))
 
 
+def test_read_mask_can_change_between_forwards_in_one_graph():
+    """Regression: the write loss runs a target term (only its own slot active)
+    and an anchor term (all written slots active) in ONE graph. Mutating the mask
+    buffer in place made backward fail with "variables needed for gradient
+    computation has been modified by an inplace operation"."""
+    model = _tiny_model()
+    wrapper = _attach(model)["0"]
+    x, y = _data(wrapper)
+
+    wrapper.begin_write(0)
+    wrapper.set_read_slots([0])
+    loss_target = torch.nn.functional.mse_loss(wrapper(x), y)
+    wrapper.set_read_slots([0, 1, 2])
+    loss_anchor = torch.nn.functional.mse_loss(wrapper(x), y)
+    (loss_target + loss_anchor).backward()  # must not raise
+    wrapper.end_write()
+    assert wrapper.A.grad is not None and torch.isfinite(wrapper.A.grad).all()
+
+
+def test_read_slots_none_activates_every_slot():
+    wrapper = _attach(_tiny_model())["0"]
+    wrapper.set_read_slots([0])
+    assert wrapper._read_mask_A.sum().item() == pytest.approx(wrapper.rank)
+    wrapper.set_read_slots(None)
+    assert wrapper._read_mask_A.sum().item() == pytest.approx(wrapper.total_rank)
+    assert wrapper.any_slot_active
+    wrapper.set_read_slots([])
+    assert not wrapper.any_slot_active
+
+
 def test_read_mask_off_restores_the_frozen_model_exactly():
     model = _tiny_model()
     x = torch.randn(5, 8)
