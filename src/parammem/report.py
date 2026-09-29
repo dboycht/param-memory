@@ -33,7 +33,7 @@ def _get(bundle: dict[str, Any], stage: str) -> dict[str, Any] | None:
 def stage_status(bundle: dict[str, Any]) -> list[tuple[str, str]]:
     """``(stage, status)`` pairs, so a partial run is visible at a glance."""
     out = []
-    for stage in ("t1", "t2", "t3", "t4", "t5", "t6"):
+    for stage in ("t1", "t2", "t3", "t4", "t5", "t6", "t7"):
         entry = bundle.get(stage)
         if not isinstance(entry, dict):
             out.append((stage, "missing"))
@@ -229,7 +229,48 @@ def _t6(bundle) -> str:
     return "\n".join(lines)
 
 
-_FORMATTERS = {"t1": _t1, "t2": _t2, "t3": _t3, "t4": _t4, "t5": _t5, "t6": _t6}
+def _t7(bundle) -> str:
+    data = _get(bundle, "t7")
+    if not data:
+        return ("### T7-d -- public benchmark (controlled diagnostic)\n\n"
+                f"{NOT_AVAILABLE}\n")
+    c = data.get("containment") or {}
+    write = data.get("write") or {}
+    ids = data.get("subset_ids") or []
+    leaking = data.get("p1_leaking_ids") or []
+    lines = [
+        "### T7-d -- LongMemEval controlled diagnostic (single-session subset)",
+        "",
+        f"- subset: {data.get('n_subset', '?')} questions + "
+        f"{len(data.get('negative_ids') or [])} negative controls; "
+        f"data sha256 `{str(data.get('data_sha256', ''))[:16]}...`",
+        f"- P1 eviction check: {len(ids) - len(leaking)}/{len(ids)} clean",
+        "",
+        "| arm | containment |",
+        "| --- | --- |",
+        f"| `frozen` | {c.get('frozen', float('nan')):.3f} |",
+        f"| `mem_on` | {c.get('mem_on', float('nan')):.3f} |",
+        f"| `mem_off` | {c.get('mem_off', float('nan')):.3f} |",
+        "",
+        f"- verbatim containment under `mem_on`: **{c.get('mem_on_full_match', float('nan')):.3f}**",
+        f"- routing accuracy: {data.get('routing_accuracy', float('nan')):.3f}",
+        f"- `mem_off` bit-identical to `frozen`: "
+        f"{data.get('mem_off_equals_frozen_rate', float('nan')):.3f}",
+        f"- negative control: {(data.get('negative_control') or {}).get('frozen', float('nan')):.3f}"
+        f" -> {(data.get('negative_control') or {}).get('mem_on', float('nan')):.3f}",
+        f"- write: {write.get('count', '?')} items in "
+        f"{write.get('total_seconds', 0) / 60:.1f} min, mean CE after write "
+        f"{write.get('mean_ce_after', float('nan')):.4f}",
+        "",
+        "Caveats that must travel with these numbers:",
+    ]
+    lines += [f"- {cav}" for cav in data.get("caveats", [])]
+    lines.append("")
+    return "\n".join(lines)
+
+
+_FORMATTERS = {"t1": _t1, "t2": _t2, "t3": _t3, "t4": _t4, "t5": _t5, "t6": _t6,
+               "t7": _t7}
 
 
 def build_results_markdown(bundle: dict[str, Any]) -> str:
@@ -333,6 +374,7 @@ def headline_values(bundle: dict[str, Any]) -> dict[str, str]:
     t4 = _get(bundle, "t4") or {}
     t5 = _get(bundle, "t5") or {}
     t6 = _get(bundle, "t6") or {}
+    t7 = _get(bundle, "t7") or {}
 
     t3rec = {r["policy"]: r for r in t3.get("records", [])}
     self_r, always_r = t3rec.get("selfcheck", {}), t3rec.get("always", {})
@@ -407,6 +449,18 @@ def headline_values(bundle: dict[str, Any]) -> dict[str, str]:
         "tSixEraseVirgin": _na(read.get("erase_after_load_is_virgin")),
         "tSnapshotMB": f"{snap.get('bytes_on_disk', 0) / 1e6:.1f}" if snap else "n/a",
         "tSnapshotSlots": _na(snap.get("n_slots")),
+        # ---- T7-d: public-benchmark controlled diagnostic ----
+        "tLongMemFrozen": _na((t7.get("containment") or {}).get("frozen"), ".3f"),
+        "tLongMemOn": _na((t7.get("containment") or {}).get("mem_on"), ".3f"),
+        "tLongMemOff": _na((t7.get("containment") or {}).get("mem_off"), ".3f"),
+        "tLongMemFull": _na((t7.get("containment") or {}).get("mem_on_full_match"), ".3f"),
+        "tLongMemRouting": _na(t7.get("routing_accuracy"), ".3f"),
+        "tLongMemSubset": _na(t7.get("n_subset")),
+        "tLongMemWriteMin": (
+            f"{(t7.get('write') or {}).get('total_seconds', 0) / 60:.1f}"
+            if t7.get("write") else "n/a"
+        ),
+        "tLongMemCe": _na((t7.get("write") or {}).get("mean_ce_after"), ".4f"),
     }
 
 
@@ -575,5 +629,35 @@ def build_results_latex(bundle: dict[str, Any]) -> str:
         _latex_t4(bundle),
         _latex_t5(bundle),
         _latex_t6(bundle),
+        _latex_t7(bundle),
     ]
     return "\n".join(parts)
+
+
+def _latex_t7(bundle) -> str:
+    data = _get(bundle, "t7")
+    if not data:
+        return f"% T7-d {NOT_AVAILABLE}"
+    c = data.get("containment") or {}
+    write = data.get("write") or {}
+    neg = data.get("negative_control") or {}
+    rows = [
+        ["questions (single-session subset)", str(data.get("n_subset", "n/a"))],
+        ["\\texttt{frozen} containment", f"{c.get('frozen', float('nan')):.3f}"],
+        ["\\texttt{mem\\_on} containment", f"{c.get('mem_on', float('nan')):.3f}"],
+        ["\\texttt{mem\\_off} containment", f"{c.get('mem_off', float('nan')):.3f}"],
+        ["verbatim containment (mem\\_on)", f"{c.get('mem_on_full_match', float('nan')):.3f}"],
+        ["routing accuracy", f"{data.get('routing_accuracy', float('nan')):.3f}"],
+        ["mem\\_off bit-identical to frozen",
+         f"{data.get('mem_off_equals_frozen_rate', float('nan')):.3f}"],
+        ["negative control (frozen $\\rightarrow$ mem\\_on)",
+         f"{neg.get('frozen', float('nan')):.3f} $\\rightarrow$ {neg.get('mem_on', float('nan')):.3f}"],
+        ["write cost", f"{write.get('count', 'n/a')} items / "
+                       f"{write.get('total_seconds', 0) / 60:.1f} min"],
+    ]
+    return _table(
+        "T7-d: a controlled diagnostic on real benchmark content. The history is "
+        "absent throughout; the answer is written into a slot and read back, so this "
+        "measures whether the parameters can hold real content, \\emph{not} whether "
+        "retrieval generalises. See the caveats in the text.",
+        "tab:t7", ["measurement", "value"], rows, "ll")

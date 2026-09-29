@@ -166,6 +166,8 @@ $\\alpha$、模块集合与每个张量的形状，任一不符即拒绝：这�
 | 重启后：单槽召回 / 路由召回 / 路由正确 | {tSixOracle} / {tRouted} / {tSixRouting} | T6 |
 | 擦除在重启后依然精确 | {tSixEraseVirgin} | T6 |
 | 快照体积 | {tSnapshotMB} MB（{tSnapshotSlots} 槽） | T6 |
+| **公开基准**：真实问答下 frozen → mem_on | **{tLongMemFrozen} → {tLongMemOn}**（擦除后 {tLongMemOff}） | T7-d |
+| 公开基准：逐字包含率 / 路由准确率 | {tLongMemFull} / {tLongMemRouting} | T7-d |
 
 ### 4.2 五条结论
 

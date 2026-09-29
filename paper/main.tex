@@ -55,6 +55,10 @@ it into the next topic exactly as much as leaving it in the context
 ($\tContext$ vs $\tParam$ inheritance). The honest summary is that parametric
 memory buys durability and exact forgetting, not insulation from the previous
 topic.
+A scoped diagnostic on real benchmark content (30 single-session LongMemEval
+questions, history absent) moves containment from \tLongMemFrozen{} to
+\tLongMemOn{}, with the erased condition collapsing back to the frozen answers
+bit-for-bit --- recall of stored answers under oracle indexing, not reasoning.
 \end{abstract}
 
 \section{Introduction}
@@ -342,6 +346,23 @@ virgin state and the memory does not come back, so forgetting survives a restart
 --- without which a ``forgotten'' memory would be one reboot away from
 resurrection.
 
+\paragraph{Real content, under oracle indexing.} Table~\ref{tab:t7} reports a
+controlled diagnostic on LongMemEval's oracle split~\cite{longmembench}: the 30
+single-session questions, history absent throughout, each answer written into its
+own slot. Containment rises from \tLongMemFrozen{} (frozen) to \tLongMemOn{},
+with \tLongMemFull{} of the answers contained verbatim; the erased condition
+collapses to \tLongMemOff{} and is bit-identical to the frozen answers, and the
+router selects the correct slot every time (\tLongMemRouting). Writing real
+answers costs \tLongMemWriteMin{} minutes for \tLongMemSubset{} items and leaves a
+mean cross-entropy of \tLongMemCe{}. Three caveats are load-bearing and travel with
+the number: the memory items \emph{are} the benchmark's own $(q,a)$ pairs, so this
+measures whether the parameters can hold real content, not whether retrieval
+generalises; the evidence turn is located with the benchmark's own flags, i.e.
+retrieval is oracle-indexed; and the write query is the read query, so
+\tLongMemRouting{} is an upper bound --- paraphrased routing measured
+\tRouterAcc{} in Section~\ref{sec:routing}. We report it as a scoped diagnosis,
+not a LongMemEval result.
+
 \section{Negative results}
 \label{sec:negative}
 
@@ -378,7 +399,8 @@ verbosity structure instead.
   all-position KL is $\approx 1$ nat. Parametric memory is not free, and the cost
   grows with the number of writes.
 \item \textbf{Public benchmarks: a scoped diagnosis, not a comparison.} We report
-  protocol-controlled synthetic results only. We did cost the adaptation of
+  protocol-controlled synthetic results plus one scoped public-benchmark
+  diagnostic (Section~\ref{sec:results}). We did cost the adaptation of
   LongMemEval~\cite{longmembench} on this machine instead of waving at it: its
   oracle split is small enough that a pilot is minutes of compute, so compute is
   \emph{not} the obstacle. Two obstacles are. First, a memory item here is a

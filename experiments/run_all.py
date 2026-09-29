@@ -87,11 +87,23 @@ STAGES: dict[str, dict] = {
             ["--session", "write", "--out", "runs/t6_write.json"],
             ["--session", "read", "--out", "runs/t6_read.json"],
         ],
+        # quick mode must use its own snapshot dir and outputs: writing a 2-item
+        # snapshot over the real one would silently replace the full run's artifact
+        # with a smoke-test one.
         "quick_phases": [
             ["--session", "write", "--facts", "2", "--steps", "4",
-             "--out", "runs/t6_write.json"],
-            ["--session", "read", "--out", "runs/t6_read.json"],
+             "--snapshot", "runs/t6_memory_quick", "--out", "runs/t6_quick_write.json"],
+            ["--session", "read", "--snapshot", "runs/t6_memory_quick",
+             "--out", "runs/t6_quick_read.json"],
         ],
+    },
+    "t7": {
+        "script": "t7d_longmemeval_pilot.py",
+        "inputs": ["t7d_longmemeval.json"],
+        "full": ["--subset", "30", "--negatives", "5",
+                 "--out", "runs/t7d_longmemeval.json"],
+        "quick": ["--subset", "4", "--negatives", "2", "--steps", "4",
+                  "--out", "runs/t7d_quick.json"],
     },
 }
 

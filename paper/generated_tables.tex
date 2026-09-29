@@ -49,6 +49,14 @@
 \newcommand{\tSixEraseVirgin}{True}
 \newcommand{\tSnapshotMB}{18.4}
 \newcommand{\tSnapshotSlots}{8}
+\newcommand{\tLongMemFrozen}{0.017}
+\newcommand{\tLongMemOn}{0.817}
+\newcommand{\tLongMemOff}{0.017}
+\newcommand{\tLongMemFull}{0.633}
+\newcommand{\tLongMemRouting}{1.000}
+\newcommand{\tLongMemSubset}{30}
+\newcommand{\tLongMemWriteMin}{22.7}
+\newcommand{\tLongMemCe}{0.0007}
 
 \begin{table}[t]
 \centering
@@ -64,6 +72,7 @@ t3 & ok \\
 t4 & ok \\
 t5 & ok \\
 t6 & ok \\
+t7 & ok \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -179,6 +188,27 @@ side path virgin before load & True \\
 erase after load is virgin & True \\
 erased memory still recalled & False \\
 snapshot size & 18.4 MB (8 slots) \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[t]
+\centering
+\caption{T7-d: a controlled diagnostic on real benchmark content. The history is absent throughout; the answer is written into a slot and read back, so this measures whether the parameters can hold real content, \emph{not} whether retrieval generalises. See the caveats in the text.}
+\label{tab:t7}
+\begin{tabular}{ll}
+\toprule
+measurement & value \\
+\midrule
+questions (single-session subset) & 30 \\
+\textbackslash\{\}texttt\{frozen\} containment & 0.017 \\
+\textbackslash\{\}texttt\{mem\textbackslash\{\}\_on\} containment & 0.817 \\
+\textbackslash\{\}texttt\{mem\textbackslash\{\}\_off\} containment & 0.017 \\
+verbatim containment (mem\textbackslash\{\}\_on) & 0.633 \\
+routing accuracy & 1.000 \\
+mem\textbackslash\{\}\_off bit-identical to frozen & 1.000 \\
+negative control (frozen $\textbackslash\{\}rightarrow$ mem\textbackslash\{\}\_on) & 0.100 $\textbackslash\{\}rightarrow$ 0.000 \\
+write cost & 30 items / 22.7 min \\
 \bottomrule
 \end{tabular}
 \end{table}
