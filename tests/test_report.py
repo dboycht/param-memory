@@ -360,6 +360,27 @@ def test_retention_pairing_sorts_by_episode_and_reports_the_best_weight():
     assert values["tRetentionKlBest"] == "0.309"
 
 
+def test_retention_macros_read_the_nested_shape_too():
+    """Regression: the experiment nests by_lambda under `summary`, and reading only
+    the flat shape silently turned every retention macro into "n/a"."""
+    from parammem.report import headline_values
+    nested = {"t8": {"summary": {"by_lambda": {
+        "0.0": {"em": {"top2": 0.25, "oracle": 0.9, "all": 0.0},
+                "base_kl_slots_on": 1.2, "route_top2_accuracy": 1.0},
+        "3.0": {"em": {"top2": 0.75, "oracle": 1.0, "all": 0.1},
+                "base_kl_slots_on": 0.3, "route_top2_accuracy": 1.0}}},
+        "episodes": [{"episode_id": 0, "lambda_ret": 0.0, "arms": {"top2": [1, 0]}},
+                     {"episode_id": 0, "lambda_ret": 3.0, "arms": {"top2": [1, 1]}}]}}
+    values = headline_values(nested)
+    assert values["tRetentionTopTwoBase"] == "0.250"
+    assert values["tRetentionTopTwoBest"] == "0.750"
+    assert values["tRetentionKlBase"] == "1.200"
+    assert values["tRetentionKlBest"] == "0.300"
+    assert values["tRetentionRouteTwo"] == "1.000"
+    assert values["tRetentionAllBest"] == "0.100"
+    assert values["tRetentionHelped"] == "1" and values["tRetentionHurt"] == "0"
+
+
 def test_retention_markdown_states_the_paired_result():
     from parammem.report import build_results_markdown
     md = build_results_markdown(BUNDLE)

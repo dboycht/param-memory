@@ -319,6 +319,28 @@ selection rule introduces no loss of its own. The practical consequence is
 stronger than ``sparser is better'': a read path for this kind of memory should
 select exactly one slot, and a top-$k$ hedge costs most of the benefit.
 
+\paragraph{Repairing the composition failure at the source.} The boundary is not
+retrieval: the correct slot is among the two best-routed ones on
+\tRetentionRouteTwo{} of the probes, yet two-slot recall is only
+\tRetentionTopTwoBase{}. The interference is manufactured by the writes --- each one
+is trained to produce its own value and told nothing about the queries the bank
+already answers --- so we make it explicit. The write objective gains a
+\textbf{retention term}: earlier memories' queries must keep their next-token
+distributions under the read condition where interference actually appears (all
+written slots active), with the reference captured from the bank as it stands before
+the write. It reuses the anchor machinery of Section~\ref{sec:results}, pointed at
+real memories instead of generic prompts. At $\lambda_{\mathrm{ret}} =
+\tRetentionBest{}$ two-slot recall rises from \tRetentionTopTwoBase{} to
+\tRetentionTopTwoBest{}, backbone damage falls from \tRetentionKlBase{} to
+\tRetentionKlBest{} nats, and own-slot recall does not pay for it
+(\tRetentionOwnBase{} to \tRetentionOwnBest{}) --- an improvement on every axis we
+measure. Paired probe by probe it helps \tRetentionHelped{} and hurts
+\tRetentionHurt{} (exact sign test $p = \tRetentionP{}$ over \tRetentionProbes{}
+probes), so we call it promising rather than established, and we note what it does
+\emph{not} fix: with all slots active recall is still \tRetentionAllBest{} at best,
+i.e. the repair reaches pairs, not many-way superposition. A larger run on the same
+protocol is the obvious next step.
+
 \paragraph{Deciding what to remember.} Table~\ref{tab:t3} compares write
 criteria on a stream mixing $5$ fictional facts with $13$ verified-known facts.
 Writing everything costs $\tAlwaysWrites$ gradient writes, of which

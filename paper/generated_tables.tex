@@ -76,6 +76,19 @@
 \newcommand{\tLongMemOnArchived}{0.817}
 \newcommand{\tJudgeCalibMarks}{10/10}
 \newcommand{\tJudgeCalibRate}{1.000}
+\newcommand{\tRetentionTopTwoBase}{0.333}
+\newcommand{\tRetentionTopTwoBest}{0.583}
+\newcommand{\tRetentionOwnBase}{0.917}
+\newcommand{\tRetentionOwnBest}{1.000}
+\newcommand{\tRetentionKlBase}{1.504}
+\newcommand{\tRetentionKlBest}{0.309}
+\newcommand{\tRetentionHelped}{7}
+\newcommand{\tRetentionHurt}{1}
+\newcommand{\tRetentionP}{0.070}
+\newcommand{\tRetentionProbes}{24}
+\newcommand{\tRetentionBest}{3.0}
+\newcommand{\tRetentionAllBest}{0.167}
+\newcommand{\tRetentionRouteTwo}{1.000}
 
 \begin{table}[t]
 \centering
@@ -92,6 +105,7 @@ t4 & ok \\
 t5 & ok \\
 t6 & ok \\
 t7 & ok \\
+t8 & ok \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -239,6 +253,21 @@ pre-registered verdict (docs/06 \textbackslash\{\}S9) & within the pre-registere
 \textbackslash\{\}quad paired wins / losses & 8 / 0 \\
 \textbackslash\{\}quad extra prompt tokens (weights) & n/a \\
 \textbackslash\{\}quad extra prompt tokens (context\textbackslash\{\}\_all) & 1688 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[t]
+\centering
+\caption{T8-a: the write objective also protects earlier memories (B1). $\lambda_{\mathrm{ret}} = 0$ reproduces the T2 composition result. `top2` is recall with the two best-routed slots active; base KL is the damage the bank does to generic prompts while in use.}
+\label{tab:t8}
+\begin{tabular}{lccc}
+\toprule
+$\textbackslash\{\}lambda\_\{\textbackslash\{\}mathrm\{ret\}\}$ & \textbackslash\{\}texttt\{top2\} & \textbackslash\{\}texttt\{oracle\} & base KL \\
+\midrule
+$\textbackslash\{\}lambda\_\{\textbackslash\{\}mathrm\{ret\}\} = 0.0$ & 0.333 & 0.917 & 1.504 \\
+$\textbackslash\{\}lambda\_\{\textbackslash\{\}mathrm\{ret\}\} = 1.0$ & 0.458 & 0.875 & 0.360 \\
+$\textbackslash\{\}lambda\_\{\textbackslash\{\}mathrm\{ret\}\} = 3.0$ & 0.583 & 1.000 & 0.309 \\
 \bottomrule
 \end{tabular}
 \end{table}

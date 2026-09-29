@@ -450,8 +450,20 @@ def _table(caption: str, label: str, columns: list[str], rows: list[list[str]],
     return "\n".join(lines)
 
 
+def _retention_block(t8: dict) -> dict:
+    """The per-weight summary, wherever the experiment put it.
+
+    The experiment nests it under ``summary``; accepting the flat shape too keeps the
+    renderer from silently reporting "n/a" for every number if that ever changes
+    (which is exactly what happened once already).
+    """
+    return (t8.get("by_lambda")
+            or (t8.get("summary") or {}).get("by_lambda")
+            or {})
+
+
 def _retention_settings(t8: dict) -> list[str]:
-    return sorted((t8.get("by_lambda") or {}), key=lambda key: float(key))
+    return sorted(_retention_block(t8), key=lambda key: float(key))
 
 
 def _retention_best(t8: dict, arm: str = "top2") -> str:
@@ -465,7 +477,7 @@ def _retention_best(t8: dict, arm: str = "top2") -> str:
         return "0.0"
 
     def score(setting: str) -> tuple[float, float]:
-        em = ((t8.get("by_lambda") or {}).get(setting) or {}).get("em") or {}
+        em = (_retention_block(t8).get(setting) or {}).get("em") or {}
         value = em.get(arm)
         return (value if value is not None else -1.0, float(setting))
 
@@ -473,12 +485,12 @@ def _retention_best(t8: dict, arm: str = "top2") -> str:
 
 
 def _retention_em(t8: dict, setting: str, arm: str) -> str:
-    em = (((t8.get("by_lambda") or {}).get(setting) or {}).get("em")) or {}
+    em = ((_retention_block(t8).get(setting) or {}).get("em")) or {}
     return _na(em.get(arm), ".3f")
 
 
 def _retention_kl(t8: dict, setting: str) -> str:
-    block = ((t8.get("by_lambda") or {}).get(setting) or {})
+    block = _retention_block(t8).get(setting) or {}
     return _na(block.get("base_kl_slots_on"), ".3f")
 
 
@@ -719,6 +731,9 @@ def headline_values(bundle: dict[str, Any]) -> dict[str, str]:
         "tRetentionP": _na(_retention_p(t8), ".3f"),
         "tRetentionProbes": _na(_retention_probes(t8)),
         "tRetentionBest": _retention_best(t8),
+        "tRetentionAllBest": _retention_em(t8, _retention_best(t8), "all"),
+        "tRetentionRouteTwo": _na(
+            (_retention_block(t8).get("0.0") or {}).get("route_top2_accuracy"), ".3f"),
     }
 
 

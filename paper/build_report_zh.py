@@ -174,6 +174,9 @@ $\\alpha$、模块集合与每个张量的形状，任一不符即拒绝：这�
 | 公平对比：额外 prompt token（参数 vs 全塞上下文） | **{tTokWeights}** / {tTokContextAll} | T7-e |
 | 判官与人工标注校准 | {tJudgeCalibMarks} | T7-f |
 | ⚠️ 同一实验在 32 token 生成预算下的旧读数（截断假象） | {tLongMemOnArchived} | E12 |
+| **B1 保留项**：k=2 召回（λ=0 → {tRetentionBest}） | {tRetentionTopTwoBase} → **{tRetentionTopTwoBest}** | T8-a |
+| B1：基座损伤 / 自身槽位召回 | {tRetentionKlBase} → **{tRetentionKlBest}** / {tRetentionOwnBase} → {tRetentionOwnBest} | T8-a |
+| B1：逐探针配对（帮助 / 损害 / 符号检验） | {tRetentionHelped} / {tRetentionHurt}，p={tRetentionP}（n={tRetentionProbes}） | T8-a |
 
 ### 4.2 五条结论
 
