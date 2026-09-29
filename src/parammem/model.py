@@ -206,10 +206,19 @@ class Backbone:
     def n_memory_parameters(self) -> int:
         return count_memory_parameters(self.wrappers)
 
-    def _chat(self, query: str, *, answer: str | None = None) -> str:
+    def _chat(self, query: str, *, answer: str | None = None,
+              context: str = "") -> str:
+        """Build the chat prompt.
+
+        ``context`` (empty by default) is inserted **above** the question, inside
+        the same user turn, so the question stays where the model expects it. With
+        the default empty string the produced prompt is byte-identical to before,
+        which is what keeps the earlier memory-arm results comparable.
+        """
+        body = f"Question: {query}" if not context else f"{context}\n\nQuestion: {query}"
         messages = [
             {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user", "content": f"Question: {query}"},
+            {"role": "user", "content": body},
         ]
         kwargs = dict(tokenize=False, add_generation_prompt=True)
         try:
@@ -246,9 +255,15 @@ class Backbone:
         return out.loss
 
     # ------------------------------------------------------------------ read
+    def prompt_tokens(self, query: str, *, context: str = "") -> int:
+        """How many tokens the read prompt costs -- the price a context arm pays
+        and a parametric one does not."""
+        return int(self._ids(self._chat(query, context=context)).shape[1])
+
     @torch.no_grad()
-    def answer(self, query: str, *, max_new_tokens: int | None = None) -> str:
-        prompt_ids = self._ids(self._chat(query))
+    def answer(self, query: str, *, max_new_tokens: int | None = None,
+               context: str = "") -> str:
+        prompt_ids = self._ids(self._chat(query, context=context))
         generated = self.model.generate(
             input_ids=prompt_ids,
             max_new_tokens=max_new_tokens or self.cfg.max_new_tokens,
