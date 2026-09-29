@@ -125,12 +125,14 @@ STAGES: dict[str, dict] = {
     },
     "t8": {
         "script": "t8a_retention.py",
-        "inputs": ["t8a_confirm.json"],
+        "inputs": ["t8a_large.json", "t8a_confirm.json"],
         # B1: the write objective gains a retention term, swept over its weight.
         # lambda 0 reproduces the T2 behaviour, so the comparison is on the same
-        # items and probes.
-        "full": ["--items", "8", "--episodes", "3", "--paraphrase",
-                 "--lambda-ret", "0", "1", "3", "--out", "runs/t8a_confirm.json"],
+        # items and probes. Both the 8-episode run and the earlier 3-episode one are
+        # inputs: the small one looked like a repair (p=0.070) and the large one did
+        # not replicate it, and that difference is a result, not bookkeeping.
+        "full": ["--items", "8", "--episodes", "8", "--paraphrase",
+                 "--lambda-ret", "0", "3", "--out", "runs/t8a_large.json"],
         "quick": ["--items", "4", "--episodes", "1", "--paraphrase", "--steps", "4",
                   "--lambda-ret", "0", "3", "--out", "runs/t8a_quick.json"],
     },
@@ -221,6 +223,13 @@ def collect(stage: str, recipe: dict, mode: str) -> dict:
                 merged["calibration"] = payload
             else:
                 merged.update(payload)
+        return merged
+    if stage == "t8":
+        by_name = dict(pairs)
+        merged = dict(by_name.get("t8a_large.json") or by_name.get("t8a_confirm.json")
+                      or {})
+        if "t8a_confirm.json" in by_name:
+            merged["small_run"] = by_name["t8a_confirm.json"]
         return merged
     return pairs[0][1] if pairs else {}
 

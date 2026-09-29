@@ -475,6 +475,16 @@ def _table(caption: str, label: str, columns: list[str], rows: list[list[str]],
     return "\n".join(lines)
 
 
+def _retention_small(t8: dict) -> dict:
+    """The earlier, smaller retention run, when the bundle carries both.
+
+    The paper reports both because the small one's apparent repair did not
+    replicate; hiding the smaller run would make the larger one look like the only
+    measurement that ever happened.
+    """
+    return t8.get("small_run") or {}
+
+
 def _retention_block(t8: dict) -> dict:
     """The per-weight summary, wherever the experiment put it.
 
@@ -759,8 +769,23 @@ def headline_values(bundle: dict[str, Any]) -> dict[str, str]:
             ((t8.get("summary") or {}).get("config") or {}).get("items")),
         "tRetentionBest": _retention_best(t8),
         "tRetentionAllBest": _retention_em(t8, _retention_best(t8), "all"),
+        "tRetentionAllBase": _retention_em(t8, "0.0", "all"),
         "tRetentionRouteTwo": _na(
             (_retention_block(t8).get("0.0") or {}).get("route_top2_accuracy"), ".3f"),
+        # The arm the retention term is actually evaluated on improves in a
+        # one-directional way; the two-slot arm, where we hoped for a repair, does not.
+        "tRetentionAllHelped": _na(_retention_pair(t8, "all")[0]),
+        "tRetentionAllHurt": _na(_retention_pair(t8, "all")[1]),
+        "tRetentionAllP": _na(_retention_p(t8, "all"), ".3f"),
+        # The earlier, smaller run: quoted because its apparent repair did not
+        # replicate, and a result that shrinks with n is itself the finding.
+        "tRetentionSmallHelped": _na(_retention_pair(_retention_small(t8))[0]),
+        "tRetentionSmallHurt": _na(_retention_pair(_retention_small(t8))[1]),
+        "tRetentionSmallP": _na(_retention_p(_retention_small(t8)), ".3f"),
+        "tRetentionSmallProbes": _na(_retention_probes(_retention_small(t8))),
+        "tRetentionSmallBest": _retention_em(_retention_small(t8),
+                                            _retention_best(_retention_small(t8)),
+                                            "top2"),
     }
 
 

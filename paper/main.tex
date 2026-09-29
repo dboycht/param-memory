@@ -107,13 +107,12 @@ initial state, which makes forgetting \emph{verifiable} rather than gradual.
   the sum of the slots is worthless, one selected slot is as good as an oracle,
   and two selected slots already lose most of the benefit
   (Table~\ref{tab:t2}).
-\item A repair for that constraint at its source: a retention term in the write
-  objective, which requires each write to leave \emph{earlier} memories' queries
-  unchanged under the read condition where interference actually appears. It lifts
-  two-slot recall from \tRetentionTopTwoBase{} to \tRetentionTopTwoBest{} and cuts
-  backbone damage from \tRetentionKlBase{} to \tRetentionKlBest{} nats without
-  costing own-slot recall (Table~\ref{tab:t8}). We report it as promising rather
-  than established, and say what it does not fix.
+\item A retention term in the write objective, tested against that constraint and
+  reported with its non-replication: it cuts backbone damage from \tRetentionKlBase{}
+  to \tRetentionKlBest{} nats and improves the all-slots condition from
+  \tRetentionAllBase{} to \tRetentionAllBest{} ($p = \tRetentionAllP{}$), but it does
+  \emph{not} repair two-slot recall --- an earlier smaller run suggested it did and
+  four times the sample refuted it (Table~\ref{tab:t8}).
 \item A scoped diagnostic on real benchmark content, compared against delivering the
   same information through the context with the \emph{same} router and graded by an
   LLM judge calibrated against human marks: the parametric arm answers every
@@ -371,28 +370,35 @@ selection rule introduces no loss of its own. The practical consequence is
 stronger than ``sparser is better'': a read path for this kind of memory should
 select exactly one slot, and a top-$k$ hedge costs most of the benefit.
 
-\paragraph{Repairing the composition failure at the source.} The boundary is not
+\paragraph{Testing a repair for the composition failure.} The boundary is not
 retrieval: the correct slot is among the two best-routed ones on
 \tRetentionRouteTwo{} of the probes, yet two-slot recall is only
 \tRetentionTopTwoBase{}. The interference is manufactured by the writes --- each one
 is trained to produce its own value and told nothing about the queries the bank
-already answers --- so we make it explicit. The write objective gains a
+already answers --- so we made it explicit. The write objective gains a
 \textbf{retention term} (Equation~\ref{eq:retention}): earlier memories' queries must
-keep their next-token
-distributions under the read condition where interference actually appears (all
-written slots active), with the reference captured from the bank as it stands before
-the write. It reuses the anchor machinery of Section~\ref{sec:results}, pointed at
-real memories instead of generic prompts. At $\lambda_{\mathrm{ret}} =
-\tRetentionBest{}$ two-slot recall rises from \tRetentionTopTwoBase{} to
-\tRetentionTopTwoBest{}, backbone damage falls from \tRetentionKlBase{} to
-\tRetentionKlBest{} nats, and own-slot recall does not pay for it
-(\tRetentionOwnBase{} to \tRetentionOwnBest{}) --- an improvement on every axis we
-measure. Paired probe by probe it helps \tRetentionHelped{} and hurts
-\tRetentionHurt{} (exact sign test $p = \tRetentionP{}$ over \tRetentionProbes{}
-probes), so we call it promising rather than established, and we note what it does
-\emph{not} fix: with all slots active recall is still \tRetentionAllBest{} at best,
-i.e. the repair reaches pairs, not many-way superposition. A larger run on the same
-protocol is the obvious next step.
+keep their next-token distributions under the read condition where interference
+actually appears (all written slots active), with the reference captured from the
+bank as it stands before the write. It reuses the anchor machinery of
+Section~\ref{sec:results}, pointed at real memories instead of generic prompts.
+
+\textbf{It does not repair two-slot recall, and we report that rather than the run
+that said it did.} Over \tRetentionProbes{} probes the paired comparison is
+\tRetentionHelped{} probes helped against \tRetentionHurt{} hurt (exact sign test
+$p = \tRetentionP{}$), and the two-slot rate moves only from \tRetentionTopTwoBase{}
+to \tRetentionTopTwoBest{} --- indistinguishable from noise. An earlier, smaller run
+of \tRetentionSmallProbes{} probes had looked like a repair (up to
+\tRetentionSmallBest{}, \tRetentionSmallHelped{} helped against
+\tRetentionSmallHurt{} hurt, $p = \tRetentionSmallP{}$); the effect did not survive
+four times the sample, which is why we report both. Two things \emph{do} hold, and
+they hold in every run we did. Backbone damage falls by about four fifths, from
+\tRetentionKlBase{} to \tRetentionKlBest{} nats. And the condition the term is
+actually evaluated on improves one-directionally: reading \emph{every} slot goes from
+\tRetentionAllBase{} to \tRetentionAllBest{}, with \tRetentionAllHelped{} probes
+helped and \tRetentionAllHurt{} hurt ($p = \tRetentionAllP{}$) --- small in
+magnitude, but not noise. The honest summary is that teaching a write to protect its
+predecessors buys a large reduction in backbone damage and a small gain in the
+many-slot condition, while the two-slot repair we hypothesised is unsupported.
 
 \paragraph{Deciding what to remember.} Table~\ref{tab:t3} compares write
 criteria on a stream mixing $5$ fictional facts with $13$ verified-known facts.
@@ -501,13 +507,15 @@ verbosity structure instead.
   $12$-memory stream the generic prompts are no longer answered verbatim and the
   all-position KL is $\approx 1$ nat. Parametric memory is not free, and the cost
   grows with the number of writes.
-\item \textbf{The retention repair is suggestive, not established.} It was measured
-  on \tRetentionItems{} memories over \tRetentionProbes{} probes drawn from one seed family:
-  paired probe by probe it helped \tRetentionHelped{} and hurt \tRetentionHurt{}
-  (exact sign test $p = \tRetentionP{}$), so the direction is consistent but this
-  sample does not settle it. It also does not repair many-way superposition --- with
-  every slot active recall is still \tRetentionAllBest{} at best --- so the claim it
-  supports is about \emph{pairs} of memories, not about a bank of many.
+\item \textbf{The retention term's headline effect did not replicate.} On
+  \tRetentionSmallProbes{} probes it looked like a two-slot repair
+  (\tRetentionSmallHelped{} helped to \tRetentionSmallHurt{} hurt,
+  $p = \tRetentionSmallP{}$); on \tRetentionProbes{} probes the paired counts are
+  \tRetentionHelped{} to \tRetentionHurt{} ($p = \tRetentionP{}$), i.e. nothing. We
+  keep both runs in the paper because the shrinkage is the finding. What survives is
+  the backbone-damage reduction and a small, one-directional gain in the all-slots
+  condition; many-way superposition is still unsolved, and the two-slot limit of
+  Section~\ref{sec:routing} therefore still stands as measured.
 \item \textbf{Public benchmarks: a scoped diagnosis, not a comparison.} We report
   protocol-controlled synthetic results plus one scoped public-benchmark
   diagnostic (Section~\ref{sec:results}). We did cost the adaptation of
@@ -555,11 +563,13 @@ stored. The practical design rules we would carry forward are that read-time
 composition must default to exactly one slot, that the criterion for writing should
 ask the model rather than threshold its likelihood, and that capacity is best spent
 on durable, exactly erasable slots rather than on trying to keep memories out of the
-working set by moving them into weights. The one partial exception is instructive:
-training each write to protect the memories already in the bank buys back part of the
-second slot (\tRetentionTopTwoBase{} to \tRetentionTopTwoBest{}), which suggests the
-one-slot limit is a property of how slots are written rather than a hard ceiling on
-the read path.
+working set by moving them into weights. The one exception we chased is instructive
+in the opposite direction: training each write to protect the memories already in the
+bank cuts backbone damage by about four fifths and slightly improves the all-slots
+condition, but it does \emph{not} buy back the second slot --- an earlier, smaller run
+suggested it did, and four times the sample refuted it. A measured effect that
+shrinks with $n$ is a result worth publishing; we would rather report the refuted
+repair than the flattering sample.
 
 \appendix
 \section{Reproducibility}
