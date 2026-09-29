@@ -103,8 +103,21 @@ def main() -> int:
     outdir.mkdir(parents=True)
 
     sources = ["main.tex", "generated_tables.tex"]
+    # arXiv's own preflight checklist: "All announced content is archival and
+    # cannot be removed. Make sure that data you do not want archived is not part
+    # of your upload, for example TeX comments in your source." Our working files
+    # carry process notes (whose privacy rule shaped the author line, how the
+    # tables are generated), so the *uploaded* copy gets full-line comments
+    # stripped. Only whole-line comments are removed: a mid-line % can be an
+    # escaped \%, and stripping that would corrupt the text.
+    stripped_report = []
     for name in sources:
-        shutil.copy2(ROOT / "paper" / name, outdir / name)
+        text = (ROOT / "paper" / name).read_text(encoding="utf-8")
+        kept = [line for line in text.splitlines()
+                if not line.lstrip().startswith("%")]
+        removed = len(text.splitlines()) - len(kept)
+        (outdir / name).write_text("\n".join(kept) + "\n", encoding="utf-8")
+        stripped_report.append(f"{name}: {removed} comment lines removed")
 
     main_tex = (ROOT / "paper" / "main.tex").read_text(encoding="utf-8")
     abstract = latex_to_plain(extract_abstract(main_tex), values)
@@ -136,6 +149,8 @@ def main() -> int:
 
 - 源文件包：`{outdir / 'param-memory-arxiv.tar.gz'}`
   （里面只有 `main.tex` + `generated_tables.tex`，都在压缩包根目录，arXiv 要的就是这个形态）
+  已按 arXiv preflight 提示**剥掉整行注释**（{'; '.join(stripped_report)}）——
+  归档内容不可撤销，而工作副本里的注释含流程备注，不该公开。
 - 摘要纯文本：`{outdir / 'abstract.txt'}`
   （arXiv 的摘要框**不接受宏和公式**，直接粘 LaTeX 会乱码，所以这里做了纯文本化）
 
