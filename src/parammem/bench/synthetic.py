@@ -77,6 +77,42 @@ _LESSON_TEMPLATE = (
 )
 _LESSON_QUERY = "What did we learn to do when the {noun_a} alarm fires twice in a row?"
 
+# Read-time paraphrases: different wording, same intent. The memory is written
+# from the canonical query above and read with one of these, so retrieval must
+# generalise across surface form instead of matching a string.
+_FACT_QUERY_PARAPHRASES = {
+    "capital": (
+        "Remind me: which city is the capital of {entity}?",
+        "What was the capital of {entity} again?",
+    ),
+    "birthday": (
+        "Remind me when {entity} was born.",
+        "What is the date of birth you saved for {entity}?",
+    ),
+    "passcode": (
+        "Remind me of the {entity} locker code.",
+        "Which code did you save for the {entity} locker?",
+    ),
+    "dish": (
+        "Remind me what {entity} always orders.",
+        "What is {entity}'s usual order again?",
+    ),
+    "accent_color": (
+        "Remind me of the accent colour {entity} chose.",
+        "Which colour did {entity} pick for the project, again?",
+    ),
+}
+
+_PREF_QUERY_PARAPHRASES = (
+    "Remind me: what is my preference for {category}?",
+    "Which option did I say I preferred for {category}?",
+)
+
+_LESSON_QUERY_PARAPHRASES = (
+    "Remind me what to do when the {noun_a} alarm fires twice in a row.",
+    "What was the lesson for the {noun_a} alarm?",
+)
+
 _NOISE_STATEMENTS = (
     "Unrelated, but the weather in {entity} was grey all week.",
     "Also, I rewatched an old film about {entity} last night.",
@@ -119,6 +155,7 @@ class MemoryItem:
     is_noise: bool = False
     is_important: bool = False
     query: str = ""
+    probe_query: str = ""  # read-time wording; empty means "same as query"
 
     @property
     def value_text(self) -> str:
@@ -127,6 +164,18 @@ class MemoryItem:
     @property
     def aliases(self) -> tuple[str, ...]:
         return () if self.value is None else self.value.aliases
+
+    @property
+    def read_query(self) -> str:
+        """The wording used at read time.
+
+        Writing and reading with the *same* string makes retrieval trivially easy
+        (measured 2026-09-29: top-1 routing scored 16/16 when the probe was the
+        write query verbatim), so the benchmark can paraphrase the probe while the
+        memory is still written from the original phrasing. That is both the
+        realistic setting and the only one in which a router has a real job.
+        """
+        return self.probe_query or self.query
 
     @property
     def probeable(self) -> bool:
@@ -201,6 +250,7 @@ def make_episode(
     n_negatives: int = 2,
     with_inertia: bool = True,
     capacity_k: int | None = None,
+    paraphrase_probes: bool = False,
     important_fraction: float = 0.5,
     world: FictionalWorld | None = None,
 ) -> Episode:
@@ -243,6 +293,12 @@ def make_episode(
         entity = next_entity()
         value = next_value(kind)
         tmpl = rng.choice(_FACT_TEMPLATES[kind])
+        query = _FACT_QUERIES[kind].format(entity=entity)
+        probe_query = (
+            rng.choice(_FACT_QUERY_PARAPHRASES[kind]).format(entity=entity)
+            if paraphrase_probes
+            else ""
+        )
         ep.writes.append(
             MemoryItem(
                 item_id=len(ep.writes),
@@ -250,7 +306,8 @@ def make_episode(
                 attribute=kind,
                 statement=tmpl.format(entity=entity, value=value.value),
                 value=value,
-                query=_FACT_QUERIES[kind].format(entity=entity),
+                query=query,
+                probe_query=probe_query,
             )
         )
 
@@ -271,6 +328,11 @@ def make_episode(
                 statement=statement,
                 value=value,
                 query=_PREF_QUERY.format(category=category),
+                probe_query=(
+                    rng.choice(_PREF_QUERY_PARAPHRASES).format(category=category)
+                    if paraphrase_probes
+                    else ""
+                ),
             )
         )
 
@@ -287,6 +349,11 @@ def make_episode(
                 statement=_LESSON_TEMPLATE.format(noun_a=noun_a, noun_b=noun_b),
                 value=MemoryValue("lesson", action, (noun_b,)),
                 query=_LESSON_QUERY.format(noun_a=noun_a),
+                probe_query=(
+                    rng.choice(_LESSON_QUERY_PARAPHRASES).format(noun_a=noun_a)
+                    if paraphrase_probes
+                    else ""
+                ),
             )
         )
 
@@ -313,6 +380,7 @@ def make_episode(
             item_id=w.item_id, memory_class=w.memory_class, attribute=w.attribute,
             statement=w.statement, value=w.value, is_noise=w.is_noise,
             is_important=w.item_id in important_ids, query=w.query,
+            probe_query=w.probe_query,
         )
         for w in ep.writes
     ]
@@ -321,7 +389,8 @@ def make_episode(
     for w in ep.writes:
         if w.probeable:
             ep.probes.append(
-                Probe(item_id=w.item_id, query=w.query, value=w.value_text, aliases=w.aliases)
+                Probe(item_id=w.item_id, query=w.read_query, value=w.value_text,
+                      aliases=w.aliases)
             )
     rng.shuffle(ep.probes)
 
@@ -333,7 +402,11 @@ def make_episode(
         ep.negatives.append(
             Probe(
                 item_id=None,
-                query=_FACT_QUERIES[kind].format(entity=entity),
+                query=(
+                    rng.choice(_FACT_QUERY_PARAPHRASES[kind]).format(entity=entity)
+                    if paraphrase_probes
+                    else _FACT_QUERIES[kind].format(entity=entity)
+                ),
                 value=value.value,
                 aliases=value.aliases,
                 is_negative=True,

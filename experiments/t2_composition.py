@@ -56,6 +56,12 @@ def parse_args() -> argparse.Namespace:
     ap.add_argument("--lambda-kl", type=float, default=1.0)
     ap.add_argument("--anchor-mode", choices=("slot", "sum"), default="slot")
     ap.add_argument("--max-new-tokens", type=int, default=16)
+    ap.add_argument(
+        "--paraphrase", action="store_true",
+        help="read with a differently worded query (the memory is still written "
+             "from the canonical phrasing). Without this the router is solving a "
+             "trivial string-matching problem",
+    )
     ap.add_argument("--out", default="runs/t2_composition.json")
     return ap.parse_args()
 
@@ -141,6 +147,7 @@ def main() -> int:
         episode = make_episode(
             args.base_seed + ep_index, episode_id=ep_index, n_facts=args.items,
             n_prefs=0, n_lessons=0, n_noise=0, n_negatives=0, with_inertia=False,
+            paraphrase_probes=args.paraphrase,
         )
         record = run_episode(bb, episode, args)
         records.append(record)

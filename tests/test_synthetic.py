@@ -104,3 +104,48 @@ def test_inertia_block_can_be_disabled():
 def test_capacity_k_is_recorded():
     episode = make_episode(4, capacity_k=8, n_facts=3)
     assert episode.capacity_k == 8
+
+
+# --------------------------------------------------------------- paraphrases
+
+def test_default_probes_use_the_write_query_verbatim():
+    episode = make_episode(3)
+    by_id = {w.item_id: w for w in episode.writes}
+    for probe in episode.probes:
+        assert probe.query == by_id[probe.item_id].query
+        assert by_id[probe.item_id].probe_query == ""
+
+
+def test_paraphrase_probes_differ_from_the_write_query():
+    """The router only has a real job when reading does not reuse the write string."""
+    for seed in range(40):
+        episode = make_episode(seed, n_facts=3, paraphrase_probes=True)
+        by_id = {w.item_id: w for w in episode.writes}
+        for probe in episode.probes:
+            item = by_id[probe.item_id]
+            assert item.probe_query, (seed, probe.item_id)
+            assert probe.query == item.probe_query
+            assert probe.query != item.query, (seed, probe.query)
+
+
+def test_paraphrased_probes_still_pass_the_eviction_check():
+    for seed in range(30):
+        episode = make_episode(seed, paraphrase_probes=True)
+        context = episode.probe_context()
+        for probe in list(episode.probes) + list(episode.negatives):
+            report = assert_evicted(context, probe.value, probe.aliases)
+            assert report.evicted, (seed, probe.query, report.reason())
+
+
+def test_paraphrases_are_reproducible():
+    a = make_episode(11, paraphrase_probes=True)
+    b = make_episode(11, paraphrase_probes=True)
+    assert [p.query for p in a.probes] == [p.query for p in b.probes]
+    assert [w.probe_query for w in a.writes] == [w.probe_query for w in b.writes]
+
+
+def test_negative_controls_are_paraphrased_too():
+    episode = make_episode(7, n_negatives=3, paraphrase_probes=True)
+    assert episode.negatives
+    for negative in episode.negatives:
+        assert "Remind me" in negative.query or "again" in negative.query
