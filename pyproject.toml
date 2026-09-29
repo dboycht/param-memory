@@ -1,0 +1,35 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "param-memory"
+version = "1.0.1"
+description = "Parametric memory: sink long-term memory from context into model weights (side-path low-rank runtime updates + forgetting)"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "D BOY" }]
+dependencies = [
+    "torch>=2.4",
+    "transformers>=4.51",
+    "peft>=0.13",
+    "accelerate>=1.0",
+    "datasets>=3.0",
+    "safetensors>=0.4",
+    "numpy>=1.26",
+    "scipy>=1.11",
+    "tqdm>=4.66",
+    "pyyaml>=6.0",
+]
+
+[project.optional-dependencies]
+qlora = ["bitsandbytes>=0.44"]
+dev = ["pytest>=8.0"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]

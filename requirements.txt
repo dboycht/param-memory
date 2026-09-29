@@ -1,0 +1,14 @@
+# 运行环境（本机实测：Python 3.12.5 + torch 2.11.0+cu128）
+# torch 建议按官方 CUDA 轮子单独装，不要在这里固定小版本：
+#   pip install torch --index-url https://download.pytorch.org/whl/cu128
+torch>=2.4
+transformers>=4.51
+peft>=0.13
+accelerate>=1.0
+datasets>=3.0
+safetensors>=0.4
+numpy>=1.26
+scipy>=1.11
+tqdm>=4.66
+pyyaml>=6.0
+pytest>=8.0

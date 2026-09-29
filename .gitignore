@@ -1,0 +1,38 @@
+# ---- Python ----
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# ---- 运行期产物 / 数据（绝不入库；前导斜杠防止误伤 src/data 之类的路径）----
+/runs/
+/checkpoints/
+/out/
+/data/
+/models/
+/.cache/
+*.pt
+*.pth
+*.safetensors
+*.bin
+*.log
+
+# ---- 一次性开发脚本与草稿（只留开发副本）----
+/_dev/
+/_scratch/
+/.scratch/
+
+# ---- 开发副本专用文档（只留开发副本，不同步 GitHub）----
+DEVELOPMENT.md
+ERROR.md
+HANDOVER.md
+
+# ---- 编辑器 / 系统 ----
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
