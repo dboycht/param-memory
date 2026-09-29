@@ -517,6 +517,7 @@ the read path.
 \begin{verbatim}
 python -m venv .venv && .venv\Scripts\pip install -e .
 python experiments/run_all.py --collect-only      # rebuild tables from reports
+python experiments/run_all.py --mode quick       # smoke test, minutes not hours
 python experiments/run_all.py --mode full        # re-run every stage from scratch
 python paper/build_tables.py                     # regenerate generated_tables.tex
 pdflatex main && pdflatex main
@@ -526,6 +527,18 @@ Every stage is a separate process writing its own JSON report; a failing stage i
 labelled \texttt{FAILED} in the bundle and its numbers render as \texttt{n/a},
 never as zero. All numbers in this paper come from \texttt{generated\_tables.tex},
 which is generated from \texttt{runs/summary.json}.
+
+Two boundaries are worth stating precisely rather than implying full
+reproducibility. First, the T7-f grading phase calls a hosted model: it needs a
+chat-completions credential and spends about an hour at the provider's rate limit,
+so the reported audit (Table~\ref{tab:t7}) is re-rendered from the stored report
+rather than re-derived by \texttt{--collect-only}. The human marks the judge was
+calibrated against \emph{are} in the repository
+(\texttt{bench/judge\_calibration\_marks.json}), so the calibration can be checked
+without an API key. Second, the per-stage reports live in \texttt{runs/}, which is
+not pushed (the repository is source-only), so re-deriving the tables means
+re-running the stages --- with \texttt{--mode quick} first, since a full run is
+hours.
 
 \begin{thebibliography}{99}\small
 \bibitem{titans} A. Behrouz, P. Zhong, V. Mirrokni. Titans: Learning to Memorize
