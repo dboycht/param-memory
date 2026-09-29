@@ -492,16 +492,24 @@ verbosity structure instead.
 
 \section{Conclusion}
 
-A side path of rank-blocked slots does three things well and one thing not at
-all. It writes without disturbing its neighbours, it reads without spending
+A side path of rank-blocked slots does three things well and one thing only
+partly. It writes without disturbing its neighbours, it reads without spending
 context, and it forgets in a way that can be verified bit-for-bit --- including
-across a process restart. It does \emph{not} insulate the model from the previous
-topic: a memory is behaviourally sticky wherever it is stored. The practical
-design rules we would carry forward are that read-time composition must select
-exactly one slot, that the criterion for writing should ask the model rather than
-threshold its likelihood, and that capacity is best spent on durable, exactly
-erasable slots rather than on trying to keep memories out of the working set by
-moving them into weights.
+across a process restart. On real benchmark content, delivering the same information
+through the context with the \emph{same} router answers \tJudgeContextTarget{} to
+\tJudgeContextAll{} of the questions while paying \tTokContextTarget{} to
+\tTokContextAll{} extra prompt tokens per question; the parametric arm answers
+\tJudgeWeights{} of them and pays \tTokWeights{}. It does \emph{not} insulate the
+model from the previous topic: a memory is behaviourally sticky wherever it is
+stored. The practical design rules we would carry forward are that read-time
+composition must default to exactly one slot, that the criterion for writing should
+ask the model rather than threshold its likelihood, and that capacity is best spent
+on durable, exactly erasable slots rather than on trying to keep memories out of the
+working set by moving them into weights. The one partial exception is instructive:
+training each write to protect the memories already in the bank buys back part of the
+second slot (\tRetentionTopTwoBase{} to \tRetentionTopTwoBest{}), which suggests the
+one-slot limit is a property of how slots are written rather than a hard ceiling on
+the read path.
 
 \appendix
 \section{Reproducibility}
