@@ -26,6 +26,7 @@ from typing import Callable
 __all__ = [
     "JudgeVerdict",
     "LLMJudge",
+    "STANDARDS",
     "parse_verdicts",
     "parse_single",
     "build_prompt",
@@ -57,21 +58,40 @@ Reply with a single JSON object and nothing else, of exactly this shape:
 # (it marked a verbatim copy of the reference as INCORRECT while citing another
 # question's content). Binary, single-candidate grading is slower but much harder
 # to get wrong, and a judge that is subtly wrong is worse than no judge at all.
-SINGLE_INSTRUCTIONS = """\
+SINGLE_TEMPLATE = """\
 Question: {question}
 Reference answer: {reference}
 Candidate answer: {candidate}
 
-Does the candidate convey the same information as the reference answer?
-A paraphrase that keeps the substance counts as CORRECT.
-Missing the key content, contradicting the reference, or being evasive where the
-reference states a fact counts as INCORRECT.
+{standard}
 
 Answer in exactly this format, nothing else:
 Verdict: CORRECT
 Reason: <one short sentence>
 """
 # (replace CORRECT with INCORRECT when that is your verdict)
+
+# Two standards, because the choice is a real decision and it changes the numbers.
+# ``lenient`` is the one the human calibration used (measured 2026-09-29: under it the
+# judge agreed 8/10 with the human, with the two misses both explained by the judge
+# applying the strict reading instead).
+STANDARDS = {
+    "lenient": (
+        "Decide whether the candidate conveys the substance of the REFERENCE answer -- "
+        "the fact or preference that the reference states. Different wording is fine. "
+        "Omitting an additional clause -- such as a trailing note about what the user "
+        "does *not* want, or trailing examples -- does NOT make the candidate "
+        "incorrect, as long as the reference's substance is there. A generic answer "
+        "that does not convey that substance is incorrect even if it is a plausible "
+        "answer to the question."
+    ),
+    "strict": (
+        "Decide whether the candidate conveys ALL of the information in the reference "
+        "answer, including any additional or negative clause. Different wording is "
+        "fine, but a candidate that omits part of the reference -- for example the note "
+        "about what the user does not want -- is incorrect."
+    ),
+}
 
 
 @dataclass
@@ -153,9 +173,13 @@ def build_prompt(reference: str, candidates: dict[str, str]) -> str:
     return JUDGE_INSTRUCTIONS.format(reference=reference, candidates=block)
 
 
-def build_single_prompt(question: str, reference: str, candidate: str) -> str:
-    return SINGLE_INSTRUCTIONS.format(question=question, reference=reference,
-                                      candidate=candidate)
+def build_single_prompt(question: str, reference: str, candidate: str,
+                        standard: str = "lenient") -> str:
+    if standard not in STANDARDS:
+        raise ValueError(f"unknown standard {standard!r}; expected one of "
+                         f"{sorted(STANDARDS)}")
+    return SINGLE_TEMPLATE.format(question=question, reference=reference,
+                                  candidate=candidate, standard=STANDARDS[standard])
 
 
 def parse_single(text: str) -> JudgeVerdict:
@@ -230,7 +254,13 @@ class LLMJudge:
             return response.read().decode("utf-8")
 
     def _chat(self, user_prompt: str, *, attempts: int = 3) -> str:
-        """One completion, honouring the configured minimum interval."""
+        """One completion, honouring the configured minimum interval.
+
+        The interval is load-bearing, not politeness: with an organisation limit of
+        3 requests/minute (measured 2026-09-29 from an HTTP 429 body), anything below
+        ~20s earns rate-limit errors. Retries add backoff, but the interval is what
+        keeps the run clean.
+        """
         if self.min_interval > 0:
             wait = self.min_interval - (time.monotonic() - self._last_call)
             if wait > 0:
@@ -295,9 +325,11 @@ class LLMJudge:
                            f"{type(last_error).__name__}: {last_error}")
 
     # ---------------------------------------------------------------- grading
-    def judge_one(self, question: str, reference: str, candidate: str) -> JudgeVerdict:
+    def judge_one(self, question: str, reference: str, candidate: str,
+                  standard: str = "lenient") -> JudgeVerdict:
         """Grade a single candidate. One call, binary verdict."""
-        reply = self._chat(build_single_prompt(question, reference, candidate))
+        reply = self._chat(build_single_prompt(question, reference, candidate,
+                                               standard))
         return parse_single(reply)
 
     def judge_batch(self, reference: str, candidates: dict[str, str]) -> dict[str, JudgeVerdict]:

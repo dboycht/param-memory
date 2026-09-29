@@ -12,8 +12,13 @@ Two modes:
     for a human. The judge's own verdicts go at the *end* of the sheet so they
     cannot anchor the human. The judge is only trusted if the two agree.
 ``--full``
-    Judge every arm on every question (one call per question, honouring the
-    configured rate limit) and report per-arm correctness with bootstrap CIs.
+    Judge every arm on every question and report per-arm correctness with bootstrap
+    CIs, under **both** grading standards, so the paper cannot be accused of picking
+    the standard that flatters its own mechanism.
+
+Grading design, learned the hard way (docs/06 section 11): one candidate per call.
+Batching several candidates into one call made the judge grade the wrong candidate
+and invent reasons.
 
 The credential is read from a config file, kept in memory, never printed.
 
@@ -43,9 +48,7 @@ for _stream in (sys.stdout, sys.stderr):
 ROOT = Path(__file__).resolve().parents[1]
 DATA = ROOT / "data" / "public" / "longmemeval_oracle.json"
 CONFIG = Path(r"D:\code\DeepSeekHarness\ai-info-search\config.json")
-
-ARM_ORDER = ("frozen", "weights", "context_target", "context_all", "rag_top1",
-             "rag_top3")
+STANDARDS = ("lenient", "strict")
 
 
 def parse_args() -> argparse.Namespace:
@@ -57,9 +60,23 @@ def parse_args() -> argparse.Namespace:
     ap.add_argument("--baseline-result", default="runs/t7e_context_baselines.json")
     ap.add_argument("--questions", type=int, default=30)
     ap.add_argument("--calibration", action="store_true")
+    ap.add_argument("--full", action="store_true",
+                    help="judge every arm on every question (this is the default when "
+                         "--calibration is absent; the flag exists so the documented "
+                         "invocation actually works)")
     ap.add_argument("--calibration-questions", type=int, default=4)
+    ap.add_argument("--standard", default="lenient", choices=STANDARDS,
+                    help="grading standard for --calibration")
+    ap.add_argument("--standards", nargs="*", default=list(STANDARDS),
+                    choices=STANDARDS,
+                    help="standards to run in --full mode. Each costs one call per "
+                         "candidate, and the org limit is 3 requests/minute, so a "
+                         "second standard doubles an already long run")
     ap.add_argument("--min-interval", type=float, default=21.0,
-                    help="seconds between judge calls (the source config asks for 21)")
+                    help="seconds between judge calls. Do NOT lower this casually: the "
+                         "Moonshot organisation allows 3 requests/minute, and the source "
+                         "config's 21s is derived from that (60/3). Lowering it to 3s was "
+                         "refuted by the API with HTTP 429")
     ap.add_argument("--temperature", type=float, default=None,
                     help="omit to let the server use its own value (kimi-k2.6 only "
                          "accepts 1)")
@@ -84,42 +101,40 @@ def load_answers(args) -> tuple[dict[str, dict], dict[str, dict[str, str]]]:
             per_q.setdefault(row["question_id"], {})[arm] = row["answer"]
     # only questions present in both sources are comparable
     comparable = {
-        qid: {arm: text for arm, text in arms.items() if arm in ARM_ORDER}
-        for qid, arms in per_q.items()
+        qid: dict(arms) for qid, arms in per_q.items()
         if qid in items and "weights" in arms and "frozen" in arms
     }
     return items, comparable
 
 
-def run_judge(judge: LLMJudge, items, per_q, qids, *, log, show_raw: int = 0) -> dict[str, dict]:
-    """One judge call per question, covering all of that question's candidates.
-
-    ``show_raw`` prints the first few raw replies: if every verdict comes back
-    unreadable, the *only* way to tell a format problem from a parsing bug is to
-    look at what the model actually said.
-    """
+def run_single(judge: LLMJudge, items, per_q, qids, *, standard, log) -> dict[str, dict]:
+    """One candidate per call. Returns ``{qid: {arm: {correct, reason}}}``."""
     results: dict[str, dict] = {}
-    for index, qid in enumerate(qids, start=1):
-        candidates = per_q[qid]
-        verdicts = judge.judge_batch(str(items[qid]["answer"]), candidates)
-        results[qid] = {
-            label: {"correct": v.correct, "reason": v.reason, "raw": v.raw}
-            for label, v in verdicts.items()
-        }
-        if index <= show_raw:
-            sample = next(iter(verdicts.values())).raw if verdicts else ""
-            log(f"  raw reply for {qid} (source={judge.last_source}): "
-                f"{sample[:300]!r}", flush=True)
-        log(f"  {index}/{len(qids)} judged", flush=True)
+    total = sum(len(per_q[qid]) for qid in qids)
+    done = 0
+    for qid in qids:
+        results[qid] = {}
+        for arm, text in per_q[qid].items():
+            verdict = judge.judge_one(str(items[qid].get("question", "")),
+                                      str(items[qid]["answer"]), text, standard)
+            results[qid][arm] = {"correct": verdict.correct, "reason": verdict.reason,
+                                 "source": judge.last_source,
+                                 "finish": judge.last_finish_reason}
+            done += 1
+            log(f"  {done}/{total} judged  (finish={judge.last_finish_reason})",
+                flush=True)
     return results
 
 
-def write_calibration_sheet(path: Path, rows: list[dict], judge_view: list[dict]) -> None:
+def write_calibration_sheet(path: Path, rows: list[dict], judge_view: list[dict],
+                            standard: str) -> None:
     lines = [
         "# 判官校准表（请你人工标注）",
         "",
         "对每一行判断：**这个回答是否表达了与参考答案相同的信息？**（措辞不同但意思对 ⇒ 算对）",
         "把 `Y`（对）或 `N`（错）填进最后一列。",
+        "",
+        f"> 判官本次使用的口径：**{standard}**",
         "",
         "⚠️ 判官自己的结论在本文件**末尾**，请先填完再看，否则会锚定你的判断。",
         "⚠️ 行标签是**匿名且打乱**的：你看不出它来自哪个臂。",
@@ -127,10 +142,12 @@ def write_calibration_sheet(path: Path, rows: list[dict], judge_view: list[dict]
         "| # | 问题 | 参考答案 | 待判回答 | 你的标注 |",
         "| --- | --- | --- | --- | --- |",
     ]
+
+    def cell(text: str, limit: int) -> str:
+        # a markdown table cell cannot contain newlines
+        return " ".join(str(text).split())[:limit]
+
     for row in rows:
-        def cell(text: str, limit: int) -> str:
-            # a markdown table cell cannot contain newlines
-            return " ".join(str(text).split())[:limit]
         lines.append(
             f"| {row['n']} | {cell(row['question'], 70)} | "
             f"{cell(row['reference'], 90)} | {cell(row['candidate'], 110)} | |"
@@ -146,6 +163,9 @@ def write_calibration_sheet(path: Path, rows: list[dict], judge_view: list[dict]
 
 def main() -> int:
     args = parse_args()
+    if args.calibration and args.full:
+        print("choose one of --calibration or --full", flush=True)
+        return 2
 
     def log(message, **kwargs):
         print(message, **kwargs)
@@ -172,27 +192,26 @@ def main() -> int:
         plan = [(qid, arm) for qid in picked for arm in arms]
         random.Random(0).shuffle(plan)          # deterministic anonymisation
 
-        # One candidate per call: batching made the judge answer about the wrong
-        # candidate (docs/06 section 11). Slower, but a subtly wrong judge is worse
-        # than no judge.
         rows, judge_view = [], []
         for n, (qid, arm) in enumerate(plan, start=1):
             verdict = judge.judge_one(str(items[qid].get("question", "")),
-                                      str(items[qid]["answer"]), per_q[qid][arm])
+                                      str(items[qid]["answer"]), per_q[qid][arm],
+                                      args.standard)
             rows.append({"n": n, "question": str(items[qid].get("question", "")),
                          "reference": str(items[qid]["answer"]),
                          "candidate": per_q[qid][arm]})
             judge_view.append({"n": n, "correct": verdict.correct,
-                               "reason": verdict.reason})
-            log(f"  {n}/{len(plan)} judged "
-                f"(source={judge.last_source}, finish={judge.last_finish_reason})",
-                flush=True)
+                               "reason": verdict.reason,
+                               "finish": judge.last_finish_reason})
+            log(f"  {n}/{len(plan)} judged (source={judge.last_source}, "
+                f"finish={judge.last_finish_reason})", flush=True)
 
         sheet = ROOT / "runs" / "judge_calibration.md"
-        write_calibration_sheet(sheet, rows, judge_view)
+        write_calibration_sheet(sheet, rows, judge_view, args.standard)
         payload = {
             "judge": repr(judge),
             "mode": "single-candidate, one call each",
+            "standard": args.standard,
             "items": len(rows),
             "labels": {f"{qid}|{arm}": str(n) for n, (qid, arm) in
                        enumerate(plan, start=1)},
@@ -202,34 +221,39 @@ def main() -> int:
         (ROOT / "runs" / "judge_calibration.json").write_text(
             json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
         unreadable = sum(1 for v in judge_view if v["correct"] is None)
-        print(f"\njudged {len(rows)} candidates ({unreadable} unreadable)")
+        truncated = sum(1 for v in judge_view if v.get("finish") == "length")
+        print(f"\njudged {len(rows)} candidates ({unreadable} unreadable, "
+              f"{truncated} truncated)")
         print(f"marked-up sheet -> {sheet.resolve()}")
-        print("请人工标注后再决定是否信任判官。")
         return 0
 
-    judged = run_judge(judge, items, per_q, qids, log=log)
+    # ---------------------------------------------------------------- full run
     arms = sorted({arm for qid in qids for arm in per_q[qid]})
-    summary = {"judge": repr(judge), "n_questions": len(qids),
-               "questions": qids, "arms": {}}
-    for arm in arms:
-        values = [1.0 if judged[qid].get(arm, {}).get("correct") else 0.0 for qid in qids]
-        usable = [qid for qid in qids if judged[qid].get(arm, {}).get("correct") is not None]
-        summary["arms"][arm] = {
-            "correct_rate": statistics.mean(values),
-            "usable": len(usable),
-            "ci95": list(bootstrap_ci(values, n=2000, seed=0)),
-        }
+    summary = {"judge": repr(judge), "n_questions": len(qids), "questions": qids,
+               "standards": {}}
+    for standard in args.standards:
+        log(f"\n=== grading standard: {standard} ===")
+        judged = run_single(judge, items, per_q, qids, standard=standard, log=log)
+        per_arm = {}
+        for arm in arms:
+            values = [1.0 if judged[qid][arm]["correct"] else 0.0 for qid in qids]
+            usable = sum(1 for qid in qids if judged[qid][arm]["correct"] is not None)
+            per_arm[arm] = {"correct_rate": statistics.mean(values), "usable": usable,
+                            "ci95": list(bootstrap_ci(values, n=2000, seed=0))}
+        summary["standards"][standard] = {"arms": per_arm, "rows": judged}
+
     summary["elapsed_s"] = time.perf_counter() - t0
-    summary["rows"] = judged
     out = Path(args.out or (ROOT / "runs" / "t7f_judge.json"))
     out.write_text(json.dumps(summary, ensure_ascii=False, indent=2), encoding="utf-8")
 
-    print(f"\n{'arm':<18}{'judged correct':>16}{'usable':>9}{'95% CI':>20}")
-    for arm in arms:
-        a = summary["arms"][arm]
-        lo, hi = a["ci95"]
-        print(f"{arm:<18}{a['correct_rate']:>16.3f}{a['usable']:>9}"
-              f"{f'[{lo:.2f}, {hi:.2f}]':>20}")
+    for standard in args.standards:
+        print(f"\n=== {standard} ===")
+        print(f"{'arm':<18}{'correct':>10}{'usable':>9}{'95% CI':>20}")
+        for arm in arms:
+            a = summary["standards"][standard]["arms"][arm]
+            lo, hi = a["ci95"]
+            print(f"{arm:<18}{a['correct_rate']:>10.3f}{a['usable']:>9}"
+                  f"{f'[{lo:.2f}, {hi:.2f}]':>20}")
     print(f"\nreport written to {out.resolve()}")
     return 0
 

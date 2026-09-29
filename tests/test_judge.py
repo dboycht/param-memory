@@ -185,3 +185,47 @@ def urllib_error() -> Exception:
     import urllib.error
 
     return urllib.error.URLError("boom")
+
+
+# --------------------------------------------------------------- standards
+
+def test_the_two_standards_are_distinct_and_guarded():
+    from parammem.eval.judge import STANDARDS, build_single_prompt
+
+    lenient = build_single_prompt("q", "ref", "cand", "lenient")
+    strict = build_single_prompt("q", "ref", "cand", "strict")
+    assert lenient != strict
+    # the lenient rule is the one the human calibration used: a missing trailing
+    # clause must not turn a correct answer into an incorrect one
+    assert "does NOT make the candidate incorrect" in lenient
+    assert "ALL of the information" in strict
+    with pytest.raises(ValueError, match="unknown standard"):
+        build_single_prompt("q", "ref", "cand", "whatever")
+
+
+def test_judge_one_forwards_the_chosen_standard():
+    seen: dict[str, str] = {}
+
+    def post(url, headers, payload):
+        seen["prompt"] = payload["messages"][-1]["content"]
+        return json.dumps({"choices": [{"message": {
+            "content": "Verdict: CORRECT\nReason: contains the core answer"},
+            "finish_reason": "stop"}]})
+
+    judge = _judge(post)
+    assert judge.judge_one("q", "ref", "cand", "strict").correct is True
+    assert "ALL of the information" in seen["prompt"]
+    assert judge.last_finish_reason == "stop"
+
+
+def test_reasoning_content_is_used_when_content_is_empty():
+    def post(url, headers, payload):
+        return json.dumps({"choices": [{"message": {
+            "content": "", "reasoning_content": "Verdict: INCORRECT\nReason: evasive"},
+            "finish_reason": "length"}]})
+
+    judge = _judge(post)
+    verdict = judge.judge_one("q", "ref", "cand")
+    assert verdict.correct is False
+    assert judge.last_source == "reasoning_content"
+    assert judge.last_finish_reason == "length"
