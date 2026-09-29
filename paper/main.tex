@@ -107,6 +107,17 @@ initial state, which makes forgetting \emph{verifiable} rather than gradual.
   the sum of the slots is worthless, one selected slot is as good as an oracle,
   and two selected slots already lose most of the benefit
   (Table~\ref{tab:t2}).
+\item A repair for that constraint at its source: a retention term in the write
+  objective, which requires each write to leave \emph{earlier} memories' queries
+  unchanged under the read condition where interference actually appears. It lifts
+  two-slot recall from \tRetentionTopTwoBase{} to \tRetentionTopTwoBest{} and cuts
+  backbone damage from \tRetentionKlBase{} to \tRetentionKlBest{} nats without
+  costing own-slot recall (Table~\ref{tab:t8}). We report it as promising rather
+  than established, and say what it does not fix.
+\item A scoped diagnostic on real benchmark content, compared against delivering the
+  same information through the context with the \emph{same} router and graded by an
+  LLM judge calibrated against human marks: the parametric arm answers every
+  question correctly at zero extra prompt tokens (Table~\ref{tab:t7}).
 \item A label-free write criterion (ask the model first) that matches full-write
   recall at a fraction of the write cost and the backbone drift, plus a
   refutation of the likelihood-based criterion it replaces (Table~\ref{tab:t3},
