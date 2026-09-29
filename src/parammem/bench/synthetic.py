@@ -143,6 +143,32 @@ _INERTIA_CASES = (
         "new_task": "Different topic now: what is the population of {other}?",
         "inherited_keywords": ("12 million", "12,000,000", "12000000"),
     },
+    # The three cases below have *fictional* premises, so the frozen model has no
+    # prior that could produce the inherited answer on its own. The road-side case
+    # above turned out to be answerable from the prior ("left" by default), which
+    # silently invalidated half of the first T5 run -- see the floor screen in
+    # experiments/t5_inertia.py.
+    {
+        "premise": "In {country} the official greeting is the single word '{word}'.",
+        "premise_query": "What is the official greeting in {country}?",
+        "premise_answer": "{word}",
+        "new_task": "Moving on: what greeting should I use in {other}?",
+        "inherited_keywords": ("{word_lower}",),
+    },
+    {
+        "premise": "The emergency number in {country} is {digits}.",
+        "premise_query": "What is the emergency number in {country}?",
+        "premise_answer": "{digits}",
+        "new_task": "Let's move to a different country: what is the emergency number in {other}?",
+        "inherited_keywords": ("{digits}",),
+    },
+    {
+        "premise": "The national dish of {country} is {dish}.",
+        "premise_query": "What is the national dish of {country}?",
+        "premise_answer": "{dish}",
+        "new_task": "Different topic: what is the national dish of {other}?",
+        "inherited_keywords": ("{dish_lower}",),
+    },
 )
 
 
@@ -433,13 +459,19 @@ def make_episode(
         country = next_entity()
         other = next_entity()
         unit = next_value("capital").value
-        premise = case["premise"].format(country=country, unit=unit)
-        new_task = case["new_task"].format(other=other)
-        premise_query = case["premise_query"].format(country=country, unit=unit)
-        premise_answer = case["premise_answer"].format(country=country, unit=unit)
-        keywords = tuple(
-            k.format(unit_lower=unit.lower()) for k in case["inherited_keywords"]
+        word = next_value("capital").value
+        dish = next_value("dish").value
+        digits = f"{rng.randint(100, 999)}"
+        fmt = dict(
+            country=country, other=other, unit=unit, word=word, dish=dish,
+            digits=digits, unit_lower=unit.lower(), word_lower=word.lower(),
+            dish_lower=dish.lower(),
         )
+        premise = case["premise"].format(**fmt)
+        new_task = case["new_task"].format(**fmt)
+        premise_query = case["premise_query"].format(**fmt)
+        premise_answer = case["premise_answer"].format(**fmt)
+        keywords = tuple(k.format(**fmt) for k in case["inherited_keywords"])
         ep.inertia = InertiaBlock(
             old_topic=country,
             premise=premise,

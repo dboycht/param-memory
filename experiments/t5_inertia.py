@@ -64,7 +64,15 @@ WITHHOLD_MARKERS = (
 def parse_args() -> argparse.Namespace:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--model", default="Qwen/Qwen3-0.6B")
-    ap.add_argument("--episodes", type=int, default=6)
+    ap.add_argument("--candidates", type=int, default=30,
+                    help="scenarios generated for the floor screen")
+    ap.add_argument("--episodes", type=int, default=12,
+                    help="max scenarios to run the four arms on")
+    ap.add_argument("--screen-floor", dest="screen_floor", action="store_true",
+                    default=True,
+                    help="drop scenarios the model already 'inherits' with no "
+                         "premise at all (default on)")
+    ap.add_argument("--no-screen-floor", dest="screen_floor", action="store_false")
     ap.add_argument("--base-seed", type=int, default=0)
     ap.add_argument("--rank", type=int, default=4)
     ap.add_argument("--alpha", type=float, default=16.0)
@@ -156,13 +164,46 @@ def main() -> int:
     print(f"modules={len(bb.wrappers)} memory_params={bb.n_memory_parameters/1e6:.2f}M",
           flush=True)
 
+    # ---- phase A: floor screen ------------------------------------------
+    # Cheap (no writes): ask the new question with no premise anywhere. If the
+    # model already produces the "inherited" answer from its own prior, the
+    # scenario cannot measure inertia at all. The first T5 run was half-invalid
+    # for exactly this reason (the road-side case: "left" is the model's default).
+    candidates = [
+        make_episode(args.base_seed + i, episode_id=i, n_facts=0, n_prefs=0,
+                     n_lessons=0, n_noise=0, n_negatives=0, with_inertia=True)
+        for i in range(args.candidates)
+    ]
+    bb.set_read_slots([])
+    floor = []
+    for episode in candidates:
+        answer = bb.answer(episode.inertia.new_task)
+        floor.append({"answer": answer, **score(answer, episode.inertia)})
+
+    keep = [
+        i for i, f in enumerate(floor)
+        if (not args.screen_floor) or (f["inherited"] == 0 and f["residue"] == 0)
+    ]
+    dropped = [(i, floor[i]) for i in range(len(candidates)) if i not in set(keep)]
+    print(f"\nphase A (floor screen): {len(keep)}/{len(candidates)} scenarios kept",
+          flush=True)
+    for i, f in dropped[:10]:
+        print(f"  dropped seed {candidates[i].seed}: with no premise at all the "
+              f"model answers {f['answer']!r}", flush=True)
+    if len(dropped) > 10:
+        print(f"  ... and {len(dropped) - 10} more", flush=True)
+
+    survivors = [candidates[i] for i in keep[: args.episodes]]
+    if not survivors:
+        print("\nno clean scenarios survived the floor screen: every scenario is "
+              "answerable from the model's prior, so nothing here can measure "
+              "inertia. Report that instead of a number.", flush=True)
+        return 1
+
+    # ---- phase B: the four arms on clean scenarios ------------------------
     records = []
     t0 = time.perf_counter()
-    for ep_index in range(args.episodes):
-        episode = make_episode(
-            args.base_seed + ep_index, episode_id=ep_index, n_facts=0, n_prefs=0,
-            n_lessons=0, n_noise=0, n_negatives=0, with_inertia=True,
-        )
+    for episode in survivors:
         record = run_episode(bb, episode, args)
         records.append(record)
         print(f"\n--- seed {record['seed']} ------------------------------------",
@@ -180,6 +221,16 @@ def main() -> int:
         "config": vars(args),
         "model_path": bb.resolved_path,
         "n_episodes": len(records),
+        "floor_screen": {
+            "candidates": len(candidates),
+            "kept": len(keep),
+            "dropped": len(dropped),
+            "dropped_detail": [
+                {"seed": candidates[i].seed, "answer": f["answer"],
+                 "premise": candidates[i].inertia.premise}
+                for i, f in dropped
+            ],
+        },
         "elapsed_s": time.perf_counter() - t0,
         "arms": {
             arm: {
