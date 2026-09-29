@@ -329,6 +329,26 @@ no-memory condition and discard any scenario the model answers from its prior.
 Only \tScreenKept{} scenarios survived, and every discarded one was the road-side
 case, where ``left'' is the model's default answer.
 
+\paragraph{Real content, and how it is graded.} The public-benchmark diagnostic of
+Section~\ref{sec:results} uses LongMemEval's oracle split; each memory item is the
+benchmark's own $(q,a)$ pair and the evidence turn is located with the benchmark's
+\texttt{has\_answer} flags, i.e. retrieval is oracle-indexed by construction. The
+comparison arms receive the \emph{same} information through the context, selected by
+the \emph{same} query-key router, so the medium is the only variable that changes.
+Grading is semantic rather than lexical: the containment measure used on the
+synthetic experiments rewards reproducing the reference string --- which is exactly
+what a trained write is for --- and therefore cannot compare arms that answer by
+paraphrase. So the real-content results are graded by a hosted LLM judge, one
+candidate per call, calibrated against \tJudgeCalibMarks{} human marks collected on
+an anonymised, shuffled sample with the judge's own verdicts hidden until after
+marking. We report the size of that calibration and the fact that the judge prompt
+was revised once, because both bound what the agreement is worth. Two further
+protocol points carry weight: wherever every arm answers the \emph{same} items we
+compare them paired (exact sign test) rather than by overlapping intervals, and the
+generation budget is treated as part of the treatment --- every arm is generated
+with the same limit, set so that the longest reference answer fits, since a budget
+below that measures truncation instead of memory.
+
 \section{Results}
 \label{sec:results}
 
