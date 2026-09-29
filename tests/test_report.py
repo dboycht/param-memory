@@ -60,6 +60,20 @@ BUNDLE = {
                        "containment": {"frozen": 0.0, "mem_on": 0.80, "mem_off": 0.0,
                                        "mem_on_full_match": 0.60},
                        "routing_accuracy": 1.0, "mem_off_equals_frozen_rate": 1.0}},
+    "t8": {"by_lambda": {"0.0": {"em": {"oracle": 0.917, "top1": 0.875, "top2": 0.333,
+                                         "all": 0.0},
+                                  "base_kl_slots_on": 1.504},
+                         "3.0": {"em": {"oracle": 1.0, "top1": 0.958, "top2": 0.583,
+                                        "all": 0.167},
+                                 "base_kl_slots_on": 0.309}},
+           # episode 1 is listed before episode 0 for lambda 3 on purpose: the
+           # pairing must sort by episode id, not trust file order
+           "episodes": [
+               {"episode_id": 0, "lambda_ret": 0.0, "arms": {"top2": [1, 0]}},
+               {"episode_id": 1, "lambda_ret": 0.0, "arms": {"top2": [0, 0]}},
+               {"episode_id": 1, "lambda_ret": 3.0, "arms": {"top2": [1, 0]}},
+               {"episode_id": 0, "lambda_ret": 3.0, "arms": {"top2": [1, 1]}},
+           ]},
 }
 
 
@@ -83,7 +97,7 @@ def test_bundle_contains_every_headline_number():
 def test_all_stages_reported_ok():
     assert dict(stage_status(BUNDLE)) == {
         "t1": "ok", "t2": "ok", "t3": "ok", "t4": "ok", "t5": "ok", "t6": "ok",
-        "t7": "ok",
+        "t7": "ok", "t8": "ok",
     }
 
 
@@ -113,7 +127,7 @@ def test_t3_class_table_is_sorted_before_summarising():
 
 def test_empty_bundle_does_not_crash():
     text = build_results_markdown({})
-    assert text.count("_not available in this run_") == 7
+    assert text.count("_not available in this run_") == 8
 
 
 def test_provenance_is_optional():
@@ -324,3 +338,31 @@ def test_replication_is_reported_in_both_renderings():
         assert "0.800" in text, text[:200]
     assert r"\newcommand{\tHoldoutOn}{0.800}" in tex
     assert r"\newcommand{\tHoldoutVerdict}{within the pre-registered band}" in tex
+
+
+def test_retention_pairing_sorts_by_episode_and_reports_the_best_weight():
+    from parammem.report import (_retention_best, _retention_pair,
+                                 _retention_series, headline_values)
+    # BUNDLE lists lambda 3.0's episode 1 before its episode 0: position i must still
+    # be the same probe in both settings, or the pairing is meaningless
+    assert _retention_series(BUNDLE["t8"], "3.0", "top2") == [1, 1, 1, 0]
+    assert _retention_series(BUNDLE["t8"], "0.0", "top2") == [1, 0, 0, 0]
+    assert _retention_pair(BUNDLE["t8"]) == (2, 0, 2)
+    assert _retention_best(BUNDLE["t8"]) == "3.0"
+
+    values = headline_values(BUNDLE)
+    assert values["tRetentionTopTwoBase"] == "0.333"
+    assert values["tRetentionTopTwoBest"] == "0.583"
+    assert values["tRetentionHelped"] == "2"
+    assert values["tRetentionHurt"] == "0"
+    assert values["tRetentionProbes"] == "4"
+    assert values["tRetentionKlBase"] == "1.504"
+    assert values["tRetentionKlBest"] == "0.309"
+
+
+def test_retention_markdown_states_the_paired_result():
+    from parammem.report import build_results_markdown
+    md = build_results_markdown(BUNDLE)
+    assert "T8-a" in md
+    assert "2 probes helped, 0 hurt, 2 tied" in md
+    assert "interference, not retrieval" in md

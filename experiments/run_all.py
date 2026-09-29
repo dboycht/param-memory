@@ -123,6 +123,17 @@ STAGES: dict[str, dict] = {
              "--out", "runs/t7d_quick_holdout.json"],
         ],
     },
+    "t8": {
+        "script": "t8a_retention.py",
+        "inputs": ["t8a_confirm.json"],
+        # B1: the write objective gains a retention term, swept over its weight.
+        # lambda 0 reproduces the T2 behaviour, so the comparison is on the same
+        # items and probes.
+        "full": ["--items", "8", "--episodes", "3", "--paraphrase",
+                 "--lambda-ret", "0", "1", "3", "--out", "runs/t8a_confirm.json"],
+        "quick": ["--items", "4", "--episodes", "1", "--paraphrase", "--steps", "4",
+                  "--lambda-ret", "0", "3", "--out", "runs/t8a_quick.json"],
+    },
 }
 
 

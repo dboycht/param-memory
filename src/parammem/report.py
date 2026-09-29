@@ -10,6 +10,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from .eval.paired import paired_counts, sign_test_p
+
 __all__ = ["build_results_markdown", "build_results_latex", "headline_values",
            "replication_verdict", "stage_status"]
 
@@ -33,7 +35,7 @@ def _get(bundle: dict[str, Any], stage: str) -> dict[str, Any] | None:
 def stage_status(bundle: dict[str, Any]) -> list[tuple[str, str]]:
     """``(stage, status)`` pairs, so a partial run is visible at a glance."""
     out = []
-    for stage in ("t1", "t2", "t3", "t4", "t5", "t6", "t7"):
+    for stage in ("t1", "t2", "t3", "t4", "t5", "t6", "t7", "t8"):
         entry = bundle.get(stage)
         if not isinstance(entry, dict):
             out.append((stage, "missing"))
@@ -319,8 +321,46 @@ def _t7(bundle) -> str:
     return "\n".join(lines)
 
 
+def _t8(bundle) -> str:
+    data = _get(bundle, "t8")
+    if not data:
+        return ("### T8-a -- retention term in the write objective\n\n"
+                f"{NOT_AVAILABLE}\n")
+    settings = _retention_settings(data)
+    arms = ("oracle", "top1", "top2", "all")
+    lines = [
+        "### T8-a -- B1: a retention term in the write objective",
+        "",
+        "Each write is also required to leave the *earlier* memories' queries "
+        "unchanged under the read condition where interference appears (all written "
+        "slots active). `lambda_ret = 0` reproduces T2.",
+        "",
+        "| `lambda_ret` | " + " | ".join(f"`{arm}`" for arm in arms)
+        + " | base KL (on) |",
+        "| --- | " + " | ".join("---" for _ in arms) + " | --- |",
+    ]
+    for setting in settings:
+        lines.append(
+            f"| {setting} | "
+            + " | ".join(_retention_em(data, setting, arm) for arm in arms)
+            + f" | {_retention_kl(data, setting)} |"
+        )
+    helped, hurt, tied = _retention_pair(data)
+    p_value = _retention_p(data)
+    lines += [
+        "",
+        f"- paired on `top2` against `lambda_ret = 0`: **{helped} probes helped, "
+        f"{hurt} hurt, {tied} tied**"
+        + (f" (exact sign test p = {p_value:.3f})" if p_value is not None else ""),
+        "- routing is unchanged by construction (keys are captured with memory off); "
+        "so a `top2` failure is interference, not retrieval",
+    ]
+    lines.append("")
+    return "\n".join(lines)
+
+
 _FORMATTERS = {"t1": _t1, "t2": _t2, "t3": _t3, "t4": _t4, "t5": _t5, "t6": _t6,
-               "t7": _t7}
+               "t7": _t7, "t8": _t8}
 
 
 def build_results_markdown(bundle: dict[str, Any]) -> str:
@@ -410,6 +450,75 @@ def _table(caption: str, label: str, columns: list[str], rows: list[list[str]],
     return "\n".join(lines)
 
 
+def _retention_settings(t8: dict) -> list[str]:
+    return sorted((t8.get("by_lambda") or {}), key=lambda key: float(key))
+
+
+def _retention_best(t8: dict, arm: str = "top2") -> str:
+    """The retention weight with the best recall on ``arm``.
+
+    Ties break towards the *larger* weight only because the sweep's heaviest setting
+    is also its most expensive; picking it is the conservative choice for reporting.
+    """
+    settings = _retention_settings(t8)
+    if not settings:
+        return "0.0"
+
+    def score(setting: str) -> tuple[float, float]:
+        em = ((t8.get("by_lambda") or {}).get(setting) or {}).get("em") or {}
+        value = em.get(arm)
+        return (value if value is not None else -1.0, float(setting))
+
+    return max(settings, key=score)
+
+
+def _retention_em(t8: dict, setting: str, arm: str) -> str:
+    em = (((t8.get("by_lambda") or {}).get(setting) or {}).get("em")) or {}
+    return _na(em.get(arm), ".3f")
+
+
+def _retention_kl(t8: dict, setting: str) -> str:
+    block = ((t8.get("by_lambda") or {}).get(setting) or {})
+    return _na(block.get("base_kl_slots_on"), ".3f")
+
+
+def _retention_series(t8: dict, setting: str, arm: str) -> list:
+    """Per-probe outcomes for one setting, in episode order.
+
+    Episode order matters: the pairing is only meaningful if position i is the same
+    probe in both settings, so the sort is explicit rather than trusting file order.
+    """
+    rows = []
+    for episode in t8.get("episodes") or []:
+        if f"{float(episode.get('lambda_ret', -1))}" != setting:
+            continue
+        rows.append((episode.get("episode_id", 0),
+                     (episode.get("arms") or {}).get(arm) or []))
+    rows.sort(key=lambda pair: pair[0])
+    return [value for _, values in rows for value in values]
+
+
+def _retention_pair(t8: dict, arm: str = "top2") -> tuple[int, int, int]:
+    base = _retention_series(t8, "0.0", arm)
+    best = _retention_series(t8, _retention_best(t8), arm)
+    if not base or len(base) != len(best):
+        return (0, 0, 0)
+    return paired_counts(base, best)
+
+
+def _retention_p(t8: dict, arm: str = "top2") -> float | None:
+    base = _retention_series(t8, "0.0", arm)
+    if not base:
+        return None
+    helped, hurt, _ = _retention_pair(t8, arm)
+    return sign_test_p(helped, hurt)
+
+
+def _retention_probes(t8: dict, arm: str = "top2") -> int | None:
+    base = _retention_series(t8, "0.0", arm)
+    return len(base) if base else None
+
+
 def _judge_block(t7: dict, standard: str = "lenient") -> dict:
     """The judge's per-arm summary for one grading standard."""
     return (((t7.get("judge") or {}).get("standards") or {}).get(standard) or {})
@@ -480,6 +589,7 @@ def headline_values(bundle: dict[str, Any]) -> dict[str, str]:
     t5 = _get(bundle, "t5") or {}
     t6 = _get(bundle, "t6") or {}
     t7 = _get(bundle, "t7") or {}
+    t8 = _get(bundle, "t8") or {}
 
     t3rec = {r["policy"]: r for r in t3.get("records", [])}
     self_r, always_r = t3rec.get("selfcheck", {}), t3rec.get("always", {})
@@ -597,6 +707,18 @@ def headline_values(bundle: dict[str, Any]) -> dict[str, str]:
             ".3f"),
         "tJudgeCalibMarks": _na((t7.get("calibration") or {}).get("agreement")),
         "tJudgeCalibRate": _na((t7.get("calibration") or {}).get("rate"), ".3f"),
+        # ---- T8-a (B1): the retention term in the write objective ----
+        "tRetentionTopTwoBase": _retention_em(t8, "0.0", "top2"),
+        "tRetentionTopTwoBest": _retention_em(t8, _retention_best(t8), "top2"),
+        "tRetentionOwnBase": _retention_em(t8, "0.0", "oracle"),
+        "tRetentionOwnBest": _retention_em(t8, _retention_best(t8), "oracle"),
+        "tRetentionKlBase": _retention_kl(t8, "0.0"),
+        "tRetentionKlBest": _retention_kl(t8, _retention_best(t8)),
+        "tRetentionHelped": _na(_retention_pair(t8)[0]),
+        "tRetentionHurt": _na(_retention_pair(t8)[1]),
+        "tRetentionP": _na(_retention_p(t8), ".3f"),
+        "tRetentionProbes": _na(_retention_probes(t8)),
+        "tRetentionBest": _retention_best(t8),
     }
 
 
@@ -766,8 +888,26 @@ def build_results_latex(bundle: dict[str, Any]) -> str:
         _latex_t5(bundle),
         _latex_t6(bundle),
         _latex_t7(bundle),
+        _latex_t8(bundle),
     ]
     return "\n".join(parts)
+
+
+def _latex_t8(bundle) -> str:
+    data = _get(bundle, "t8")
+    if not data:
+        return f"% T8-a {NOT_AVAILABLE}"
+    settings = _retention_settings(data)
+    rows = [[f"$\\lambda_{{\\mathrm{{ret}}}} = {s}$",
+             _retention_em(data, s, "top2"), _retention_em(data, s, "oracle"),
+             _retention_kl(data, s)] for s in settings]
+    return _table(
+        "T8-a: the write objective also protects earlier memories (B1). "
+        "$\\lambda_{\\mathrm{ret}} = 0$ reproduces the T2 composition result. "
+        "`top2` is recall with the two best-routed slots active; base KL is the "
+        "damage the bank does to generic prompts while in use.",
+        "tab:t8", ["$\\lambda_{\\mathrm{ret}}$", "\\texttt{top2}", "\\texttt{oracle}",
+                   "base KL"], rows, "lccc")
 
 
 def _latex_t7(bundle) -> str:
