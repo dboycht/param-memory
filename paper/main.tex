@@ -415,7 +415,8 @@ it separates the classes only barely (Table~\ref{tab:t3loss}), because a fixed
 phrasing measures whether the model would use \emph{that wording}, not whether it
 knows the fact. Asked ``What is the capital of France?'' the model answers
 ``France's capital is Paris.''; forcing the continuation \texttt{" Paris"} costs
-$9.76$ nats even though the answer is right.
+$\tForcedParisKL$ nats against $\tVerboseParisKL$ for the sentence the model
+actually produces, even though the answer is right.
 
 \paragraph{Forgetting is exact, and only the dumb policy is bad.}
 Table~\ref{tab:t4} streams $12$ memories into $6$ slots, of which the first $3$

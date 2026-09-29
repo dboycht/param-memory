@@ -67,13 +67,17 @@ STAGES: dict[str, dict] = {
     },
     "t3": {
         "script": "t3_write_policy.py",
-        "inputs": ["t3_write_policy.json", "t3_seed1.json", "t3_seed2.json"],
+        "inputs": ["t3_write_policy.json", "t3_seed1.json", "t3_seed2.json",
+                   "t3_forced_span.json"],
         # Three seeds: the write counts are deterministic but the backbone drift is
-        # not, so the paper quotes a range rather than one seed's number.
+        # not, so the paper quotes a range rather than one seed's number. The fourth
+        # phase measures the wording/likelihood gap the paper cites for its second
+        # negative result -- as an experiment, so the number can be regenerated.
         "phases": [
             ["--facts", "5", "--seed", "0", "--out", "runs/t3_write_policy.json"],
             ["--facts", "5", "--seed", "1", "--out", "runs/t3_seed1.json"],
             ["--facts", "5", "--seed", "2", "--out", "runs/t3_seed2.json"],
+            ["t3b_forced_span.py", "--out", "runs/t3_forced_span.json"],
         ],
         "quick_phases": [
             ["--facts", "2", "--seed", "0", "--steps", "4",
@@ -246,6 +250,8 @@ def collect(stage: str, recipe: dict, mode: str) -> dict:
                  if name in by_name]
         if extra:
             merged["extra_seeds"] = extra
+        if "t3_forced_span.json" in by_name:
+            merged["forced_span"] = by_name["t3_forced_span.json"]
         return merged
     if stage == "t8":
         by_name = dict(pairs)

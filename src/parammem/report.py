@@ -475,6 +475,26 @@ def _table(caption: str, label: str, columns: list[str], rows: list[list[str]],
     return "\n".join(lines)
 
 
+def _forced_span(bundle: dict[str, Any], field: str) -> float | None:
+    t3 = _get(bundle, "t3") or {}
+    return (t3.get("forced_span") or {}).get(field)
+
+
+def _surprise_median(bundle: dict[str, Any], klass: str) -> float | None:
+    """Median pre-write loss for the unknown vs already-known classes.
+
+    The closeness of these two numbers is the surprise criterion's failure: if the
+    distributions nearly coincide, no threshold on them can separate knowledge.
+    """
+    t3 = _get(bundle, "t3") or {}
+    scores = ((t3.get("summary") or t3).get("surprise_by_class") or {}).get(klass)
+    if not scores:
+        return None
+    import statistics
+
+    return statistics.median(scores)
+
+
 def _write_reduction(bundle: dict[str, Any]) -> float | None:
     """How many fewer writes the self-check criterion needs than writing everything.
 
@@ -833,6 +853,13 @@ def headline_values(bundle: dict[str, Any]) -> dict[str, str]:
         "tSelfKlReductionMax": _na(
             max(_t3_seed_reductions(bundle), default=None), ".0%"),
         "tSelfWriteReduction": _na(_write_reduction(bundle), ".0%"),
+        # The wording/likelihood gap behind the second negative result. The paper
+        # used to carry 9.76 nats by hand from a machine-local probe; the value here
+        # is the one an experiment in this repository produces.
+        "tForcedParisKL": _na(_forced_span(bundle, "canonical_loss"), ".2f"),
+        "tVerboseParisKL": _na(_forced_span(bundle, "verbose_loss"), ".2f"),
+        "tSurpriseMedianUnknown": _na(_surprise_median(bundle, "unknown"), ".2f"),
+        "tSurpriseMedianKnown": _na(_surprise_median(bundle, "known"), ".2f"),
     }
 
 

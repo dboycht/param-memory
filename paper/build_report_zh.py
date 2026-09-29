@@ -262,8 +262,9 @@ $\\alpha$、模块集合与每个张量的形状，任一不符即拒绝：这�
 ### 5.2 基于似然的"惊讶度"判据量的是措辞
 
 它对模型**完全答得出**的内容判为"高惊讶度"。逐 token 诊断给出了原因：模型从不用裸值作答
-（它答 "France's capital is Paris."），于是强制续写 `" Paris"` 的代价是 **9.76 nat**（$p\\approx6\\times10^{{-5}}$）。
-两类内容的分布因此几乎重合（中位数 7.72 vs 6.16），实测也差：漏写 {tSurpriseMissed}、
+（它答 "France's capital is Paris."），于是强制续写 `" Paris"` 的代价是 **{tForcedParisKL} nat**，
+而模型自己那句话只要 **{tVerboseParisKL} nat**。
+两类内容的分布因此几乎重合（中位数 {tSurpriseMedianUnknown} vs {tSurpriseMedianKnown}），实测也差：漏写 {tSurpriseMissed}、
 误写 {tSurpriseWasted}。**推广的教训：只有当探针允许模型用自己的措辞时，"惊讶度"才是"未知"的代理量。**
 
 ---
