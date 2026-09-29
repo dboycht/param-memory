@@ -104,8 +104,33 @@ def _t2(bundle) -> str:
         "",
         f"- router top-1 accuracy: **{s.get('route_top1_accuracy', float('nan')):.3f}**",
         f"- paraphrase probes: {s.get('config', {}).get('paraphrase', '?')}",
-        "",
     ]
+
+    # Per-episode detail: a single aggregate hides how much of the result is seed
+    # variance, which is exactly what a multi-seed re-run exists to expose.
+    episodes = data.get("episodes") or []
+    if len(episodes) > 1:
+        arms = ("oracle", "all", "top1", "top2", "other")
+        lines += ["", "| episode | seed | " + " | ".join(f"`{a}`" for a in arms) + " |",
+                  "| --- | --- | " + " | ".join("---" for _ in arms) + " |"]
+        spread: dict[str, list[float]] = {arm: [] for arm in arms}
+        for episode in episodes:
+            row = []
+            for arm in arms:
+                values = (episode.get("arms") or {}).get(arm) or []
+                total = len(values)
+                hits = sum(values)
+                rate = hits / total if total else float("nan")
+                spread[arm].append(rate)
+                row.append(f"{hits}/{total}")
+            lines.append(f"| {episode.get('episode_id', '?')} | {episode.get('seed', '?')} "
+                         f"| " + " | ".join(row) + " |")
+        lines += ["", "| arm | min | max | spread |", "| --- | --- | --- | --- |"]
+        for arm in arms:
+            rates = spread[arm]
+            lines.append(f"| `{arm}` | {min(rates):.3f} | {max(rates):.3f} | "
+                         f"{max(rates) - min(rates):.3f} |")
+    lines.append("")
     return "\n".join(lines)
 
 
