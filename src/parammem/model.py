@@ -269,25 +269,42 @@ class Backbone:
         logits = self.model(input_ids=prompt_ids).logits[0, -1]
         return logits.float()
 
+    def all_position_logits(self, query: str) -> torch.Tensor:
+        """Logits at **every** position of ``query`` (float32, shape (seq, vocab))."""
+        prompt_ids = self._ids(self._chat(query))
+        return self.model(input_ids=prompt_ids).logits[0].float()
+
     @torch.no_grad()
     def anchor_logits(self, queries: Iterable[str]) -> dict[str, torch.Tensor]:
-        """Reference distributions for the anchor prompts.
+        """Reference distributions for the anchor prompts, at **every position**.
 
         Call with **all slots switched off** so the reference is the frozen model;
         that is what "do not damage the base model" is measured against.
+
+        Every position, not just the last one: a final-position-only guard was
+        measured to hold single-step KL at ~0.08 while generation still collapsed
+        into repetition ("2222222222222222", "Monday, Monday, ..."). Generation is
+        autoregressive, so a tiny per-step shift compounds; a one-position guard
+        cannot protect a 16-step trajectory.
         """
-        return {q: self.next_token_logits(q).clone() for q in queries}
+        return {q: self.all_position_logits(q).clone() for q in queries}
 
     def kl_to_anchors(self, anchors: dict[str, torch.Tensor]) -> torch.Tensor:
-        """Mean KL(current || reference) over the anchor prompts (a loss term)."""
+        """Mean KL(current || reference) over anchor prompts **and positions**."""
         if not anchors:
             return torch.zeros((), device=self.device)
         total = None
         for query, ref in anchors.items():
-            cur = self.next_token_logits(query)
+            cur = self.all_position_logits(query)
+            if cur.shape != ref.shape:
+                raise ValueError(
+                    f"anchor shape drift for {query!r}: {tuple(cur.shape)} vs "
+                    f"{tuple(ref.shape)}; the reference must be captured with the "
+                    "same prompt template"
+                )
             log_cur = F.log_softmax(cur, dim=-1)
             log_ref = F.log_softmax(ref, dim=-1)
-            term = (log_ref.exp() * (log_ref - log_cur)).sum()
+            term = (log_ref.exp() * (log_ref - log_cur)).sum(dim=-1).mean()
             total = term if total is None else total + term
         return total / len(anchors)
 

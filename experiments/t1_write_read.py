@@ -61,6 +61,12 @@ def parse_args() -> argparse.Namespace:
         "--lambda-kl", type=float, default=1.0,
         help="weight of the 'do not damage the frozen model' anchor term (0 disables)",
     )
+    ap.add_argument(
+        "--anchor-mode", choices=("slot", "sum"), default="slot",
+        help="where the anchor guard is evaluated: 'slot' = only the slot being "
+             "written (default; each memory must be individually harmless), "
+             "'sum' = all written slots active (the original formulation)",
+    )
     ap.add_argument("--n-facts", type=int, default=3)
     ap.add_argument("--n-noise", type=int, default=2)
     ap.add_argument("--max-new-tokens", type=int, default=16)
@@ -115,9 +121,21 @@ def run_episode(bb: Backbone, episode, args: argparse.Namespace) -> dict:
             bb.set_read_slots([slot])
             loss = bb.write_loss(item.query, item.value_text)
             if anchors:
-                # Anchor term: every written slot is active, so cross-talk the new
-                # memory would introduce is penalised too.
-                bb.set_read_slots(sorted(set(slot_of.values()) | {slot}))
+                # WHERE the anchor guard is evaluated turned out to matter more
+                # than its weight. Measured (0.6B, 4 slots, probe_scaling):
+                #   per-slot anchor KL = [0.08, 3.89, 1.80, 1.80]
+                #   KL of the SUM      = 0.09
+                # The guard used to be evaluated on the sum, i.e. its value was
+                # ~0.09 against a target CE of ~15 -- drowned out, and unable to
+                # penalise anything. The slots only cancel on the anchor prompts
+                # by coincidence of the current slot set, and that coincidence
+                # disappears as soon as the read path selects a single slot. So
+                # the guard must be enforced per slot; 'sum' is kept so the two
+                # formulations can be compared in one ablation.
+                if args.anchor_mode == "slot":
+                    bb.set_read_slots([slot])
+                else:
+                    bb.set_read_slots(sorted(set(slot_of.values()) | {slot}))
                 loss = loss + args.lambda_kl * bb.kl_to_anchors(anchors)
             return loss
 
