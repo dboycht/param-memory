@@ -10,7 +10,8 @@ from __future__ import annotations
 
 from typing import Any
 
-__all__ = ["build_results_markdown", "build_results_latex", "stage_status"]
+__all__ = ["build_results_markdown", "build_results_latex", "headline_values",
+           "stage_status"]
 
 NOT_AVAILABLE = "_not available in this run_"
 
@@ -318,7 +319,14 @@ def _table(caption: str, label: str, columns: list[str], rows: list[list[str]],
     return "\n".join(lines)
 
 
-def _headline_macros(bundle: dict[str, Any]) -> list[str]:
+def headline_values(bundle: dict[str, Any]) -> dict[str, str]:
+    """Every number the write-ups are allowed to quote, as plain strings.
+
+    Public on purpose: the English tables (LaTeX/markdown) and the Chinese
+    technical report all pull from here, so no document can quote a value that
+    the measurement did not produce. Missing data becomes ``"n/a"`` rather than a
+    zero, so an incomplete run cannot masquerade as a result.
+    """
     t1 = (_get(bundle, "t1") or {}).get("summary", {})
     t2 = (_get(bundle, "t2") or {}).get("summary", {})
     t3 = _get(bundle, "t3") or {}
@@ -328,13 +336,17 @@ def _headline_macros(bundle: dict[str, Any]) -> list[str]:
 
     t3rec = {r["policy"]: r for r in t3.get("records", [])}
     self_r, always_r = t3rec.get("selfcheck", {}), t3rec.get("always", {})
+    explicit_r = t3rec.get("explicit", {})
     t4rec = {r["policy"]: r for r in t4.get("records", [])}
     fifo, smart = t4rec.get("fifo", {}), t4rec.get("utility_time", {})
     arms = t5.get("arms", {})
     read = t6.get("read", {})
+    write = t6.get("write", {})
+    snap = write.get("snapshot", {})
     screen = t5.get("floor_screen", {})
 
-    values = {
+    t4_records = t4.get("records", [])
+    return {
         "tTargetCE": _na(t1.get("ce_after_mean"), ".4f"),
         "tEraseIdentical": _na(t1.get("mem_off_string_identical")),
         "tIsolation": "ok" if t1.get("frozen_ok_everywhere") else "VIOLATED",
@@ -345,20 +357,30 @@ def _headline_macros(bundle: dict[str, Any]) -> list[str]:
         "tRouterAcc": _na(t2.get("route_top1_accuracy"), ".3f"),
         "tAlwaysWrites": _na(always_r.get("n_writes")),
         "tAlwaysWasted": _na(always_r.get("written_known")),
+        "tAlwaysMissed": _na(always_r.get("missed_unknown")),
         "tSelfWrites": _na(self_r.get("n_writes")),
         "tSelfWasted": _na(self_r.get("written_known")),
         "tSelfMissed": _na(self_r.get("missed_unknown")),
+        "tSelfRetained": (
+            f"{self_r.get('retained_unknown', 'n/a')}/{self_r.get('written_unknown', 'n/a')}"
+            if self_r else "n/a"
+        ),
+        "tExplicitWrites": _na(explicit_r.get("n_writes")),
+        "tExplicitMissed": _na(explicit_r.get("missed_unknown")),
         "tAlwaysKL": _na(always_r.get("anchor_kl"), ".2f"),
         "tSelfKL": _na(self_r.get("anchor_kl"), ".2f"),
+        "tSurpriseMissed": _na(t3rec.get("surprise", {}).get("missed_unknown")),
+        "tSurpriseWasted": _na(t3rec.get("surprise", {}).get("written_known")),
+        "tKnownConfirmed": _na(len(t3.get("known_confirmed", []))),
+        "tKnownDropped": _na(len(t3.get("known_dropped", []))),
+        "tTau": _na(t3.get("tau"), ".3f"),
         "tErased": _na(fifo.get("erased_virgin_ok")) + "/" + _na(fifo.get("erased_checked")),
-        # Per-policy numbers understate the evidence: the same guarantee is checked
-        # once per eviction for every policy, so report the total as well.
         "tErasedTotal": (
-            f"{sum(r.get('erased_virgin_ok', 0) for r in t4.get('records', []))}/"
-            f"{sum(r.get('erased_checked', 0) for r in t4.get('records', []))}"
-            if t4.get("records") else "n/a"
+            f"{sum(r.get('erased_virgin_ok', 0) for r in t4_records)}/"
+            f"{sum(r.get('erased_checked', 0) for r in t4_records)}"
+            if t4_records else "n/a"
         ),
-        "tPolicies": _na(len(t4.get("records", []))) if t4.get("records") else "n/a",
+        "tPolicies": _na(len(t4_records)) if t4_records else "n/a",
         "tFifoHot": (
             f"{fifo.get('oracle_hits', {}).get('hot', 'n/a')}/"
             f"{fifo.get('resident', {}).get('hot', 'n/a')}" if fifo else "n/a"
@@ -367,20 +389,41 @@ def _headline_macros(bundle: dict[str, Any]) -> list[str]:
             f"{smart.get('oracle_hits', {}).get('hot', 'n/a')}/"
             f"{smart.get('resident', {}).get('hot', 'n/a')}" if smart else "n/a"
         ),
+        "tStreamItems": _na(t4.get("config", {}).get("stream")),
+        "tCapacitySlots": _na(t4.get("config", {}).get("slots")),
         "tFloor": _na(arms.get("no_memory", {}).get("inheritance_rate"), ".2f"),
         "tContext": _na(arms.get("context_memory", {}).get("inheritance_rate"), ".2f"),
         "tParam": _na(arms.get("param_memory", {}).get("inheritance_rate"), ".2f"),
-        "tWithholdFloor": _na(
-            arms.get("no_memory", {}).get("withholding_rate"), ".2f"),
-        "tWithholdMemory": _na(
-            arms.get("param_memory", {}).get("withholding_rate"), ".2f"),
+        "tContextResidue": _na(arms.get("context_memory", {}).get("residue_rate"), ".2f"),
+        "tParamResidue": _na(arms.get("param_memory", {}).get("residue_rate"), ".2f"),
+        "tWithholdFloor": _na(arms.get("no_memory", {}).get("withholding_rate"), ".2f"),
+        "tWithholdMemory": _na(arms.get("param_memory", {}).get("withholding_rate"), ".2f"),
         "tScreenKept": f"{_na(screen.get('kept'))}/{_na(screen.get('candidates'))}",
+        "tScreenDropped": _na(screen.get("dropped")),
         "tVirgin": _na(read.get("virgin_before_load")),
         "tSixOracle": _na(read.get("oracle_recall")),
         "tRouted": _na(read.get("routed_recall")),
+        "tSixRouting": _na(read.get("routing_correct")),
+        "tSixEraseVirgin": _na(read.get("erase_after_load_is_virgin")),
+        "tSnapshotMB": f"{snap.get('bytes_on_disk', 0) / 1e6:.1f}" if snap else "n/a",
+        "tSnapshotSlots": _na(snap.get("n_slots")),
     }
+
+
+def _headline_macros(bundle: dict[str, Any]) -> list[str]:
+    values = headline_values(bundle)
+    # A TeX control word is letters only: a digit TERMINATES it, so \tT4Stream is
+    # read as \tT followed by "4Stream" and the compiler fails with a cryptic
+    # "Missing number, treated as zero" pointing at the \newcommand line. Check it
+    # here rather than letting LaTeX discover it.
+    bad = sorted(name for name in values if not name.isalpha())
+    if bad:
+        raise ValueError(
+            f"LaTeX macro names must be letters only (a digit ends a control word); "
+            f"offending names: {bad}"
+        )
     out = ["% ---- headline numbers (generated) ----"]
-    out += [rf"\newcommand{{\{name}}}{{{value}}}" for name, value in values.items()]
+    out += [rf"\newcommand{{\{name}}}{{{_tex(value)}}}" for name, value in values.items()]
     return out
 
 

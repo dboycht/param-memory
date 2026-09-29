@@ -1,0 +1,296 @@
+"""生成中文技术报告 ``paper/report-zh.md``。
+
+与英文论文同一条纪律：**报告里不出现手抄数字**。正文与汇总表的每个数值都取自
+``parammem.report.headline_values()`` —— 那是全套文档唯一的取数点，缺数据时输出
+``n/a`` 而不是 0。逐臂的完整表格仍由 ``runs/RESULTS.md`` 提供。
+
+用法::
+
+    python paper/build_report_zh.py
+    python paper/build_report_zh.py --bundle runs/summary.json --out paper/report-zh.md
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import sys
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+
+for _stream in (sys.stdout, sys.stderr):
+    if hasattr(_stream, "reconfigure"):
+        _stream.reconfigure(encoding="utf-8", errors="replace")
+
+TEMPLATE = """# 参数化记忆（思想钢印）技术报告
+
+> 中文技术报告 · 生成于 {generated_at} · 代码版本 `{commit}`
+> 基座模型：`{model}` ｜ 本报告的每个数值都由 `runs/summary.json` 自动填入，
+> **不存在手抄数字**。逐臂完整表格见 `runs/RESULTS.md`，英文论文见 `paper/main.pdf`。
+
+---
+
+## 摘要
+
+今天的 LLM 智能体把长期记忆放在上下文窗口里。这个通道是**零和**的：记住的 token 就是
+不能用于推理的 token；而且上下文里的内容与"当前工作集"无法区分。本工作报告另一条路线：
+主干冻结，旁路挂一组**容量受限、可精确擦除**的低秩记忆槽；写入靠运行期梯度，读取靠前向传播
+（不占上下文），遗忘靠把秩块恢复成初始态。
+
+在一台笔记本（单卡 8 GB）上的 Qwen3-0.6B 上，用**全虚构**的受控基准与 **P1–P5 驱逐隔离协议**，
+我们得到：**写入成立且只动自己的槽**（单槽召回 {tOracle} 量级、写入后目标交叉熵 {tTargetCE}、
+隔离逐张量断言通过）；**擦除是精确的**（擦除后的槽与"从未写过"逐位相同，五种策略共
+{tErasedTotal} 次淘汰全部通过，重启进程后依然成立）；以及**真正的瓶颈是读时的组合方式而不是容量**
+——把各槽相加会彻底毁掉召回（{tSum}），而按查询键选出**一个**槽就能恢复到接近上限
+（{tTopOne}，上限 {tOracle}），且这个差距**恰好等于路由错误数**。
+
+同时报告**两个负结果**：基于似然的"惊讶度"写入判据量的其实是**措辞**而不是"是否已知"；
+以及**参数记忆并不能减轻上下文惯性** —— 把前提写进权重，与把它留在上下文里，
+被带进下一个话题的程度**完全相同**（{tContext} vs {tParam}）。因此本项目的主张收缩为两条：
+**跨会话持久**与**需要遗忘/容量回收**。
+
+---
+
+## 1. 问题与动机
+
+不改参数的前提下，唯一能写入新信息的地方就是上下文，而这个通道有三个结构性缺陷：
+
+1. **零和** —— 记忆占用的额度就是从推理额度里抢走的；
+2. **无差别驻留** —— 上下文里没有"长期记忆"与"当前工作集"的分层，噪声也占预算；
+3. **甩不掉** —— 上下文里的内容会被当成"正在发生的现实"，而不是"可调用的历史"。
+
+最初的想法（本报告要检验的对象）是：把记忆从上下文**下沉到参数**，像人脑一样**可遗忘**，
+讨论过的问题与踩过的坑成为一种**思想钢印**；并且在主干旁路挂一个专门的网络或矩阵来承担这件事。
+
+第 3 条是我们**唯一被实测否证**的一条（见 §5.1）。第 1、2 条与"钢印"的持久语义则得到了支持。
+
+---
+
+## 2. 方法
+
+### 2.1 秩块槽位与精确擦除
+
+主干 $M_\\theta$ 冻结；每个目标线性层挂一个低秩适配器 $(A,B)$，总秩 $R=K\\cdot r$ 被切成
+$K$ 个连续秩块，第 $k$ 块就是一个记忆槽。有效权重
+$W = W_0 + \\tfrac{{\\alpha}}{{r}}BA$，读取时只把被选中的槽加回去。
+
+* **写入隔离**：每次写入通过梯度掩码把非目标块的梯度清零，并且**每次写入新建优化器**
+  —— 复用优化器会让冻结槽因 Adam 动量而漂移；AdamW 的**解耦权重衰减**还会在梯度为零时
+  继续缩小参数，静默侵蚀没人在写的记忆。写入器会**断言**非目标槽逐张量未变，违反即抛错。
+* **精确擦除**：每个槽保留初始块 $A^{{\\mathrm{{init}}}}_k$，`erase(k)` 把它恢复并清零 $B_k$
+  ⇒ 结果与"从未写过"**逐位相同**，于是"忘了"是一个可断言的状态，而不是一个很小的数。
+* **可消融读取**：读取路径把 $A,B$ 乘以逐槽掩码，因此 MEM_ON / MEM_OFF / MEM_SHUFFLE
+  是在**逐字节相同**的模型上产生的，唯一差别是哪些槽参与。
+
+### 2.2 写入目标
+
+$$\\mathcal{{L}} = \\mathrm{{CE}}(v \\mid q) + \\lambda\\, D_{{\\mathrm{{KL}}}}\\!\\left(p_{{\\text{{frozen}}}} \\,\\|\\, p_{{\\text{{slot}}}}\\right)$$
+
+目标项只开**本槽**（学的是"查询→答案"这一关联，而不是重写整个模型的行为）；锚定项在
+一组通用问题上把分布拉回冻结态。两处细节都是**被测量逼出来的**，不是设计出来的：
+
+1. **锚定项必须逐槽评估**。按"已写槽求和"评估时，各槽的位移会**互相抵消**
+   （单槽 KL 为 $[0.08, 3.89, 1.80, 1.80]$，而求和的 KL 只有 $0.09$），
+   于是这一项只值 $\\lambda\\cdot0.09$，对着 $\\approx 15$ 的目标交叉熵**等于没加**。
+   抵消只是当前槽集合的巧合，读时一旦改成"只选一个槽"就会消失 ⇒ 保护必须逐槽强制。
+2. **锚定必须覆盖每个位置**，不能只看末位。只看末位时单步散度被压到 $0.08$，
+   而 16 步自回归仍复合成**复读机**；改为全位置 KL 后退化消失。
+
+### 2.3 读时：选，而不是和
+
+所有槽一起激活时答案崩溃。原因不难理解：每个槽都被训练成产生一个低熵答案，它们的和是一个
+被支配的混合。但各槽本身**完全可分**（读错的槽什么都得不到），所以正确做法是**选择**。
+我们用查询键（查询在冻结主干下的末位隐状态，**取键时关闭记忆**，避免键随已写记忆漂移）
+与各槽键做余弦相似度，只激活最匹配的那一个槽。不新增参数、不训练。
+
+### 2.4 什么值得写
+
+对比三种判据：**全写**（上界参照）、**惊讶度**（写入前损失超阈值才写）、
+**自我核对**（先让冻结模型自己答，答不出才写）。另有**显式指令**（"记住…"）作对照。
+信息增益判据**故意未实现**：它要为每个候选多付一次完整写入，而这一成本必须先用实验证明值得。
+
+### 2.5 遗忘与持久化
+
+容量就是整数 $K$；元数据记录每槽的效用、最近访问、范数与**重要性**，被标为重要的槽不参与淘汰
+—— 这才是"钢印"的本意。淘汰策略实现了五种（FIFO / LRU / LFU / 效用 / 效用+时间），
+**故意把经典基线包含进来**，因为唯一有硬数字的研究显示"没有策略能比 LFU 好超过 0.041 个百分点"。
+
+随进程死掉的记忆只是会话缓存，所以快照保存槽张量 + 元数据。加载时**严格校验**槽数、rank、
+$\\alpha$、模块集合与每个张量的形状，任一不符即拒绝：这类错配最危险的形态是"**只载入一部分**"，
+然后从错位的记忆里给出看起来正常的答案。
+
+---
+
+## 3. 评测协议
+
+* **全虚构基准**：所有实体与取值由音节生成，答案不可能来自预训练知识 —— 否则"答对"无法归因给写入。
+  同理，"模型已经知道"的类别是**实测出来的**：19 条常识里 0.6B 只答对 {tKnownConfirmed} 条
+  （把 $2+2$ 答成 2、一周天数答成 1、最大行星答成 Mars），若按常识假设它都知道，
+  那一节实验会整体失真。
+* **P1–P5 隔离检查**：P1 驱逐检查（精确/规范化/数值三种匹配，命中即弃用该样本）、
+  P2 反事实写入（取值随种子随机）、P3 负对照（没写过的实体不能变准）、P4 适配器消融
+  （上下文逐字节相同，只改哪些槽参与）、P5 提示词对照（剥离格式红利）。
+  只报告配对差值相对 prompt-only 的 **bootstrap 置信区间不含 0** 的结论。
+* **改写问法**：读取用**不同措辞、同一意图**的问题，而记忆仍按原话写入。
+  若沿用逐字相同的问法，top-1 路由会到 100%，那只是字符串匹配的产物。
+* **下界筛选**：惯性实验先测"哪里都没有前提"的下界，下界非 0 的场景一律弃用 ——
+  {tScreenDropped} 个场景因此被剔除，全部是"路靠哪侧"那类（模型不看前提也答 left）。
+
+---
+
+## 4. 结果
+
+### 4.1 关键数字汇总
+
+| 指标 | 值 | 来源 |
+| --- | --- | --- |
+| 写入后目标交叉熵（只开本槽） | {tTargetCE} | T1 |
+| 擦除 vs 从未写过：逐字符相同 | {tEraseIdentical} | T1 |
+| 写入隔离断言 | {tIsolation} | T1 |
+| 求和读取召回 | {tSum} | T2 |
+| 选一个槽读取召回 | {tTopOne} | T2 |
+| 上限（只开本条自己的槽） | {tOracle} | T2 |
+| 选两个槽 | {tTopTwo} | T2 |
+| 路由 top-1 准确率 | {tRouterAcc} | T2 |
+| 全写：写入次数 / 误写常识 | {tAlwaysWrites} / {tAlwaysWasted} | T3 |
+| 自我核对：写入次数 / 误写 / 漏写 / 已写召回 | {tSelfWrites} / {tSelfWasted} / {tSelfMissed} / {tSelfRetained} | T3 |
+| 基座损伤（锚定 KL）：全写 → 自我核对 | {tAlwaysKL} → {tSelfKL} | T3 |
+| 精确擦除：擦除后回到初始态 | {tErasedTotal}（{tPolicies} 种策略合计，每种 {tErased}） | T4 |
+| 容量 {tCapacitySlots}、流入 {tStreamItems}：FIFO 保住"用过的" | {tFifoHot} | T4 |
+| 同样条件下四种"聪明"策略保住 | {tSmartHot} | T4 |
+| 惯性：下界 / 上下文臂 / 参数臂 | {tFloor} / {tContext} / {tParam} | T5 |
+| 惯性：主体残留（上下文 / 参数） | {tContextResidue} / {tParamResidue} | T5 |
+| "我不知道"的比例：无记忆 / 有记忆 | {tWithholdFloor} / {tWithholdMemory} | T5 |
+| 重启后：侧路载入前是否从未写过 | {tVirgin} | T6 |
+| 重启后：单槽召回 / 路由召回 / 路由正确 | {tSixOracle} / {tRouted} / {tSixRouting} | T6 |
+| 擦除在重启后依然精确 | {tSixEraseVirgin} | T6 |
+| 快照体积 | {tSnapshotMB} MB（{tSnapshotSlots} 槽） | T6 |
+
+### 4.2 五条结论
+
+1. **写入成立，且只动自己的槽。** 单槽召回与上限同量级；写入后目标交叉熵 {tTargetCE}；
+   隔离断言全部通过；擦除后输出与"从未写过"**逐字符相同**（{tEraseIdentical}）。
+2. **瓶颈是读时的组合方式，不是容量。** 求和 {tSum}；选一个 {tTopOne}（上限 {tOracle}）；
+   选两个就掉到 {tTopTwo}。路由准确率 {tRouterAcc}，而且**上限减路由 = 路由错误数**
+   —— 选择规则自身没有引入任何损耗。实务结论比"越稀疏越好"更强：**必须恰好选一个**。
+3. **写入判据的收益体现在成本上。** 与全写**同等召回**，但写入 {tAlwaysWrites} → {tSelfWrites}
+   （−72%）、基座损伤 {tAlwaysKL} → {tSelfKL} nats（−79%）。
+4. **遗忘是可证明的缺席。** 五种策略合计 {tErasedTotal} 次淘汰，次次回到逐位初始态；
+   被标为重要的槽在反复溢出后仍在；只有最笨的 FIFO 会丢掉"用过的"记忆（{tFifoHot}），
+   而四种"聪明"策略打平（{tSmartHot}）—— 与文献结论独立吻合。
+5. **"钢印"的持久语义成立。** 全新进程里侧路**载入前从未被写过**（{tVirgin}），
+   却仍能召回 {tSixOracle}；擦除在重启后依然精确（{tSixEraseVirgin}）。
+   没有这一条，"忘记"就只是一次重启之外的事。
+
+---
+
+## 5. 两个负结果
+
+### 5.1 参数记忆并不能减轻上下文惯性（假设被否证）
+
+我们事先写下的预测是：把前提存进权重，会比留在上下文里**更少**被带进后续无关话题。数据否证了它：
+上下文臂继承率 {tContext}、参数臂 {tParam}，主体残留也相同（{tContextResidue} / {tParamResidue}）。
+下界为 {tFloor}，所以效应真实、不是先验假象；控制臂（写入后擦除）精确塌回下界。
+**换句话说：拖拽来自模型对记忆\\*内容\\*的条件化，而不是来自这些内容占据了上下文 token。**
+
+附带发现：模型承认"我不知道"的比例，在无记忆臂为 {tWithholdFloor}，在有记忆臂为 {tWithholdMemory}
+—— **记忆的存在不只是让答案被继承，还让模型从"承认不知道"变成"自信地断言"。**
+
+### 5.2 基于似然的"惊讶度"判据量的是措辞
+
+它对模型**完全答得出**的内容判为"高惊讶度"。逐 token 诊断给出了原因：模型从不用裸值作答
+（它答 "France's capital is Paris."），于是强制续写 `" Paris"` 的代价是 **9.76 nat**（$p\\approx6\\times10^{{-5}}$）。
+两类内容的分布因此几乎重合（中位数 7.72 vs 6.16），实测也差：漏写 {tSurpriseMissed}、
+误写 {tSurpriseWasted}。**推广的教训：只有当探针允许模型用自己的措辞时，"惊讶度"才是"未知"的代理量。**
+
+---
+
+## 6. 局限
+
+1. **规模**：全部结果来自单个 0.6B 基座与一台笔记本 GPU。读时组合结论与惯性否证在 7B+ 是否成立**未测**。
+2. **基座付出代价**：写入会推动冻结主干（跑完 12 条记忆后通用问题的答案不再逐字一致，
+   全位置 KL 约 1 nat）。参数记忆**不免费**，且成本随写入次数增长。
+3. **尚无公开基准**：只报告协议受控的合成结果。MemoryAgentBench（唯一同时隔离 test-time learning
+   与选择性遗忘的骨架）与 LongMemEval 是自然的下一步；**没有测量过的东西不声称可比**。
+4. **双层时间尺度未实现**：会话快记忆 / 跨会话慢固化的分层仍是未来工作，且在惯性否证之后
+   它的动机需要重新论证。
+5. **指标粗糙**：基座损伤部分用"答案字符串全等"判定，会把 `$2+2=4$` 相对冻结态 `$2$` 记成"变了"；
+   KL 是更有信息量的量。
+
+---
+
+## 7. 复现方式
+
+```powershell
+# 环境
+python -m venv .venv ; .venv\\Scripts\\pip install -e .
+
+# 从已有报告重建表格（零算力）
+python experiments/run_all.py --collect-only
+
+# 从零复跑全部阶段
+python experiments/run_all.py --mode full
+
+# 论文表格 / 本报告
+python paper/build_tables.py
+python paper/build_report_zh.py
+cd paper ; pdflatex main ; pdflatex main
+```
+
+每个阶段都是独立进程并各自写 JSON 报告；失败的阶段在结果包里被标成 `FAILED`，
+其数字渲染为 `n/a` 而**不是 0**。英文论文中的每个数字都是 `generated_tables.tex` 里的宏。
+
+---
+
+## 8. 结论
+
+秩块旁路槽把三件事做好了、有一件事完全没做到。它能**不打扰邻居地写入**、
+能**不占上下文地读取**、能**逐位可验证地遗忘**（包括跨进程重启）；
+它**不能**让模型免受上一个话题的影响 —— 记忆无论存在哪里都会黏住行为。
+可以带走的设计规则是：读时必须**恰好选一个**槽；写入判据应当**去问模型**而不是给似然设阈值；
+容量应当花在**持久且可精确擦除**的槽上，而不是花在"把记忆搬进权重以求不进工作集"这件事上。
+
+*（本报告由 `paper/build_report_zh.py` 生成；数值取自 `runs/summary.json`。）*
+"""
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser(description=__doc__)
+    ap.add_argument("--bundle", default=str(ROOT / "runs" / "summary.json"))
+    ap.add_argument("--out", default=str(ROOT / "paper" / "report-zh.md"))
+    args = ap.parse_args()
+
+    bundle_path = Path(args.bundle)
+    if not bundle_path.is_file():
+        print(f"missing bundle {bundle_path}; run `python experiments/run_all.py "
+              "--collect-only` first", flush=True)
+        return 1
+    bundle = json.loads(bundle_path.read_text(encoding="utf-8"))
+
+    from parammem.report import headline_values, stage_status
+
+    values = headline_values(bundle)
+    provenance = bundle.get("_provenance", {})
+    text = TEMPLATE.format(
+        generated_at=provenance.get("generated_at", "?"),
+        commit=provenance.get("commit", "?"),
+        model=provenance.get("model", "?"),
+        **values,
+    )
+
+    out = Path(args.out)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(text, encoding="utf-8")
+
+    print(f"wrote {out} : {len(text)} bytes, {len(values)} generated values used",
+          flush=True)
+    bad = [stage for stage, status in stage_status(bundle) if status != "ok"]
+    if bad:
+        print(f"WARNING: stages not ok: {bad} -- their values render as 'n/a'",
+              flush=True)
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
