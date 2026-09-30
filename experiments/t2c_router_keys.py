@@ -47,6 +47,7 @@ import torch
 
 from parammem.bench import protocol as P
 from parammem.bench.synthetic import make_episode
+from parammem.eval.paired import sign_test_p
 from parammem.memory.router import route
 from parammem.memory.writer import write_slot
 from parammem.model import GENERIC_ANCHORS, Backbone, BackboneConfig, resolve_model_path
@@ -161,6 +162,13 @@ def run_episode(bb: Backbone, episode, args: argparse.Namespace) -> dict:
         slot_of[item.item_id] = slot
 
     written = sorted(slot_of.values())
+    # Every key is captured with the memory switched OFF, which is the convention the
+    # model's own ``query_key`` documents: a key taken with slots active depends on
+    # which memories happen to be written, so it would not mean the same thing at
+    # write time and at read time. Forgetting this is not a theoretical worry -- the
+    # first version of this experiment left the previous arm's read mask in place and
+    # the model-key columns were silently contaminated.
+    bb.set_read_slots([])
     slot_hidden = {KEY: {} for KEY in ("last", "mean", "mid", "shallow")}
     for item in items:
         keys = hidden_keys(bb, item.query)
@@ -175,10 +183,24 @@ def run_episode(bb: Backbone, episode, args: argparse.Namespace) -> dict:
 
     tally = {KEY: {"top1": 0, "top2_recall": 0, "em": 0} for KEY in KEY_KINDS}
     tally["entropy"] = {"top1": 0, "top2_recall": 0, "em": 0}
+    # Per-probe outcomes, not just totals: without them the comparison between two keys
+    # cannot be run as a paired test, and an unpaired comparison of 23/32 against 30/32
+    # is much weaker evidence than the same data paired on the same probes.
+    per_probe: list[dict] = []
     n = 0
+    # Self-check against the model's own implementation. ``query_key`` handles the
+    # memory-off convention internally, so if this experiment ever captures keys with
+    # slots active again, the mismatch shows up here instead of silently deflating the
+    # model-key columns.
+    reference = bb.query_key(items[0].query)
+    mine = hidden_keys(bb, items[0].query)["last"]
+    if not torch.allclose(reference.float().cpu(), mine.float().cpu(), atol=1e-5):
+        raise RuntimeError("key capture disagrees with Backbone.query_key: the memory "
+                           "is probably not switched off")
     for index, probe in enumerate(episode.probes):
         own = slot_of[probe.item_id]
         n += 1
+        bb.set_read_slots([])          # keys are a property of the query, not of the bank
         probe_hidden = hidden_keys(bb, probe.query)
 
         rankings: dict[str, list[int]] = {}
@@ -215,10 +237,13 @@ def run_episode(bb: Backbone, episode, args: argparse.Namespace) -> dict:
             tally[name]["top2_recall"] += int(own in ranked)
             bb.set_read_slots([ranked[0]])
             answer = bb.answer(probe.query)
-            tally[name]["em"] += int(P.exact_match(answer, probe.value, probe.aliases))
+            hit = int(P.exact_match(answer, probe.value, probe.aliases))
+            tally[name]["em"] += hit
+            per_probe.append({"probe": index, "key": name,
+                              "top1_hit": int(ranked[0] == own), "em_hit": hit})
 
     return {"episode_id": episode.episode_id, "seed": episode.seed, "n_probes": n,
-            "tally": tally}
+            "tally": tally, "per_probe": per_probe}
 
 
 def main() -> int:
@@ -247,6 +272,20 @@ def main() -> int:
     totals = {name: {metric: sum(ep["tally"][name][metric] for ep in episodes)
                      for metric in ("top1", "top2_recall", "em")}
               for name in episodes[0]["tally"]}
+
+    # Paired comparison against the incumbent key, on the same probes: the aggregate
+    # columns alone cannot say whether a gap is consistent or comes from a few probes.
+    def paired(key: str) -> dict:
+        mine = {(ep["episode_id"], row["probe"]): row["em_hit"]
+                for ep in episodes for row in ep["per_probe"] if row["key"] == key}
+        base = {(ep["episode_id"], row["probe"]): row["em_hit"]
+                for ep in episodes for row in ep["per_probe"] if row["key"] == "last"}
+        ids = sorted(set(mine) & set(base))
+        helped = sum(1 for i in ids if mine[i] and not base[i])
+        hurt = sum(1 for i in ids if base[i] and not mine[i])
+        return {"helped": helped, "hurt": hurt, "ties": len(ids) - helped - hurt,
+                "sign_p": sign_test_p(helped, hurt)}
+
     summary = {
         "note": "Key-definition ablation for the router. Because the oracle-minus-top-1 "
                 "gap equals the routing error, a definition that raises top-1 accuracy "
@@ -258,6 +297,8 @@ def main() -> int:
         "totals": totals,
         "rates": {name: {metric: value / probes for metric, value in metrics.items()}
                   for name, metrics in totals.items()},
+        "paired_vs_last": {name: paired(name) for name in episodes[0]["tally"]
+                           if name != "last"},
         "model_path": cfg.model_id,
         "elapsed_s": time.perf_counter() - t0,
     }
