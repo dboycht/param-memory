@@ -26,7 +26,7 @@ import re
 from typing import Any
 
 __all__ = ["EXTRACTION_INSTRUCTIONS", "build_extraction_prompt", "parse_pairs",
-           "flatten_turns"]
+           "flatten_turns", "extract_pairs"]
 
 EXTRACTION_INSTRUCTIONS = (
     "You convert conversation excerpts into standalone memory items.\n"
@@ -54,6 +54,29 @@ def flatten_turns(session: list[dict[str, Any]]) -> list[str]:
 def build_extraction_prompt(turns: list[str]) -> str:
     body = "\n".join(turns)
     return f"{EXTRACTION_INSTRUCTIONS}\n\nExcerpt:\n{body}"
+
+
+def extract_pairs(call, turns: list[str], retries: int = 1) -> list[dict[str, str]]:
+    """Ask a model to turn ``turns`` into memory items.
+
+    ``call`` is any ``prompt -> reply`` callable, so this is testable without a network
+    and the experiment can hand it the same rate-limited client the judge uses. A reply
+    that parses to nothing is retried once and then dropped: an invented memory would be
+    written into the weights and read back indistinguishable from a real one, so the
+    failure mode has to be "we lost a memory", never "we stored something made up".
+    """
+    if not turns:
+        return []
+    prompt = build_extraction_prompt(turns)
+    for _ in range(max(1, retries + 1)):
+        try:
+            reply = call(prompt)
+        except Exception:               # a transport failure is retried, then dropped
+            continue
+        pairs = parse_pairs(reply or "")
+        if pairs:
+            return pairs
+    return []
 
 
 def _looks_like_pair(obj: Any) -> bool:

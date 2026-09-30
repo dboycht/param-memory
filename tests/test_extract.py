@@ -7,7 +7,8 @@ and every shape a hosted model plausibly returns is pinned here.
 
 from __future__ import annotations
 
-from parammem.bench.extract import build_extraction_prompt, flatten_turns, parse_pairs
+from parammem.bench.extract import (build_extraction_prompt, extract_pairs,
+                                    flatten_turns, parse_pairs)
 
 
 def test_plain_json_array():
@@ -66,3 +67,39 @@ def test_prompt_carries_the_rules_and_the_excerpt():
     prompt = build_extraction_prompt(["user: I collect cameras"])
     assert "JSON array" in prompt
     assert "user: I collect cameras" in prompt
+
+
+def test_extract_pairs_retries_once_then_gives_up_without_inventing():
+    replies = iter(["sorry, no facts here", "still nothing"])
+    assert extract_pairs(lambda _p: next(replies), ["user: hi"]) == []
+
+
+def test_extract_pairs_returns_the_first_parseable_reply():
+    replies = iter(["garbage", '[{"question": "q", "answer": "a"}]'])
+    calls = []
+
+    def call(prompt):
+        calls.append(prompt)
+        return next(replies)
+
+    assert extract_pairs(call, ["user: hi"]) == [{"question": "q", "answer": "a"}]
+    assert len(calls) == 2
+
+
+def test_extract_pairs_survives_a_transport_failure():
+    attempts = []
+
+    def flaky(_prompt):
+        attempts.append(1)
+        if len(attempts) == 1:
+            raise RuntimeError("connection reset")
+        return '[{"question": "q", "answer": "a"}]'
+
+    assert extract_pairs(flaky, ["user: hi"]) == [{"question": "q", "answer": "a"}]
+
+
+def test_extract_pairs_on_empty_input_does_not_call_out():
+    def call(_prompt):
+        raise AssertionError("should not be called")
+
+    assert extract_pairs(call, []) == []

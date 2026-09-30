@@ -335,6 +335,15 @@ class LLMJudge:
                                                standard))
         return parse_single(reply)
 
+    def complete(self, user_prompt: str) -> str:
+        """Raw completion for the calls that are not judgments.
+
+        The multi-session extraction step needs the same rate limit, retry behaviour and
+        truncation reporting as the judge, so it borrows this method instead of
+        duplicating the HTTP plumbing.
+        """
+        return self._chat(user_prompt)
+
     def judge_batch(self, reference: str, candidates: dict[str, str]) -> dict[str, JudgeVerdict]:
         """Grade several candidate answers against one reference in a single call.
 
