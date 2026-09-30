@@ -742,6 +742,40 @@ def _erasure_field(t7: dict, field: str) -> str | None:
     return None if value is None else ("yes" if value else "no")
 
 
+def _t4_seeds(bundle) -> list[list[dict]]:
+    """Per-seed T4 record lists: the primary run first, then the extra seeds.
+
+    The eviction assertions are deterministic, but which memories survive under each
+    policy is not, so the retention fraction is only honest as a range over seeds.
+    """
+    t4 = _get(bundle, "t4") or {}
+    lists = [t4.get("records") or []]
+    for payload in t4.get("extra_seeds") or []:
+        lists.append(payload.get("records") or [])
+    return [records for records in lists if records]
+
+
+def _hot_fraction(records: list[dict], policy: str) -> float | None:
+    for row in records:
+        if row.get("policy") != policy:
+            continue
+        resident = (row.get("resident") or {}).get("hot")
+        hits = (row.get("oracle_hits") or {}).get("hot")
+        if resident:
+            return hits / resident
+    return None
+
+
+def _hot_range(bundle, policy: str) -> str:
+    fractions = [value for records in _t4_seeds(bundle)
+                 if (value := _hot_fraction(records, policy)) is not None]
+    if not fractions:
+        return "n/a"
+    if len(fractions) == 1:
+        return f"{fractions[0]:.0%}"
+    return f"{min(fractions):.0%}--{max(fractions):.0%}"
+
+
 def _merged_calibration(t7: dict) -> dict:
     """Human-vs-judge agreement as merged from the marks and the current payload."""
     return t7.get("calibration_merged") or {}
@@ -898,6 +932,10 @@ def headline_values(bundle: dict[str, Any]) -> dict[str, str]:
             f"{smart.get('resident', {}).get('hot', 'n/a')}" if smart else "n/a"
         ),
         "tStreamItems": _na(t4.get("config", {}).get("stream")),
+        # ---- retention across seeds, because the surviving set is seed-dependent ----
+        "tSeedsCapacity": _na(len(_t4_seeds(bundle)) or None),
+        "tFifoHotRange": _hot_range(bundle, fifo.get("policy") if fifo else "fifo"),
+        "tSmartHotRange": _hot_range(bundle, smart.get("policy") if smart else "lru"),
         "tCapacitySlots": _na(t4.get("config", {}).get("slots")),
         "tFloor": _na(arms.get("no_memory", {}).get("inheritance_rate"), ".2f"),
         "tContext": _na(arms.get("context_memory", {}).get("inheritance_rate"), ".2f"),
