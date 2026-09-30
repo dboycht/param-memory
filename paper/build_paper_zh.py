@@ -355,6 +355,19 @@ oracle 单条 & [[tJudgeContextTarget]] & [[tScaleContextTarget]] & [[tTokContex
 [[tScaleFrozen]] 的题它能凭先验答对，0.6B 只有 [[tLongMemFrozen]]。
 成本优势与规模无关，质量优势与规模有关。这是一条两点曲线，我们按它本来的样子写。
 
+\subsection{为什么不干脆把同样的记忆训进权重}
+把事实放进上下文是替代记忆库的**便宜**做法，把它们**训进权重**是**昂贵**的那种，
+而审稿人一定会问后者。我们跑了三条臂，**条目-梯度步数完全相同**（30 条 × 12 步；
+注意全量微调每一步都更新全部参数，因此它拿到的算力**更多**）：
+全量微调达到 [[tBaseFull]]，与记忆库总秩相同的单个适配器是 [[tBaseAdapter]]，
+而槽位方案是 [[tBaseSlots]]。槽位方案对冻结主干也最温和：全位置 KL 为 [[tBaseSlotsKl]] nats，
+全量微调是 [[tBaseFullKl]]、联合适配器是 [[tBaseAdapterKl]]；
+而且**只有它能事后忘掉单独一条**：擦掉一个槽后，该槽可证明回到未写过状态
+（[[tBaseErasedVirgin]]），它的邻居仍然答得出（[[tBaseNeighbourKept]]），
+而被擦掉的那个问题不再被回答（[[tBaseErasedGone]]）。
+**必须说明的边界**：三条臂都停在记忆库的预算上，所以这是"**同等预算**"下的结论，
+而不是"微调在更多步数下能到哪"的结论。
+
 \section{负结果}
 \label{sec:neg}
 

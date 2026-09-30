@@ -91,8 +91,30 @@ def load_pairs(limit: int, data_path: Path = DATA) -> list[dict]:
 
 
 def containment(bb: Backbone, pairs: list[dict]) -> float:
+    """Containment with whatever read mask is active.
+
+    For the training baselines that is the whole point: the fine-tune arm has no slots
+    (mask empty) and the joint-adapter arm is one adapter that is always on (mask full).
+    The slot bank cannot be measured this way -- see ``containment_routed``.
+    """
     hits = 0
     for pair in pairs:
+        answer = bb.answer(str(pair.get("question", "")))
+        hits += int(contains_answer(answer, str(pair["answer"])))
+    return hits / len(pairs)
+
+
+def containment_routed(bb: Backbone, pairs: list[dict]) -> float:
+    """Containment for the slot bank: read each item through its own slot.
+
+    The first version measured this arm with ``containment`` and inherited whatever read
+    mask the last write had left active -- that is, one slot for thirty questions -- so
+    the number was meaningless rather than merely optimistic. Oracle routing is the same
+    convention the T7-d diagnostic uses, which is what makes the two comparable.
+    """
+    hits = 0
+    for slot, pair in enumerate(pairs):
+        bb.set_read_slots([slot])
         answer = bb.answer(str(pair.get("question", "")))
         hits += int(contains_answer(answer, str(pair["answer"])))
     return hits / len(pairs)
@@ -101,6 +123,24 @@ def containment(bb: Backbone, pairs: list[dict]) -> float:
 def backbone_drift(bb: Backbone, anchors: dict) -> float:
     with torch.no_grad():
         return float(bb.kl_to_anchors(anchors).detach())
+
+
+def _accumulate(bb: Backbone, pairs, args, anchors, optimiser) -> None:
+    """One optimisation step: accumulate per-pair gradients, then step.
+
+    ``total = loss + loss + ...`` over thirty pairs keeps thirty autograd graphs alive
+    at once. On this card that pushed the run to 7.85 of 8 GB and the driver started
+    paging, so the full fine-tune arm did not finish in thirty-eight minutes. Summing
+    the losses is mathematically the same but calls backward on each term immediately,
+    which frees the graph as it goes and leaves one alive at a time.
+    """
+    optimiser.zero_grad()
+    for pair in pairs:
+        loss = bb.write_loss(str(pair.get("question", "")), str(pair["answer"]))
+        (loss / len(pairs)).backward()
+    if anchors:
+        (args.lambda_kl * bb.kl_to_anchors(anchors)).backward()
+    optimiser.step()
 
 
 def train_full_backbone(bb: Backbone, pairs, args, anchors) -> None:
@@ -114,16 +154,7 @@ def train_full_backbone(bb: Backbone, pairs, args, anchors) -> None:
     else:
         optimiser = torch.optim.SGD(params, lr=args.lr_full, momentum=0.9)
     for _ in range(args.steps):
-        optimiser.zero_grad()
-        total = None
-        for pair in pairs:
-            loss = bb.write_loss(str(pair.get("question", "")), str(pair["answer"]))
-            total = loss if total is None else total + loss
-        total = total / len(pairs)
-        if anchors:
-            total = total + args.lambda_kl * bb.kl_to_anchors(anchors)
-        total.backward()
-        optimiser.step()
+        _accumulate(bb, pairs, args, anchors, optimiser)
     for parameter in bb.model.parameters():
         parameter.requires_grad_(False)
 
@@ -136,16 +167,7 @@ def train_joint_adapter(bb: Backbone, pairs, args, anchors, n_slots: int) -> Non
     optimiser = torch.optim.AdamW(params, lr=args.lr, weight_decay=0.0)
     bb.set_read_slots(range(n_slots))
     for _ in range(args.steps):
-        optimiser.zero_grad()
-        total = None
-        for pair in pairs:
-            loss = bb.write_loss(str(pair.get("question", "")), str(pair["answer"]))
-            total = loss if total is None else total + loss
-        total = total / len(pairs)
-        if anchors:
-            total = total + args.lambda_kl * bb.kl_to_anchors(anchors)
-        total.backward()
-        optimiser.step()
+        _accumulate(bb, pairs, args, anchors, optimiser)
 
 
 def train_slots(bb: Backbone, pairs, args, anchors) -> int:
@@ -167,19 +189,27 @@ def train_slots(bb: Backbone, pairs, args, anchors) -> int:
 
 
 def erasure_check(bb: Backbone, pairs: list[dict], slots: list[int]) -> dict:
-    """Erase the first memory and check that it is gone while the second survives.
+    """Erase one memory and check that it is gone while its neighbours are untouched.
 
     This is the property the training baselines do not have, so it is measured rather
-    than asserted: the slot must become virgin, the second memory must still be
-    recalled, and the erased question must fall back to what the frozen model says.
+    than asserted. The read mask is set explicitly at every step: the first version left
+    whatever ``containment_routed`` had last activated, which made the neighbour look
+    lost and would have put a false negative into the report for the sake of one missing
+    line.
     """
-    if len(slots) < 2:
-        return {"slot_virgin": False, "second_item_kept": False}
-    bb.erase_slots([slots[0]])
-    second = contains_answer(bb.answer(str(pairs[1].get("question", ""))),
-                             str(pairs[1]["answer"]))
-    return {"slot_virgin": bool(bb.is_slot_virgin(slots[0])),
-            "second_item_kept": bool(second)}
+    if len(slots) < 3:
+        return {"slot_virgin": False, "neighbour_kept": False, "erased_gone": False}
+    victim, neighbour = slots[0], slots[1]
+    bb.erase_slots([victim])
+    bb.set_read_slots([neighbour])
+    neighbour_kept = contains_answer(bb.answer(str(pairs[1].get("question", ""))),
+                                     str(pairs[1]["answer"]))
+    bb.set_read_slots([victim])
+    erased_answer = bb.answer(str(pairs[0].get("question", "")))
+    return {"slot_virgin": bool(bb.is_slot_virgin(victim)),
+            "neighbour_kept": bool(neighbour_kept),
+            "erased_gone": not contains_answer(erased_answer,
+                                               str(pairs[0]["answer"]))}
 
 
 def main() -> int:
@@ -254,7 +284,7 @@ def main() -> int:
     bb.set_read_slots([])
     print(f"  arm slots ({len(pairs)} writes) ...", flush=True)
     written = train_slots(bb, pairs, args, anchors)
-    results["slots"] = {"containment": containment(bb, pairs),
+    results["slots"] = {"containment": containment_routed(bb, pairs),
                         "backbone_drift": backbone_drift(bb, anchors),
                         "erasable": True, "slots_written": written,
                         "erasure_check": erasure_check(bb, pairs, list(range(written)))}

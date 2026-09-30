@@ -734,6 +734,14 @@ def _training_baseline(t7: dict, arm: str, field: str) -> str:
     return _na(value, ".3f") if field == "containment" else _na(value, ".4f")
 
 
+def _erasure_field(t7: dict, field: str) -> str | None:
+    """One measured field of the T7-g erasure check on the slot arm."""
+    payload = t7.get("training_baselines") or {}
+    check = ((payload.get("results") or {}).get("slots") or {}).get("erasure_check") or {}
+    value = check.get(field)
+    return None if value is None else ("yes" if value else "no")
+
+
 def _merged_calibration(t7: dict) -> dict:
     """Human-vs-judge agreement as merged from the marks and the current payload."""
     return t7.get("calibration_merged") or {}
@@ -973,6 +981,11 @@ def headline_values(bundle: dict[str, Any]) -> dict[str, str]:
         "tBaseAdapterKl": _training_baseline(t7, "one_adapter", "backbone_drift"),
         "tBaseSlots": _training_baseline(t7, "slots", "containment"),
         "tBaseSlotsKl": _training_baseline(t7, "slots", "backbone_drift"),
+        # The erasure claim: only the slot bank can do this, so it is reported as the
+        # measured checks rather than as a boolean the script asserts about itself.
+        "tBaseErasedVirgin": _na(_erasure_field(t7, "slot_virgin")),
+        "tBaseNeighbourKept": _na(_erasure_field(t7, "neighbour_kept")),
+        "tBaseErasedGone": _na(_erasure_field(t7, "erased_gone")),
         # ---- T8-a (B1): the retention term in the write objective ----
         "tRetentionTopTwoBase": _retention_em(t8, "0.0", "top2"),
         "tRetentionTopTwoBest": _retention_em(t8, _retention_best(t8), "top2"),

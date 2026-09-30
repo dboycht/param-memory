@@ -466,6 +466,22 @@ does narrow with scale, because a larger backbone uses the context better
 \tLongMemFrozen{} at 0.6B). So the cost advantage is scale-invariant and the quality advantage is not. That is the honest reading of a two-point curve. This is a
 scoped diagnosis, not a LongMemEval result.
 
+\paragraph{Why not simply train the same memories in?} Delivering the facts through the
+context is the cheap alternative to a memory bank; training them into the weights is the
+expensive one, and a reviewer will ask about it. Three arms, all given the same number of
+item-gradient-steps (thirty items, twelve steps each, so the fine-tune arm updates every
+parameter on every step and therefore receives \emph{more} compute, not less): full
+fine-tuning reaches \tBaseFull{} containment, a single adapter with the same total rank as
+the bank reaches \tBaseAdapter{}, and the slot bank reaches \tBaseSlots{}. The bank is
+also the gentlest on the frozen backbone, at \tBaseSlotsKl{} nats of all-position KL
+against \tBaseFullKl{} for the fine-tune and \tBaseAdapterKl{} for the joint adapter, and
+it is the only arm that can forget one memory afterwards: erasing a single slot leaves it
+provably virgin (\tBaseErasedVirgin{}), its neighbour still answers
+(\tBaseNeighbourKept{}), and the erased question is no longer answered
+(\tBaseErasedGone{}). The caveat is that all three arms stop at the bank's budget, so this
+is a claim about equal budgets rather than about what fine-tuning could reach given
+more.
+
 \section{Negative results}
 \label{sec:negative}
 
