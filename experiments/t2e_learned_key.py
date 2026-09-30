@@ -43,7 +43,24 @@ for _stream in (sys.stdout, sys.stderr):
     if hasattr(_stream, "reconfigure"):
         _stream.reconfigure(encoding="utf-8", errors="replace")
 
-ARMS = ("last", "mean", "lexical", "hybrid", "learned")
+ARMS = ("last", "mean", "lexical", "hybrid", "learned", "voting")
+
+
+def borda(rankings: dict[str, list[int]], k: int = 3) -> list[int]:
+    """Aggregate several keys' rankings by Borda count.
+
+    This is the third candidate the batch asked about -- multi-key voting -- as opposed
+    to picking one key: every key contributes ``k - position`` points to its top ``k``
+    candidates and the highest total wins. It cannot beat the best key by more than the
+    best key's own errors if all keys are wrong together, but it can rescue a candidate
+    that one key ranks second and another ranks first, which is exactly the failure mode
+    a single key cannot fix.
+    """
+    scores: dict[int, float] = {}
+    for ranked in rankings.values():
+        for position, slot in enumerate(ranked[:k]):
+            scores[slot] = scores.get(slot, 0.0) + (k - position)
+    return sorted(scores, key=lambda slot: (-scores[slot], slot))
 
 
 def parse_args() -> argparse.Namespace:
@@ -173,17 +190,18 @@ def run_episode(bb: Backbone, episode, args) -> dict:
         probe_last = last / last.norm().clamp_min(1e-6)
         probe_mean = mean / mean.norm().clamp_min(1e-6)
         rankings = {
-            "last": route(probe_last, canonical_last, k=2).slots,
-            "mean": route(probe_mean, canonical_mean, k=2).slots,
-            "lexical": route_lexical(probe.query, canonical_text, k=2).slots,
-            "learned": route(learned_key(probe.query), learned_canonical, k=2).slots,
+            "last": route(probe_last, canonical_last, k=3).slots,
+            "mean": route(probe_mean, canonical_mean, k=3).slots,
+            "lexical": route_lexical(probe.query, canonical_text, k=3).slots,
+            "learned": route(learned_key(probe.query), learned_canonical, k=3).slots,
         }
         # blend of the raw cosine and the lexical score, as in T2-c
         lex = dict(lexical_scores(probe.query, canonical_text))
         cos = dict(route(probe_last, canonical_last, k=len(canonical_last)).scores)
         blended = sorted(canonical_last,
                          key=lambda s: (-(0.5 * cos.get(s, 0.0) + 0.5 * lex.get(s, 0.0)), s))
-        rankings["hybrid"] = blended[:2]
+        rankings["hybrid"] = blended[:3]
+        rankings["voting"] = borda({name: ranked for name, ranked in rankings.items()})
 
         for arm, ranked in rankings.items():
             tally[arm]["top1"] += int(ranked[0] == own)

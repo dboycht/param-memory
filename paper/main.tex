@@ -416,9 +416,16 @@ actually produces, even though the answer is right.
 Table~\ref{tab:t4} streams $12$ memories into $6$ slots, of which the first $3$
 are accessed repeatedly. Every eviction restores its slot to the virgin state:
 \tErasedTotal{} slots verified bit-identical to never-written, \tErased{} of them
-in each policy. The slot flagged important survives every overflow. FIFO keeps only $\tFifoHot$ of the memories that were in use: it evicts what you use and keeps what you never touched. The other four policies keep $\tSmartHot$: the policy matters, but the ``smart'' policies tie, which
-independently reproduces the literature's finding that eviction heuristics are
-easy to over-credit.
+in each policy, identically across \tSeedsCapacity{} seeds, because those are
+assertions rather than measurements. The slot flagged important survives every
+overflow. FIFO keeps only $\tFifoHot$ of the memories that were in use: it evicts what
+you use and keeps what you never touched. The other four policies keep $\tSmartHot{}$,
+and that gap is the same in every seed (\tSmartHotRange{} against the FIFO figure). What
+is \emph{not} seed-stable is the claim we originally made about those four: they tie on
+the memories in use, but on the memories \emph{not} in use three of them drop one
+survivor in one of the three seeds, while LFU keeps all three in every seed. That is a
+small independent reproduction of the finding that simple LFU is hard to beat, and it is
+also a reminder that a tie observed once is not a tie.
 
 \paragraph{Persistence.} Table~\ref{tab:t6} shows two separate processes. The
 read process's side path is virgin before loading ($\tVirgin$), so its
