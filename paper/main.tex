@@ -40,7 +40,7 @@ an oracle of $\tOracle{}$), with the residual gap equal to the routing error. A 
 self-check reaches full-write recall using $\tSelfWrites$ writes instead of
 $\tAlwaysWrites$, and $\tSelfKL$ nats of backbone drift instead of $\tAlwaysKL$. Two
 hypotheses fail, and we report them: a likelihood-threshold surprise criterion measures
-wording rather than knowledge, and parametric memory does not reduce context inertia. On
+wording, not knowledge, and parametric memory does not reduce context inertia. On
 \tLongMemSubset{} LongMemEval single-session questions with the history absent, the
 written arm reproduces $\tLongMemOn{}$ of the reference answers at no extra prompt-token
 cost, while context delivery answers $\tJudgeContextTarget{}$ to $\tJudgeContextAll{}$ and
@@ -67,7 +67,7 @@ the KV cache.
 
 \paragraph{Memory in the context may also be behaviourally sticky.} The second
 motivation was the hypothesis that content in the context is treated as ``what is
-happening now'' rather than as ``history that can be recalled'', and that a memory
+happening now'', and not as ``history that can be recalled'', and that a memory
 living in the weights would therefore be less likely to be carried across a topic
 switch. We state this here because Section~\ref{sec:negative} reports that we
 \textbf{refuted} it, and because that refutation is more useful to a reader than
@@ -207,7 +207,8 @@ then satisfied collectively while every individual slot is left unguarded, and t
 cancellation is a coincidence of the current slot set: it disappears the moment the read
 path selects a single slot, which is exactly what a read does. Under the fix the same
 measurement gives \tAnchorSumKL{} against \tAnchorSlotTotal{} (\tAnchorFactor{}), so what
-remains is the honest residue rather than an artefact of reading the slots together.
+remains is the honest residue; that an artefact of reading the slots together could
+produce it is the reading the fix rules out.
 Second,
 the anchor is evaluated at \textbf{every position} of the anchor prompts, not only
 the last: a final-position-only guard held the single-step divergence at $0.08$
@@ -280,7 +281,7 @@ memory while looking healthy.
 generated from syllables, so no answer can be produced from pre-training
 knowledge. Without this, a correct answer is not attributable to the write. For
 the same reason, the ``already known'' class used in Section~\ref{sec:results} is
-\textbf{verified by asking the model} rather than assumed: of $19$ real-world
+\textbf{verified by asking the model}, not assumed: of $19$ real-world
 facts, the 0.6B model answered only $13$ correctly, getting $2+2 = 2$, the number
 of days in a week $=1$, and the largest planet $=$ Mars. Assuming otherwise would
 have invalidated that experiment.
@@ -298,7 +299,7 @@ confidence interval excluding zero.
 \paragraph{Paraphrased probes.} Reading reuses a differently worded question for
 the same intent, while the memory is written from the original phrasing. With the
 write query reused verbatim, top-1 routing scores $100\%$ and the result is a
-string-matching artefact rather than a memory result.
+string-matching artefact; it is not a memory result.
 
 \paragraph{Floor screening.} For the inertia experiment we first measure the
 no-memory condition and discard any scenario the model answers from its prior.
@@ -327,7 +328,7 @@ below that measures truncation instead of memory.
 \label{sec:results}
 
 \paragraph{Writes land, and only where intended.} Table~\ref{tab:t1} is best read
-for its controls rather than its accuracy: the write isolation assertion passes
+for its controls: the write isolation assertion passes
 everywhere, the erased condition is string-identical to prompt-only
 ($\tEraseIdentical$), and the target cross-entropy after a write is
 $\tTargetCE$. The low \texttt{mem\_on} row in that table is the \emph{sum-based}
@@ -351,7 +352,7 @@ $\tScaleTwoOracle{}$, two slots are $\tScaleTwoTopTwo{}$, and the same arithmeti
 closes exactly (oracle minus top-1 equals the routing error, $1 -
 \tScaleTwoRouter{}$). What moves with scale is \emph{where} the loss sits: the router
 is markedly weaker at 1.7B ($\tRouterAcc{}$ at 0.6B against $\tScaleTwoRouter{}$), so
-the gap to the oracle becomes a retrieval problem rather than an interference one.
+the gap to the oracle becomes a retrieval problem and stops being an interference one.
 That makes the router the component to improve next.
 
 \paragraph{The key, not the slot, is what limits that gap.} Because routing accuracy
@@ -404,7 +405,7 @@ it without training anything, over \tMechProbes{} probes. The written updates ar
 orthogonal to one another (pairwise cosine \tMechUpdateCosine{}, never above
 \tMechUpdateCosineMax{}), so the slots are not fighting over the same weight directions,
 and a rival slot perturbs the logits by a large fraction of the effect its own memory has
-(\tMechRivalOverOwn{}), which is what makes a distractor lethal rather than merely
+(\tMechRivalOverOwn{}), which is what makes a distractor lethal and not merely
 present. Neither of those is the cause, though. Reading two slots does not produce the sum
 of the two single-slot effects: the measured response is \tMechResidual{} of that sum, so
 the failure is manufactured at read time. The probability of the correct value token falls
@@ -464,7 +465,7 @@ Table~\ref{tab:t4} streams $12$ memories into $6$ slots, of which the first $3$
 are accessed repeatedly. Every eviction restores its slot to the virgin state:
 \tErasedTotal{} slots verified bit-identical to never-written, \tErased{} of them
 in each policy, identically across \tSeedsCapacity{} seeds, because those are
-assertions rather than measurements. The slot flagged important survives every
+assertions, not measurements. The slot flagged important survives every
 overflow. FIFO keeps only $\tFifoHot$ of the memories that were in use: it evicts what
 you use and keeps what you never touched. The other four policies keep $\tSmartHot{}$,
 and that gap is the same in every seed (\tSmartHotRange{} against the FIFO figure). What
@@ -582,7 +583,7 @@ unrelated topic \emph{less} than leaving it in the context. Table~\ref{tab:t5}
 refutes it. At 0.6B inheritance is $\tContext$ for the context arm and $\tParam$ for the
 parametric arm, equal in every one of \tSeedsInertia{} seeds (\tContextRange{} against
 \tParamRange{}) with identical residue. The floor (no premise anywhere) is $\tFloor$, so
-the effect is real rather than a prior artefact, and the control arm, in which the premise
+the effect is real, not a prior artefact, and the control arm, in which the premise
 is written and then erased, collapses onto the floor exactly. On the larger backbone the
 two media separate, and they separate in the direction that strengthens the refutation:
 the parametric arm still inherits $\tParamLarge$ while the context arm falls to
@@ -664,7 +665,7 @@ verbosity structure instead.
   the KL numbers are the more informative quantity.
 \item \textbf{Seed coverage is uneven.} T2 runs five seeds and T3 three (which is how
   the drift figure became a range), and T4 and T5 are being repeated over three seeds
-  each; T1 and T6 are assertion-based rather than statistical, so a seed adds nothing to
+  each; T1 and T6 are assertion-based, so a seed adds nothing to
   them. What we did \emph{instead} of a uniform matrix was to replicate the
   \emph{public-benchmark diagnostic} on a held-out subset of questions
   (Section~\ref{sec:results}), which is where a lucky draw would have mattered most.
@@ -689,8 +690,8 @@ through the context with the \emph{same} router answers \tJudgeContextTarget{} t
 model from the previous topic: a memory is behaviourally sticky wherever it is
 stored. The practical design rules we would carry forward are that read-time
 composition must default to exactly one slot, that the criterion for writing should
-ask the model rather than threshold its likelihood, and that capacity is best spent
-on durable, exactly erasable slots rather than on trying to keep memories out of the
+ask the model, not threshold its likelihood, and that capacity is best spent
+on durable, exactly erasable slots, and against trying to keep memories out of the
 working set by moving them into weights. The one exception we chased is instructive
 in the opposite direction: training each write to protect the memories already in the
 bank cuts backbone damage by about four fifths and slightly improves the all-slots
@@ -717,7 +718,7 @@ never as zero. Table~\ref{tab:status} is that bundle's own summary: which stages
 present in the run that produced this paper. All numbers in this paper come from
 \texttt{generated\_tables.tex}, which is generated from \texttt{runs/summary.json}.
 
-Two boundaries are worth stating precisely rather than implying full
+Two boundaries are worth stating precisely, not implying full
 reproducibility. First, the T7-f grading phase calls a hosted model: it needs a
 chat-completions credential and spends about an hour at the provider's rate limit,
 so the reported audit (Table~\ref{tab:t7}) is re-rendered from the stored report
