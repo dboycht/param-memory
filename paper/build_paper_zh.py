@@ -330,7 +330,11 @@ oracle 减 top-1 恰好等于路由错误，说明选择规则本身不引入损
 基座漂移 [[tAlwaysKL]] nats。自我核对只用 [[tSelfWrites]] 次写入，浪费 [[tSelfWasted]]，
 漏掉 [[tSelfMissed]] 个目标，漂移 [[tSelfKL]] nats。召回相同，写入少 [[tSelfWriteReduction]]，
 漂移少 [[tSelfKlReductionMin]] 到 [[tSelfKlReductionMax]]。后一个范围来自 [[tSelfSeeds]] 个种子，
-因为写入次数是确定的，漂移随种子变化。似然判据是反面教材，它几乎分不开两类
+因为写入次数是确定的，漂移随种子变化。这条判据在规模控制下**连计数都没变**：
+1.7B 上同样的对比是 [[tLargeSelfWrites]] 次写入对 [[tLargeAlwaysWrites]]、零漏写，
+漂移 [[tLargeSelfKL]] 对 [[tLargeAlwaysKL]]，即 [[tLargeKlRatio]] 倍，
+而 0.6B 上是 [[tSelfKlRatio]] 倍 —— 基座越大，这道保险**越值钱**。
+似然判据是反面教材，它几乎分不开两类
 （见 §\ref{sec:neg}），因为固定措辞量到的是模型会不会用这个说法，与它是否知道这件事无关。
 
 \subsection{遗忘是精确的（T4）}
@@ -480,7 +484,9 @@ $\lambda_{\mathrm{ret}}$ 取 [[tRetentionBest]]）：
 \section{限制}
 \label{sec:limits}
 \begin{itemize}\setlength\itemsep{2pt}
-\item \textbf{规模。}四条头条结论里有两条在 1.7B 上重跑并存活，也就是组合结论与真实内容诊断。
+\item \textbf{规模。}四条头条结论里有**三条**在 1.7B 上重跑并存活，也就是组合结论、
+写入判据（T3：同样是 [[tLargeSelfWrites]] 次写入对 [[tLargeAlwaysWrites]]，
+而漂移优势从 [[tSelfKlRatio]] **扩大到** [[tLargeKlRatio]]）与真实内容诊断。
 没有存活的是路由器，它的准确率从 [[tRouterAcc]] 掉到 [[tScaleTwoRouter]]，
 瓶颈因此从干扰挪到了检索，而没有消失。惯性否证与遗忘实验仍然只有 0.6B，
 3B 及以上受本机 8 GB 显存限制未测。

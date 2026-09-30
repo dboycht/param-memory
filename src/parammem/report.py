@@ -1054,6 +1054,10 @@ def headline_values(bundle: dict[str, Any]) -> dict[str, str]:
         "tExplicitMissed": _na(explicit_r.get("missed_unknown")),
         "tAlwaysKL": _na(always_r.get("anchor_kl"), ".2f"),
         "tSelfKL": _na(self_r.get("anchor_kl"), ".2f"),
+        "tSelfKlRatio": (
+            f"{always_r['anchor_kl'] / self_r['anchor_kl']:.1f}x"
+            if always_r.get("anchor_kl") and self_r.get("anchor_kl") else "n/a"
+        ),
         "tSurpriseMissed": _na(t3rec.get("surprise", {}).get("missed_unknown")),
         "tSurpriseWasted": _na(t3rec.get("surprise", {}).get("written_known")),
         "tKnownConfirmed": _na(len(t3.get("known_confirmed", []))),

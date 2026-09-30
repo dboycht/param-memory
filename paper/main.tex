@@ -441,7 +441,12 @@ frozen backbone by $\tAlwaysKL$ nats. The self-check criterion spends
 $\tSelfWrites$ writes, wastes $\tSelfWasted$, misses $\tSelfMissed$ targets, and moves the backbone by $\tSelfKL$ nats. That is the same recall for
 $\tSelfWriteReduction$ fewer writes and $\tSelfKlReductionMin$--$\tSelfKlReductionMax$
 less drift across \tSelfSeeds{} seeds (the counts are deterministic; the drift is
-not, which is why it is a range). The likelihood-based criterion is the cautionary
+not, which is why it is a range). The criterion survives the scale control with its counts
+unchanged: at 1.7B the same comparison is $\tLargeSelfWrites$ writes against
+$\tLargeAlwaysWrites$, no missed targets, and $\tLargeSelfKL$ nats of drift against
+$\tLargeAlwaysKL$ -- a factor of \tLargeKlRatio{}, against \tSelfKlRatio{}
+at 0.6B, so the guard gets \emph{more} valuable as the backbone grows. The likelihood-based
+criterion is the cautionary
 tale:
 it separates the classes only barely (Table~\ref{tab:t3loss}), because a fixed
 phrasing measures whether the model would use \emph{that wording}, not whether it
@@ -590,9 +595,12 @@ verbosity structure instead.
 \label{sec:limits}
 
 \begin{itemize}\itemsep2pt
-\item \textbf{Scale.} Two of the four headline results are repeated on a 1.7B
-  backbone and both survive: the composition shape (Table~\ref{tab:t2}: the sum is
-  still worthless and the selection rule still introduces no loss of its own) and the
+\item \textbf{Scale.} Three of the four headline results are repeated on a 1.7B
+  backbone and all three survive: the composition shape (Table~\ref{tab:t2}: the sum is
+  still worthless and the selection rule still introduces no loss of its own), the
+  criterion that decides what to write (Table~\ref{tab:t3}: the same
+  $\tLargeSelfWrites$ writes against $\tLargeAlwaysWrites$, with the drift margin
+  \emph{widening} from \tSelfKlRatio{} to \tLargeKlRatio{}), and the
   real-content diagnostic (Table~\ref{tab:t7}). What does \emph{not} survive is the
   router, whose accuracy falls from $\tRouterAcc{}$ to $\tScaleTwoRouter{}$. That scale effect shifts the bottleneck from interference to retrieval; it does not remove it, although Section~\ref{sec:routing} shows that half of it is a key choice rather than a capacity limit: a model-free lexical key closes the 1.7B gap to $\tKeyBestTopLarge{}$. The inertia refutation and the forgetting experiments remain
   0.6B-only, and 3B and above is untested on this hardware.
