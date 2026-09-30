@@ -282,6 +282,24 @@ oracle 减 top-1 恰好等于路由错误，说明选择规则本身不引入损
 1.7B 是 [[tScaleTwoRouter]]，与 oracle 的差距于是主要来自检索。
 下一步该改进的部件是路由器。
 
+\subsection{限制这道差距的是键，而不是槽位机制}
+既然路由准确率一对一变成绩效，那就值得先问一个不用训练任何参数的问题：**现行的键是不是选错了？**
+答案是选错了。同一批写入、同一批探针，**只改检索键的定义**，top1 就从 [[tKeyLastTop]] 抬到
+[[tKeyBestTop]]（0.6B）、从 [[tKeyLastTopLarge]] 抬到 [[tKeyBestTopLarge]]（1.7B），
+端到端召回同步上升。胜出的两种定义都是**保留更多查询信息**的做法：最佳的是 [[tKeyBest]]
+（查询与已存查询之间的词面 TF-IDF 重叠），把它与隐状态余弦五五混合紧随其后。
+有两种做法输给了现行键，都值得写出来：**浅层的键**丢掉了大部分信号（0.6B 上只有
+[[tKeyShallowTop]]）；**用模型自己的置信度去重排前两名候选**比直接相信键**更差**
+（[[tKeyEntropyTop]]）—— 一个槽"对自己更有把握"并不构成"它才是该回答的那个槽"的证据。
+按同一批探针做配对检验，这个提升在 1.7B 上显著（[[tKeyPairHelpedLarge]] 帮助、
+[[tKeyPairHurtLarge]] 损害，$p$ 为 [[tKeyPairPLarge]]），在 0.6B 上不显著
+（[[tKeyPairHelpedSmall]] 对 [[tKeyPairHurtSmall]]，$p$ 为 [[tKeyPairPSmall]]）：
+**模型越大，键越重要**。
+
+这里有一条必须说明的边界：这些查询来自我们的**合成生成器**，内容词高度区分；
+而真实基准里同一实体的多个问题**共享几乎全部词面**，所以"词面成分在真实内容上是否有用"
+是一个独立的问题，见 §\ref{sec:limits}。
+
 \subsection{该写什么（T3）}
 把 $5$ 条虚构事实与 [[tKnownConfirmed]] 条已验证常识混成一条流。全写需要
 [[tAlwaysWrites]] 次梯度写入，其中 [[tAlwaysWasted]] 次花在模型本来就会的事实上，
