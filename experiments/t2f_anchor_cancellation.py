@@ -44,6 +44,11 @@ def parse_args() -> argparse.Namespace:
     ap.add_argument("--lr", type=float, default=1e-3)
     ap.add_argument("--lambda-kl", type=float, default=1.0)
     ap.add_argument("--max-new-tokens", type=int, default=4)
+    ap.add_argument("--anchor-mode", choices=("slot", "sum"), default="slot",
+                    help="where the anchor is evaluated during writing. 'slot' is the "
+                         "fix (each slot is held on its own); 'sum' is the configuration "
+                         "the fix replaced, in which the slots are free to cancel each "
+                         "other and the guard looks far stronger than it is")
     ap.add_argument("--out", default="runs/t2f_anchor_cancellation.json")
     return ap.parse_args()
 
@@ -67,11 +72,15 @@ def main() -> int:
 
     per_slot_kl: list[float] = []
     target_ce: list[float] = []
+    all_slots = list(range(len(items)))
     for slot, item in enumerate(items):
         def loss_fn(item=item, slot=slot):
             bb.set_read_slots([slot])
             loss = bb.write_loss(item.query, item.value_text)
-            bb.set_read_slots([slot])
+            # In "sum" mode the anchor is evaluated with every written slot active, which
+            # is the original design: the slots are then free to cancel one another, so
+            # the term is satisfied collectively and each slot on its own is unguarded.
+            bb.set_read_slots(all_slots if args.anchor_mode == "sum" else [slot])
             return loss + args.lambda_kl * bb.kl_to_anchors(anchors)
 
         report = write_slot(bb.wrappers, slot, loss_fn, lr=args.lr, steps=args.steps)
@@ -85,17 +94,20 @@ def main() -> int:
               f"{target_ce[-1]:.3f}", flush=True)
 
     with torch.no_grad():
-        bb.set_read_slots(list(range(len(items))))
+        bb.set_read_slots(all_slots)
         summed_kl = float(bb.kl_to_anchors(anchors))
         bb.set_read_slots([])
         empty_kl = float(bb.kl_to_anchors(anchors))
 
     summary = {
-        "note": "Per-slot versus summed anchor displacement. With the anchor evaluated on "
-                "the sum, each slot's displacement can be cancelled by the others', so the "
-                "guard is worth far less than it looks; the loss above therefore evaluates "
-                "it per slot. This run exists because the numbers in the method section "
-                "originally came from a measurement that was never saved.",
+        "note": "Per-slot versus summed anchor displacement, measured in both the fixed "
+                "configuration (anchor per slot) and the configuration it replaced "
+                "(anchor on the sum). With the anchor on the sum the slots cancel one "
+                "another, so the term is satisfied collectively while each slot on its own "
+                "is unguarded; the loss therefore evaluates it per slot. This run exists "
+                "because the numbers in the method section originally came from a design "
+                "measurement that was never saved.",
+        "anchor_mode": args.anchor_mode,
         "model_path": cfg.model_id,
         "n_items": len(items),
         "lambda_kl": args.lambda_kl,

@@ -919,6 +919,33 @@ def _write_policy_large(bundle: dict, field: str) -> str:
     return "n/a"
 
 
+def _anchor_cancel(bundle: dict, field: str, legacy: bool = False) -> str:
+    """The anchor's per-slot displacement in the fixed and the replaced configuration.
+
+    ``legacy=False`` reads the run that evaluates the anchor per slot during writing, which
+    is the fix; ``legacy=True`` reads the run that evaluates it on the sum, where the slots
+    are free to cancel each other. The method section motivates the fix with the second
+    one, and until now those numbers existed only in the text.
+    """
+    t2 = _get(bundle, "t2") or {}
+    key = "anchor_cancellation_sum" if legacy else "anchor_cancellation"
+    payload = t2.get(key) or {}
+    if field == "slots":
+        values = payload.get("per_slot_kl") or []
+        return "/".join(f"{v:.3f}" for v in values) if values else "n/a"
+    if field == "sum_kl":
+        return _na(payload.get("summed_kl"), ".3f")
+    if field == "slot_total":
+        total = payload.get("per_slot_kl")
+        return f"{sum(total):.3f}" if total else "n/a"
+    if field == "factor":
+        value = payload.get("cancellation_factor")
+        return f"{value:.1f}x" if isinstance(value, (int, float)) else "n/a"
+    if field == "items":
+        return _na(payload.get("n_items"))
+    return "n/a"
+
+
 def _merged_calibration(t7: dict) -> dict:
     """Human-vs-judge agreement as merged from the marks and the current payload."""
     return t7.get("calibration_merged") or {}
@@ -1324,6 +1351,16 @@ def headline_values(bundle: dict[str, Any]) -> dict[str, str]:
         "tLargeSelfKL": _write_policy_large(bundle, "self_kl"),
         "tLargeWriteCut": _write_policy_large(bundle, "write_cut"),
         "tLargeKlRatio": _write_policy_large(bundle, "kl_ratio"),
+        # ---- the anchor's per-slot versus summed displacement, both configurations ----
+        "tAnchorSlots": _anchor_cancel(bundle, "slots"),
+        "tAnchorSlotTotal": _anchor_cancel(bundle, "slot_total"),
+        "tAnchorSumKL": _anchor_cancel(bundle, "sum_kl"),
+        "tAnchorFactor": _anchor_cancel(bundle, "factor"),
+        "tAnchorItems": _anchor_cancel(bundle, "items"),
+        "tAnchorLegacySlots": _anchor_cancel(bundle, "slots", legacy=True),
+        "tAnchorLegacySlotTotal": _anchor_cancel(bundle, "slot_total", legacy=True),
+        "tAnchorLegacySumKL": _anchor_cancel(bundle, "sum_kl", legacy=True),
+        "tAnchorLegacyFactor": _anchor_cancel(bundle, "factor", legacy=True),
     }
 
 

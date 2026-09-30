@@ -199,12 +199,16 @@ whose frozen distributions must not move.
 
 Two details of Equation~\ref{eq:loss} were fixed by measurement, not by design.
 First, the anchor term is evaluated \textbf{per slot}, not on the sum. Evaluated on
-the sum, the individual slots' anchor displacements \emph{cancel}:
-per-slot $D_{\mathrm{KL}}$ was $[0.08, 3.89, 1.80, 1.80]$ while the sum's was
-$0.09$, i.e. the guard was worth $\lambda \cdot 0.09$ against a target
-cross-entropy of $\approx 15$ and was therefore vacuous. Cancellation is a
-coincidence of the current slot set and disappears as soon as the read path
-selects a single slot, so the guard must hold for each slot on its own. Second,
+the sum, the individual slots' anchor displacements \emph{cancel}: over \tAnchorItems{}
+slots written under that configuration the summed $D_{\mathrm{KL}}$ is
+\tAnchorLegacySumKL{} while the same slots read one at a time carry
+\tAnchorLegacySlotTotal{} between them, a factor of \tAnchorLegacyFactor{}. The term is
+then satisfied collectively while every individual slot is left unguarded, and the
+cancellation is a coincidence of the current slot set: it disappears the moment the read
+path selects a single slot, which is exactly what a read does. Under the fix the same
+measurement gives \tAnchorSumKL{} against \tAnchorSlotTotal{} (\tAnchorFactor{}), so what
+remains is the honest residue rather than an artefact of reading the slots together.
+Second,
 the anchor is evaluated at \textbf{every position} of the anchor prompts, not only
 the last: a final-position-only guard held the single-step divergence at $0.08$
 while generation still collapsed into repetition, because autoregressive decoding

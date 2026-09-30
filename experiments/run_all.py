@@ -60,6 +60,7 @@ STAGES: dict[str, dict] = {
                    "t2_paraphrase_17b_lexkey.json",
                    "t2c_router_keys.json", "t2c_router_keys_17b.json",
                    "t2e_learned_key.json", "t2e_learned_key_17b.json",
+                   "t2f_anchor_cancellation.json", "t2f_anchor_cancellation_sum.json",
                    "t2b_mechanism.json", "t2d_composable.json"],
         # Five episodes, not three: the per-episode spread on two-slot recall is
         # large (4, 0, 4, 4, 3 of 8), so an aggregate is only meaningful when one
@@ -326,6 +327,10 @@ def collect(stage: str, recipe: dict, mode: str) -> dict:
             merged["learned_key"] = by_name["t2e_learned_key.json"]
         if "t2e_learned_key_17b.json" in by_name:
             merged["learned_key_17b"] = by_name["t2e_learned_key_17b.json"]
+        if "t2f_anchor_cancellation.json" in by_name:
+            merged["anchor_cancellation"] = by_name["t2f_anchor_cancellation.json"]
+        if "t2f_anchor_cancellation_sum.json" in by_name:
+            merged["anchor_cancellation_sum"] = by_name["t2f_anchor_cancellation_sum.json"]
         if "t2b_mechanism.json" in by_name:
             merged["mechanism"] = by_name["t2b_mechanism.json"]
         if "t2d_composable.json" in by_name:
