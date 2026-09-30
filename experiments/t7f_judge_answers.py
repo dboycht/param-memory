@@ -65,6 +65,13 @@ def parse_args() -> argparse.Namespace:
                          "--calibration is absent; the flag exists so the documented "
                          "invocation actually works)")
     ap.add_argument("--calibration-questions", type=int, default=4)
+    ap.add_argument("--calibration-offset", type=int, default=0,
+                    help="start the calibration at this question index, so extra marks "
+                         "cover different items instead of re-judging the first ones")
+    ap.add_argument("--calibration-out", default="runs/judge_calibration.md",
+                    help="sheet path; marks are recorded against the sheet's own row "
+                         "numbers, so a larger round must go to a new file or it "
+                         "invalidates the earlier marks")
     ap.add_argument("--standard", default="lenient", choices=STANDARDS,
                     help="grading standard for --calibration")
     ap.add_argument("--standards", nargs="*", default=list(STANDARDS),
@@ -190,7 +197,8 @@ def main() -> int:
 
     t0 = time.perf_counter()
     if args.calibration:
-        picked = qids[: args.calibration_questions]
+        picked = qids[args.calibration_offset:
+                      args.calibration_offset + args.calibration_questions]
         arms = ("frozen", "weights", "context_target")
         plan = [(qid, arm) for qid in picked for arm in arms]
         random.Random(0).shuffle(plan)          # deterministic anonymisation
@@ -209,19 +217,20 @@ def main() -> int:
             log(f"  {n}/{len(plan)} judged (source={judge.last_source}, "
                 f"finish={judge.last_finish_reason})", flush=True)
 
-        sheet = ROOT / "runs" / "judge_calibration.md"
+        sheet = ROOT / args.calibration_out
         write_calibration_sheet(sheet, rows, judge_view, args.standard)
         payload = {
             "judge": repr(judge),
             "mode": "single-candidate, one call each",
             "standard": args.standard,
             "items": len(rows),
+            "question_offset": args.calibration_offset,
             "labels": {f"{qid}|{arm}": str(n) for n, (qid, arm) in
                        enumerate(plan, start=1)},
             "judge_verdicts": judge_view,
             "elapsed_s": time.perf_counter() - t0,
         }
-        (ROOT / "runs" / "judge_calibration.json").write_text(
+        (ROOT / (Path(args.calibration_out).with_suffix(".json")).as_posix()).write_text(
             json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
         unreadable = sum(1 for v in judge_view if v["correct"] is None)
         truncated = sum(1 for v in judge_view if v.get("finish") == "length")
