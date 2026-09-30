@@ -658,8 +658,11 @@ verbosity structure instead.
   condition; many-way superposition is still unsolved, and the two-slot limit of
   Section~\ref{sec:routing} therefore still stands as measured.
 \item \textbf{Public benchmarks: a scoped diagnosis, not a comparison.} We report
-  protocol-controlled synthetic results plus one scoped public-benchmark
-  diagnostic (Section~\ref{sec:results}). We did cost the adaptation of
+  protocol-controlled synthetic results plus several scoped public-benchmark
+  measurements (Section~\ref{sec:results}): the real-content diagnostic, the same memory
+  set read with real retrieval instead of the oracle turn, the training baselines on those
+  thirty memories, and the composition failure re-measured on real content as a function of
+  how many slots are held open. We did cost the adaptation of
   LongMemEval~\cite{longmembench} on this machine instead of waving at it: its
   oracle split is small enough that a pilot is minutes of compute, so compute is
   \emph{not} the obstacle. Two obstacles are. First, a memory item here is a
