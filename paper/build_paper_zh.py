@@ -74,7 +74,7 @@ def tex_escape(value: str) -> str:
     return out
 
 
-TEMPLATE = r"""% 中文审阅稿 —— 由 paper/build_paper_zh.py 生成，请勿手改。
+TEMPLATE = r"""% 中文审阅稿（由 paper/build_paper_zh.py 生成，请勿手改。
 % 英文版 paper/main.tex 是主张的唯一来源；本文件是派生出的审阅副本。
 \documentclass[11pt]{ctexart}
 \usepackage{booktabs}
@@ -199,7 +199,7 @@ AlphaEdit 把编辑投影到被保护知识的零空间，我们在锚定项里�
 \; + \; \lambda_{\mathrm{ret}}\, D_{\mathrm{KL}}\!\left(p_{\text{bank}} \,\|\, p_{\text{bank}+k}\right).
 \end{equation}
 第一项只开本槽，学的是查询到答案这条关联。第二项在一组通用问题上把分布拉回冻结态，
-两处细节都是被测量逼出来的：它必须**逐槽**评估 —— 按已写槽求和评估时各槽位移会互相抵消，
+两处细节都是被测量逼出来的：它必须**逐槽**评估：按已写槽求和评估时各槽位移会互相抵消，
 [[tAnchorItems]] 个槽在那种配置下求和 $D_{\mathrm{KL}}$ 只有 [[tAnchorLegacySumKL]]，
 而逐个读却合计 [[tAnchorLegacySlotTotal]]（相差 [[tAnchorLegacyFactor]]），
 于是这一项在"集体"意义上被满足、每个槽单独看却毫无约束；
@@ -298,13 +298,13 @@ oracle 减 top-1 恰好等于路由错误，说明选择规则本身不引入损
 （查询与已存查询之间的词面 TF-IDF 重叠），把它与隐状态余弦五五混合紧随其后。
 有两种做法输给了现行键，都值得写出来：**浅层的键**丢掉了大部分信号（0.6B 上只有
 [[tKeyShallowTop]]）；**用模型自己的置信度去重排前两名候选**比直接相信键**更差**
-（[[tKeyEntropyTop]]）—— 一个槽"对自己更有把握"并不构成"它才是该回答的那个槽"的证据。
+（[[tKeyEntropyTop]]）：一个槽"对自己更有把握"并不构成"它才是该回答的那个槽"的证据。
 按同一批探针做配对检验，这个提升在 1.7B 上显著（[[tKeyPairHelpedLarge]] 帮助、
 [[tKeyPairHurtLarge]] 损害，$p$ 为 [[tKeyPairPLarge]]），在 0.6B 上不显著
 （[[tKeyPairHelpedSmall]] 对 [[tKeyPairHurtSmall]]，$p$ 为 [[tKeyPairPSmall]]）：
 **模型越大，键越重要**。
 
-**接下来读者会想到的两条路 —— 训练一个键、以及把多个键投票聚合 —— 都没有换来应有的收益。**
+**接下来读者会想到的两条路（训练一个键、把多个键投票聚合）都没有换来应有的收益。**
 用一个自监督的投影（对规范问法做增强视图、用 InfoNCE 训练，**改写过的探针问法在训练中从未出现**），
 在更大的基座上 top1 是 [[tKeyLearnedTopLarge]]、端到端 [[tKeyLearnedEmLarge]]，
 而它本要改进的原始隐状态是 [[tKeyLastTopLarge]]、它本要超越的纯词面信号是 [[tKeyBestTopLarge]]；
@@ -321,10 +321,10 @@ oracle 减 top-1 恰好等于路由错误，说明选择规则本身不引入损
 是一个独立的问题，见 §\ref{sec:limits}。
 
 \subsection{修好路由之后：路由差距消失了，碰撞还在}
-把组合实验**换成模型之外的键重跑**，就把上面那笔算术从"相关"变成了**因果检验** —— 而且**两个尺度上都成立**。
+把组合实验**换成模型之外的键重跑**，就把上面那笔算术从"相关"变成了**因果检验**，而且**两个尺度上都成立**。
 oracle 几乎不受换键影响（0.6B 是 [[tLexOracleSmall]]、1.7B 是 [[tLexOracle]]），
 单槽答对 [[tLexTopOneSmall]] 与 [[tLexTopOne]]，路由都达到 [[tLexRouting]]，
-而 **oracle 减 top1 的差距降到 [[tLexGapSmall]]（0.6B）与 [[tLexGap]]（1.7B）** ——
+而 **oracle 减 top1 的差距降到 [[tLexGapSmall]]（0.6B）与 [[tLexGap]]（1.7B）**；
 在旧键下它们分别是 $1-[[tRouterAcc]]$ 与 $1-[[tScaleTwoRouter]]$。
 也就是说，那道差距**全部来自检索**，与槽位无关。
 反过来，**两槽的代价完全不受这次修理影响**：0.6B 是 [[tLexTopTwoSmall]] 对 [[tLexTopOneSmall]]，
@@ -346,7 +346,7 @@ oracle 几乎不受换键影响（0.6B 是 [[tLexOracleSmall]]、1.7B 是 [[tLex
 "多开两个"是 [[tRealCollisionThreeHurt]] 对 0（$p$ 为 [[tRealCollisionThreeP]]），
 整库全开是 [[tRealCollisionAllHurt]] 对 [[tRealCollisionAllHelped]]（$p$ 为 [[tRealCollisionAllP]]）。
 **两槽这一步是整条曲线上最小的效应，而它在 [[tRealCollisionItems]] 题上已经显著** ——
-**"只读了几道题"这个解释因此被排除**。
+**"只读了几道题"这个解释因此被排除**（$p$ 为 [[tRealCollisionTwoP]]）。
 
 \subsection{该写什么（T3）}
 把 $5$ 条虚构事实与 [[tKnownConfirmed]] 条已验证常识混成一条流。全写需要
@@ -357,7 +357,7 @@ oracle 几乎不受换键影响（0.6B 是 [[tLexOracleSmall]]、1.7B 是 [[tLex
 因为写入次数是确定的，漂移随种子变化。这条判据在规模控制下**连计数都没变**：
 1.7B 上同样的对比是 [[tLargeSelfWrites]] 次写入对 [[tLargeAlwaysWrites]]、零漏写，
 漂移 [[tLargeSelfKL]] 对 [[tLargeAlwaysKL]]，即 [[tLargeKlRatio]] 倍，
-而 0.6B 上是 [[tSelfKlRatio]] 倍 —— 基座越大，这道保险**越值钱**。
+而 0.6B 上是 [[tSelfKlRatio]] 倍；基座越大，这道保险**越值钱**。
 似然判据是反面教材，它几乎分不开两类
 （见 §\ref{sec:neg}），因为固定措辞量到的是模型会不会用这个说法，与它是否知道这件事无关。
 
@@ -402,7 +402,7 @@ oracle 单条 & [[tJudgeContextTarget]] & [[tScaleContextTarget]] & [[tTokContex
 
 **oracle 那一轮并没有偏袒上下文臂。** 把金标轮直接交给上下文臂，会被质疑这个对比偏袒上下文：
 检索更差会让上下文臂更难看、参数臂更好看。我们把 oracle 换成**对会话内各轮做相似度检索**，
-结果**测不出任何变化**：精确匹配口径下二者完全相同 —— 0.6B 是 [[tRagTopOne]]（检索）对
+结果**测不出任何变化**：精确匹配口径下二者完全相同，0.6B 是 [[tRagTopOne]]（检索）对
 [[tOracleContextBase]]（oracle 选取），1.7B 是 [[tRagTopOneLarge]] 对 [[tOracleContextLarge]]；
 冻结地板是 [[tFrozenBase]]，而把整段历史都塞进去的臂是 [[tAllContextBase]]；
 判官口径下检索臂与 oracle 也在噪声内相当（[[tJudgeRagOne]] 对 [[tJudgeContextTarget]]）。
@@ -457,7 +457,7 @@ oracle 单条 & [[tJudgeContextTarget]] & [[tScaleContextTarget]] & [[tTokContex
 擦除控制臂在这个规模上也精确塌回地板。惯性的来源是模型在条件化记忆的内容，
 与那些内容是否占着上下文 token 无关。
 
-附带一个值得记下的观察，以及一条诚实说明 —— **它的方向每个种子都成立，但幅度随种子变化**：
+附带一个值得记下的观察，以及一条诚实说明：**它的方向每个种子都成立，但幅度随种子变化**：
 有记忆会让模型更自信。我不知道的比例在无记忆时是 [[tWithholdFloorRange]]，
 有记忆时降到 [[tWithholdMemoryRange]]。它不只是被更好地告知，
 也更敢直接作答。
@@ -482,7 +482,7 @@ oracle 单条 & [[tJudgeContextTarget]] & [[tScaleContextTarget]] & [[tTokContex
 实测响应只有该和的 [[tMechResidual]]，**失效是在读取时被制造出来的**。
 正确取值 token 的概率，从单选对槽时的 [[tMechOwnProb]]，掉到选中前两槽的 [[tMechTopTwoProb]]、
 以及整个记忆库全开时的 [[tMechAllProb]]。
-写入端的修理必须撤销一个**只在读取时存在**的相互作用 —— 这正是下面那种修理不奏效的原因。
+写入端的修理必须撤销一个**只在读取时存在**的相互作用；这正是下面那种修理不奏效的原因。
 
 \subsection{B1 保留项：假设未复现（T8）}
 两槽读取的失败与检索无关，正确槽位落在前两名之内的比例是 [[tRetentionRouteTwo]]，
@@ -526,7 +526,7 @@ $\lambda_{\mathrm{ret}}$ 取 [[tRetentionBest]]）：
 擦除 [[tErasedLarge]] 个槽逐位验证）。
 没有存活的是路由器，它的准确率从 [[tRouterAcc]] 掉到 [[tScaleTwoRouter]]，
 瓶颈因此从干扰挪到了检索，而没有消失。
-仍未测的是 3B 及以上 —— 这台机器装不下。
+仍未测的是 3B 及以上，这台机器装不下。
 \item \textbf{基座要付代价。}写入会移动冻结主干。流进 [[tStreamItems]] 条记忆后，
 通用问题不再被逐字答对，全位置 KL 约 $1$ nat。参数化记忆是有代价的，
 而且代价随写入次数增长。
@@ -551,7 +551,7 @@ $\lambda_{\mathrm{ret}}$ 取 [[tRetentionBest]]）：
 它会把 $2+2=4$ 相对冻结态的 2 算作变化；KL 数字更有信息量。
 \item \textbf{种子覆盖不均。}T2 跑了五个种子、T3 三个（漂移因此是区间），T4 与 T5 正在
 各补到三个；T1 与 T6 是断言型而非统计型，加种子不改变它们。我们没有做**统一种子矩阵**，
-取而代之的是给公开基准诊断做了留出集复制（§\ref{sec:results}）—— 那里才最可能被一次幸运抽样影响。
+取而代之的是给公开基准诊断做了留出集复制（§\ref{sec:results}）；那里才最可能被一次幸运抽样影响。
 所以我们只在"数字会动"的地方量化了种子方差，在不会动的地方没有假装量化；
 每个实验脚本都接受种子参数。
 \end{itemize}
