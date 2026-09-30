@@ -390,15 +390,18 @@ almost all of their surface form, so whether a lexical component helps there is 
 separate question, and Section~\ref{sec:limits} leaves it open.
 
 \paragraph{Fixing the router closes the routing gap and leaves the collision.} Re-running
-the 1.7B composition arms under the model-free key turns the arithmetic above from a
-correlation into a causal check. Routing reaches $\tLexRouting{}$, one selected slot
-answers $\tLexTopOne{}$ against an oracle of $\tLexOracle{}$, and the oracle-minus-top-1
-gap falls to $\tLexGap{}$ from the $\tScaleTwoOracle{}-\tScaleTwoTopOne{}$ it was under the
-last-token key. So the whole of that gap was retrieval, and none of it was the slots. The
-two-slot cost, by contrast, survives perfect routing ($\tLexTopTwo{}$ against
-$\tLexTopOne{}$), and the sum is worth $\tLexSum{}$ under either key. That is the sharpest
-form of this section's finding: the failure a better key repairs is routing, and the
-failure it cannot reach is reading two memories at once.
+the composition arms under the model-free key turns the arithmetic above from a
+correlation into a causal check, and it does so at both scales. The oracle is essentially
+unchanged by the swap ($\tLexOracleSmall{}$ at 0.6B and $\tLexOracle{}$ at 1.7B), one
+selected slot answers $\tLexTopOneSmall{}$ and $\tLexTopOne{}$ against those ceilings,
+routing reaches $\tLexRouting{}$, and the oracle-minus-top-1 gap falls to $\tLexGapSmall{}$
+at 0.6B and $\tLexGap{}$ at 1.7B, from $1-\tRouterAcc{}$ and $1-\tScaleTwoRouter{}$ under
+the last-token key. The whole of that gap was retrieval, and none of it was the slots. The
+two-slot cost is untouched by the repair: $\tLexTopTwoSmall{}$ against
+$\tLexTopOneSmall{}$ at 0.6B and $\tLexTopTwo{}$ against $\tLexTopOne{}$ at 1.7B, while the
+sum is worth $\tLexSumSmall{}$ and $\tLexSum{}$. That is the sharpest form of this
+section's finding: the failure a better key repairs is routing, and the failure it cannot
+reach is reading two memories at once.
 
 \paragraph{What the two-slot collapse actually is.} Before trying to repair it we measured
 it without training anything, over \tMechProbes{} probes. The written updates are nearly

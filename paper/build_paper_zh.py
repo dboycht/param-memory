@@ -320,12 +320,14 @@ oracle 减 top-1 恰好等于路由错误，说明选择规则本身不引入损
 是一个独立的问题，见 §\ref{sec:limits}。
 
 \subsection{修好路由之后：路由差距消失了，碰撞还在}
-把 1.7B 的组合实验**换成模型之外的键重跑**，就把上面那笔算术从"相关"变成了**因果检验**。
-路由达到 [[tLexRouting]]，单槽答对 [[tLexTopOne]]、而 oracle 是 [[tLexOracle]]，
-**oracle 减 top1 的差距降到 [[tLexGap]]** —— 在旧键下它是 $[[tScaleTwoOracle]]-[[tScaleTwoTopOne]]$。
+把组合实验**换成模型之外的键重跑**，就把上面那笔算术从"相关"变成了**因果检验** —— 而且**两个尺度上都成立**。
+oracle 几乎不受换键影响（0.6B 是 [[tLexOracleSmall]]、1.7B 是 [[tLexOracle]]），
+单槽答对 [[tLexTopOneSmall]] 与 [[tLexTopOne]]，路由都达到 [[tLexRouting]]，
+而 **oracle 减 top1 的差距降到 [[tLexGapSmall]]（0.6B）与 [[tLexGap]]（1.7B）** ——
+在旧键下它们分别是 $1-[[tRouterAcc]]$ 与 $1-[[tScaleTwoRouter]]$。
 也就是说，那道差距**全部来自检索**，与槽位无关。
-反过来，**两槽的代价在完美路由下依然存在**（[[tLexTopTwo]] 对 [[tLexTopOne]]），
-而全开在任何一种键下都只值 [[tLexSum]]。
+反过来，**两槽的代价完全不受这次修理影响**：0.6B 是 [[tLexTopTwoSmall]] 对 [[tLexTopOneSmall]]，
+1.7B 是 [[tLexTopTwo]] 对 [[tLexTopOne]]，而全开在两种键下都只值 [[tLexSum]]。
 这是本节结论最锋利的形态：**换个更好的键能修的是路由，修不了的是"同时读两条记忆"**。
 
 \subsection{该写什么（T3）}

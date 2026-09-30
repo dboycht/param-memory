@@ -814,14 +814,17 @@ def _learned_key(bundle: dict, arm: str, field: str, scale: str = "") -> str:
     return _na((payload.get("rates") or {}).get(arm, {}).get(field), ".3f")
 
 
-def _lex_composition(bundle: dict, field: str) -> str:
-    """The 1.7B composition arms re-run with the model-free key (T2, --key-mode lexical).
+def _lex_composition(bundle: dict, field: str, small: bool = False) -> str:
+    """The composition arms re-run with the model-free key (T2, --key-mode lexical).
 
     This is the causal version of the claim that the oracle-to-top-1 gap is routing: the
-    gap is closed by fixing the router rather than inferred from a correlation.
+    gap is closed by fixing the router rather than inferred from a correlation. Both
+    scales are kept, because the closing happens at both and the two-slot cost survives
+    at both, which is the part a reviewer would otherwise ask about.
     """
     t2 = _get(bundle, "t2") or {}
-    payload = t2.get("composition_lexical_key") or {}
+    key = "composition_lexical_key_small" if small else "composition_lexical_key"
+    payload = t2.get(key) or {}
     summary = payload.get("summary") or {}
     if field == "routing":
         return _na(summary.get("route_top1_accuracy"), ".3f")
@@ -1364,6 +1367,12 @@ def headline_values(bundle: dict[str, Any]) -> dict[str, str]:
         "tLexSum": _lex_composition(bundle, "all"),
         "tLexRouting": _lex_composition(bundle, "routing"),
         "tLexGap": _lex_composition(bundle, "gap"),
+        "tLexTopOneSmall": _lex_composition(bundle, "top1", small=True),
+        "tLexTopTwoSmall": _lex_composition(bundle, "top2", small=True),
+        "tLexSumSmall": _lex_composition(bundle, "all", small=True),
+        "tLexGapSmall": _lex_composition(bundle, "gap", small=True),
+        "tLexRoutingSmall": _lex_composition(bundle, "routing", small=True),
+        "tLexOracleSmall": _lex_composition(bundle, "oracle", small=True),
         # ---- why two slots collapse: the mechanism diagnostic (T2-b) ----
         "tMechProbes": _na((_get(bundle, "t2") or {}).get("mechanism", {}).get("n_probes")),
         "tMechUpdateCosine": _mechanism(bundle, "pairwise_update_cosine_mean"),
