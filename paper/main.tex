@@ -410,7 +410,11 @@ orthogonal to one another (pairwise cosine \tMechUpdateCosine{}, never above
 \tMechUpdateCosineMax{}), so the slots are not fighting over the same weight directions,
 and a rival slot perturbs the logits by a large fraction of the effect its own memory has
 (\tMechRivalOverOwn{}), which is what makes a distractor lethal and not merely
-present. Neither of those is the cause, though. Reading two slots does not produce the sum
+present. Rank exhaustion is not the cause either: each slot is written with rank four, and
+across \tMechSlots{} slots its energy sits in \tMechStableRank{} of those directions on
+average (\tMechStableRankMin{} to \tMechStableRankMax{}), so the writes are using about
+half the budget they are given. None of those is the cause, though. Reading two slots
+does not produce the sum
 of the two single-slot effects: the measured response is \tMechResidual{} of that sum, so
 the failure is manufactured at read time. The probability of the correct value token falls
 from \tMechOwnProb{} with the right slot alone to \tMechTopTwoProb{} with the two

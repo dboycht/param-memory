@@ -65,9 +65,11 @@ def parse_args() -> argparse.Namespace:
     ap.add_argument("--lr", type=float, default=1e-3)
     ap.add_argument("--lambda-kl", type=float, default=1.0)
     ap.add_argument("--max-new-tokens", type=int, default=16)
-    ap.add_argument("--stable-rank", action="store_true",
-                    help="also compute the per-slot stable rank (an SVD per wrapper per "
-                         "slot; slow, and not needed for the mechanism question)")
+    ap.add_argument("--no-stable-rank", dest="stable_rank", action="store_false",
+                    help="skip the per-slot stable rank. It is on by default now that the "
+                         "singular values are read off the low-rank factors instead of a "
+                         "full SVD of every wrapper, which is what made it cost 29 minutes "
+                         "and left it switched off in the reported run")
     ap.add_argument("--out", default="runs/t2b_mechanism.json")
     return ap.parse_args()
 
@@ -83,6 +85,17 @@ def slot_delta(bb: Backbone, slot: int) -> list[torch.Tensor]:
     return out
 
 
+def slot_factors(bb: Backbone, slot: int) -> list[tuple]:
+    """The low-rank factors behind :func:`slot_delta`, so the SVD stays small."""
+    out = []
+    for wrapper in bb.wrappers.values():
+        sl = wrapper.slot_slice(slot)
+        a = wrapper.A[sl, :].detach().float()
+        b = wrapper.B[:, sl].detach().float()
+        out.append((b, a, float(wrapper.scale)))
+    return out
+
+
 def flat_cosine(left: list[torch.Tensor], right: list[torch.Tensor]) -> float:
     dot = sum(float((x * y).sum()) for x, y in zip(left, right))
     norm_l = sum(float((x * x).sum()) for x in left) ** 0.5
@@ -94,20 +107,35 @@ def frobenius(parts: list[torch.Tensor]) -> float:
     return sum(float((x * x).sum()) for x in parts) ** 0.5
 
 
-def stable_rank(parts: list[torch.Tensor]) -> float:
-    """``||W||_F^2 / ||W||_2^2``: how many directions a slot actually uses.
+def stable_rank(parts: list[torch.Tensor], factors: list[tuple] | None = None) -> float:
+    """Mean stable rank over a slot's wrappers: how many of its rank directions carry energy.
 
-    Costs an SVD per wrapper per slot -- 896 of them for 8 slots on the 0.6B model --
-    which dominated the runtime of the first version of this experiment (29 minutes
-    without finishing one episode). It is therefore opt-in: the mechanism question is
-    answered by the cheap statistics below.
+    Two mistakes lived in this function. First, the spectral norm was taken from the
+    materialised ``(alpha/r) B A`` with a full SVD of every wrapper, 896 of them for eight
+    slots, which did not finish an episode in 29 minutes; each update has rank at most the
+    slot rank, so with ``B = Q_B R_B`` and ``A^T = Q_A R_A`` the nonzero singular values of
+    ``B A`` are exactly those of the ``r x r`` product ``R_B R_A^T``, which is a four-by-four
+    SVD. Second, and worse, the function then divided the *sum* of the wrappers' energies by
+    the *largest single* direction, which is not the stable rank of anything and produced
+    values around 86 for matrices of rank four -- impossible, and the reason the invariant
+    is now asserted in a test.
     """
-    fro2 = sum(float((x * x).sum()) for x in parts)
-    spectral = 0.0
-    for x in parts:
-        if x.numel():
-            spectral = max(spectral, float(torch.linalg.matrix_norm(x, ord=2)) ** 2)
-    return fro2 / spectral if spectral else 0.0
+    per_wrapper = []
+    for index, x in enumerate(parts):
+        if not x.numel():
+            continue
+        fro2 = float((x * x).sum())
+        spectral = 0.0
+        if factors and index < len(factors):
+            b, a, scale = factors[index]
+            q_b, r_b = torch.linalg.qr(b.double())
+            q_a, r_a = torch.linalg.qr(a.double().t())
+            spectral = float(torch.linalg.matrix_norm(scale * (r_b @ r_a.t()), ord=2)) ** 2
+        else:
+            spectral = float(torch.linalg.matrix_norm(x, ord=2)) ** 2
+        if spectral:
+            per_wrapper.append(fro2 / spectral)
+    return sum(per_wrapper) / len(per_wrapper) if per_wrapper else 0.0
 
 
 def run_episode(bb: Backbone, episode, args: argparse.Namespace) -> dict:
@@ -136,6 +164,8 @@ def run_episode(bb: Backbone, episode, args: argparse.Namespace) -> dict:
 
     written = sorted(slot_of.values())
     deltas = {slot: slot_delta(bb, slot) for slot in written}
+    factors = ({slot: slot_factors(bb, slot) for slot in written}
+               if args.stable_rank else {})
     norms = {slot: frobenius(parts) for slot, parts in deltas.items()}
     pair_cosines = [flat_cosine(deltas[a], deltas[b])
                     for a, b in itertools.combinations(written, 2)]
@@ -195,7 +225,8 @@ def run_episode(bb: Backbone, episode, args: argparse.Namespace) -> dict:
         "seed": episode.seed,
         "n_items": len(items),
         "slot_update_norms": {str(k): v for k, v in norms.items()},
-        "slot_stable_ranks": ({str(k): stable_rank(v) for k, v in deltas.items()}
+        "slot_stable_ranks": ({str(k): stable_rank(v, factors=factors.get(k))
+                               for k, v in deltas.items()}
                               if args.stable_rank else {}),
         "norms_are_uniform": (max(norms.values()) / min(norms.values())
                               if min(norms.values()) else None),

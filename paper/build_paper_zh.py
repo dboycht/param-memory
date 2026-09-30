@@ -458,7 +458,10 @@ oracle 单条 & [[tJudgeContextTarget]] & [[tScaleContextTarget]] & [[tTokContex
 写入的更新彼此几乎正交（两两余弦 [[tMechUpdateCosine]]，最高不超过 [[tMechUpdateCosineMax]]），
 所以槽位并**没有在权重方向上互相抢夺**；而对手槽对 logit 的扰动量，达到了它自己那条记忆效果的
 很大一部分（[[tMechRivalOverOwn]]），这就是干扰项会致命的原因。
-但**这两者都不是根因**。读两个槽**不等于**把两个单槽效应相加：
+**秩耗尽也不是原因**：每个槽是按 rank 4 写入的，而在 [[tMechSlots]] 个槽上，
+它的能量平均只落在其中 [[tMechStableRank]] 个方向上（[[tMechStableRankMin]] 到 [[tMechStableRankMax]]），
+也就是说写入**只用了给它的预算的一半左右**。
+但**根因在别处**。读两个槽**不等于**把两个单槽效应相加：
 实测响应只有该和的 [[tMechResidual]]，**失效是在读取时被制造出来的**。
 正确取值 token 的概率，从单选对槽时的 [[tMechOwnProb]]，掉到选中前两槽的 [[tMechTopTwoProb]]、
 以及整个记忆库全开时的 [[tMechAllProb]]。

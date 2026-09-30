@@ -986,6 +986,33 @@ def _capacity_large(bundle: dict, field: str) -> str:
     return "n/a"
 
 
+def _slot_ranks(bundle: dict, field: str) -> str:
+    """Per-slot stable rank across the mechanism diagnostic's episodes.
+
+    The slots are written with rank four, so this says how much of that budget the writes
+    actually use. It came out at about two, and the first implementation of it was wrong in
+    a way that produced eighty-six -- impossible for a rank-four update, which is why the
+    test now asserts the invariant.
+    """
+    t2 = _get(bundle, "t2") or {}
+    payload = t2.get("mechanism") or {}
+    ranks = []
+    for episode in payload.get("episodes") or []:
+        ranks += [value for value in (episode.get("slot_stable_ranks") or {}).values()
+                  if isinstance(value, (int, float))]
+    if not ranks:
+        return "n/a"
+    if field == "mean":
+        return f"{sum(ranks) / len(ranks):.2f}"
+    if field == "min":
+        return f"{min(ranks):.2f}"
+    if field == "max":
+        return f"{max(ranks):.2f}"
+    if field == "count":
+        return str(len(ranks))
+    return "n/a"
+
+
 def _merged_calibration(t7: dict) -> dict:
     """Human-vs-judge agreement as merged from the marks and the current payload."""
     return t7.get("calibration_merged") or {}
@@ -1389,6 +1416,11 @@ def headline_values(bundle: dict[str, Any]) -> dict[str, str]:
         "tMechRivalProb": _mechanism(bundle, "value_token_probability", "rival"),
         "tMechTopTwoProb": _mechanism(bundle, "value_token_probability", "top2"),
         "tMechAllProb": _mechanism(bundle, "value_token_probability", "all"),
+        # ---- how much of the rank budget each slot actually uses ----
+        "tMechStableRank": _slot_ranks(bundle, "mean"),
+        "tMechStableRankMin": _slot_ranks(bundle, "min"),
+        "tMechStableRankMax": _slot_ranks(bundle, "max"),
+        "tMechSlots": _slot_ranks(bundle, "count"),
         # ---- does real retrieval beat the oracle convention? (T7-e) ----
         "tRagTopOne": _probe_baseline(bundle, "rag_top1", "containment"),
         "tRagTopThree": _probe_baseline(bundle, "rag_top3", "containment"),
