@@ -36,7 +36,8 @@ import torch
 
 from parammem.bench import protocol as P
 from parammem.bench.synthetic import make_episode
-from parammem.memory.router import route
+from parammem.memory.router import (RoutingDecision, lexical_scores, route,
+                                    route_lexical)
 from parammem.memory.writer import write_slot
 from parammem.model import GENERIC_ANCHORS, Backbone, BackboneConfig, resolve_model_path
 
@@ -62,6 +63,11 @@ def parse_args() -> argparse.Namespace:
              "from the canonical phrasing). Without this the router is solving a "
              "trivial string-matching problem",
     )
+    ap.add_argument("--key-mode", choices=("last", "lexical", "hybrid"), default="last",
+                    help="which retrieval key drives the routed arms. T2-c and T2-e show "
+                         "the last-token key is the weak one at 1.7B, so re-running the "
+                         "composition arms with a better key separates routing error "
+                         "from the cost of having two slots active at once")
     ap.add_argument("--out", default="runs/t2_composition.json")
     return ap.parse_args()
 
@@ -93,6 +99,8 @@ def run_episode(bb: Backbone, episode, args: argparse.Namespace) -> dict:
     # Retrieval keys, captured with the memory off (see Backbone.query_key).
     slot_keys = {slot: bb.query_key(item.query) for item, slot in
                  ((i, slot_of[i.item_id]) for i in items)}
+    slot_text = {slot: item.query for item, slot in
+                 ((i, slot_of[i.item_id]) for i in items)}
 
     written = sorted(slot_of.values())
     answers: dict[str, list[int]] = {arm: [] for arm in ARMS}
@@ -101,9 +109,21 @@ def run_episode(bb: Backbone, episode, args: argparse.Namespace) -> dict:
         own = slot_of[probe.item_id]
         others = [s for s in written if s != own]
         key = bb.query_key(probe.query)
-        decision = route(key, slot_keys, k=1)
+        if args.key_mode == "lexical":
+            decision = route_lexical(probe.query, slot_text, k=1)
+            top2 = route_lexical(probe.query, slot_text, k=2).slots
+        elif args.key_mode == "hybrid":
+            lex = dict(lexical_scores(probe.query, slot_text))
+            cos = dict(route(key, slot_keys, k=len(slot_keys)).scores)
+            ranked = sorted(slot_keys,
+                            key=lambda s: (-(0.5 * cos.get(s, 0.0)
+                                             + 0.5 * lex.get(s, 0.0)), s))
+            decision = RoutingDecision(slots=ranked[:1])
+            top2 = ranked[:2]
+        else:
+            decision = route(key, slot_keys, k=1)
+            top2 = route(key, slot_keys, k=2).slots
         route_hits += int(decision.top == own)
-        top2 = route(key, slot_keys, k=2).slots
 
         for arm, active in (
             ("oracle", [own]),
