@@ -1039,6 +1039,38 @@ def _collision_real(bundle: dict, field: str) -> str:
     return _na(rates.get(field), ".3f")
 
 
+def _evidence_shape(bundle: dict, field: str) -> str:
+    """Evidence shape of the benchmark's question types (see the evidence-shape script).
+
+    The limitation argued that the multi-session questions need several stored items while
+    the single-session subset does not. That was a claim about the data, and this is the
+    data: median evidence turns, median sessions, and the share spanning several sessions.
+    """
+    t7 = _get(bundle, "t7") or {}
+    payload = t7.get("evidence_shape") or {}
+    per_type = payload.get("per_type") or {}
+    if field == "multi_turns":
+        return _na((per_type.get("multi-session") or {}).get("median_evidence_turns"), ".1f")
+    if field == "multi_sessions":
+        return _na((per_type.get("multi-session") or {}).get("median_sessions"), ".1f")
+    if field == "multi_span":
+        value = (per_type.get("multi-session") or {}).get("share_spanning_several_sessions")
+        return f"{value:.0%}" if isinstance(value, (int, float)) else "n/a"
+    # The three single-session types are pooled: their shape is identical.
+    singles = [row for kind, row in per_type.items()
+               if kind.startswith("single-session")]
+    if not singles:
+        return "n/a"
+    if field == "single_turns":
+        return _na(max(row["median_evidence_turns"] for row in singles), ".1f")
+    if field == "single_sessions":
+        return _na(max(row["median_sessions"] for row in singles), ".1f")
+    if field == "single_span":
+        value = max(row["share_spanning_several_sessions"] for row in singles)
+        return f"{value:.0%}"
+    return "n/a"
+
+
 def _merged_calibration(t7: dict) -> dict:
     """Human-vs-judge agreement as merged from the marks and the current payload."""
     return t7.get("calibration_merged") or {}
@@ -1463,6 +1495,13 @@ def headline_values(bundle: dict[str, Any]) -> dict[str, str]:
         "tRealCollisionAllP": _collision_real(bundle, "paired_whole_bank_p"),
         "tRealCollisionThreeHurt": _collision_real(bundle, "paired_two_extra_hurt"),
         "tRealCollisionThreeP": _collision_real(bundle, "paired_two_extra_p"),
+        # ---- how much evidence each question type actually needs ----
+        "tMultiEvidenceTurns": _evidence_shape(bundle, "multi_turns"),
+        "tMultiEvidenceSessions": _evidence_shape(bundle, "multi_sessions"),
+        "tMultiEvidenceSpan": _evidence_shape(bundle, "multi_span"),
+        "tSingleEvidenceTurns": _evidence_shape(bundle, "single_turns"),
+        "tSingleEvidenceSessions": _evidence_shape(bundle, "single_sessions"),
+        "tSingleEvidenceSpan": _evidence_shape(bundle, "single_span"),
         # ---- does real retrieval beat the oracle convention? (T7-e) ----
         "tRagTopOne": _probe_baseline(bundle, "rag_top1", "containment"),
         "tRagTopThree": _probe_baseline(bundle, "rag_top3", "containment"),

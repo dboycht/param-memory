@@ -542,6 +542,10 @@ $\lambda_{\mathrm{ret}}$ 取 [[tRetentionBest]]）：
 我们后来也在 **multi-session 子集**上跑了同一套协议，结果是 [[tMultiSessOn]]，
 但**这个协议测不到多会话结构**（记忆条自足，读取路径不需要跨会话组合，见 §\ref{sec:results}），
 所以"单槽无法跨条组合"这条边界在这里仍是**论证**，还没有变成实测。
+**不过这道边界所依赖的那个事实是测过的**：多会话题中位数带
+[[tMultiEvidenceTurns]] 条含答案的轮、跨 [[tMultiEvidenceSessions]] 个会话，
+其中 [[tMultiEvidenceSpan]] 跨了不止一个会话；而我们实际评测的单会话子集是
+[[tSingleEvidenceTurns]] 条轮、[[tSingleEvidenceSessions]] 个会话、跨会话比例 [[tSingleEvidenceSpan]]。
 基于抽取的多会话结果我们**确实还没有**：抽取调用依赖一个在本批中途被暂停的托管凭据。
 \item \textbf{指标粗糙。}基座退化有一部分靠答案是否逐字相同来判断，
 它会把 $2+2=4$ 相对冻结态的 2 算作变化；KL 数字更有信息量。

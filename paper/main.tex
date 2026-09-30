@@ -679,7 +679,12 @@ verbosity structure instead.
   question types (multi-session and temporal reasoning) require combining evidence
   from \emph{several} stored items, whereas our read path deliberately activates
   exactly one slot (Section~\ref{sec:routing} shows two already collapse recall,
-  and the retention term of Section~\ref{sec:results} does not repair that).
+  and the retention term of Section~\ref{sec:results} does not repair that). That
+  requirement is not an assumption: the median multi-session question carries
+  \tMultiEvidenceTurns{} answer-bearing turns across \tMultiEvidenceSessions{} sessions, and
+  \tMultiEvidenceSpan{} of them span more than one session, while the single-session subset we
+  do evaluate carries \tSingleEvidenceTurns{} turn in \tSingleEvidenceSessions{} session with
+  \tSingleEvidenceSpan{} spanning more than one.
   Our own protocol cannot demonstrate that boundary either, and we measured why: it
   stores the benchmark's question-answer pair as one self-contained memory, so the
   multi-session subset passes the identical diagnostic while never asking the read path to

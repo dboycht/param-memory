@@ -160,7 +160,7 @@ STAGES: dict[str, dict] = {
                    "t7d_longmemeval_gen32.json", "judge_calibration_result.json",
                    "t7d_17b.json", "t7e_17b.json", "t7f_judge_17b.json",
                    "t7h_calibration.json", "t7g_baselines.json",
-                   "t7j_collision_real.json",
+                   "t7j_collision_real.json", "longmemeval_evidence_shape.json",
                    "t7i_multisession.json"],
         # Four phases: the weights run, its pre-registered held-out replication
         # (docs/06 section 9), the context/RAG baselines, and the LLM judge. The
@@ -306,6 +306,10 @@ def collect(stage: str, recipe: dict, mode: str) -> dict:
                 # the composition failure on real content, as a dose-response over the
                 # number of slots held open at read time
                 merged["collision_real"] = payload
+            elif name.startswith("longmemeval_evidence_shape"):
+                # how many turns and sessions each question type needs, which is the
+                # measurement behind the multi-session limitation
+                merged["evidence_shape"] = payload
             elif name.startswith("t7h"):
                 # merged human-vs-judge calibration; authoritative over the older
                 # single-pass result file, which recorded the first prompt's run
