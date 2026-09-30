@@ -76,25 +76,13 @@ def parse_args() -> argparse.Namespace:
 
 
 def hidden_keys(bb: Backbone, query: str) -> dict[str, torch.Tensor]:
-    """Every model-based key for one query, from a single forward pass.
+    """Every model-based key for one query.
 
-    Wrapped in ``no_grad``: the keys are read-only statistics, and without this the
-    forward pass builds an autograd graph on every call and then warns when the values
-    are converted to floats.
+    Delegates to ``Backbone.query_keys``, which owns the memory-off convention. The
+    first version of this script reimplemented the forward pass and forgot that
+    convention, which deflated every model-key column; see ``ERROR.md`` E18.
     """
-    with torch.no_grad():
-        prompt_ids = bb._ids(bb._chat(query))
-        out = bb.model(input_ids=prompt_ids, output_hidden_states=True)
-        states = out.hidden_states
-        depth = len(states)
-        picks = {
-            "last": states[-1][0, -1],
-            "mean": states[-1][0].mean(dim=0),
-            "mid": states[max(0, int(depth * 0.6) - 1)][0, -1],
-            "shallow": states[max(0, int(depth * 0.3) - 1)][0, -1],
-        }
-        return {name: (vec.float() / vec.float().norm().clamp_min(1e-6))
-                for name, vec in picks.items()}
+    return bb.query_keys(query)
 
 
 def lexical_keys(queries: list[str]) -> dict[int, dict[str, float]]:

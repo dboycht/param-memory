@@ -804,6 +804,16 @@ def _t5_range(bundle, arm: str, field: str) -> str:
     return f"{min(values):.3f}--{max(values):.3f}"
 
 
+def _learned_key(bundle: dict, arm: str, field: str) -> str:
+    """One cell of the trained-key comparison (T2-e)."""
+    t2 = _get(bundle, "t2") or {}
+    payload = t2.get("learned_key") or {}
+    if field == "paired":
+        entry = (payload.get("paired_vs_last") or {}).get(arm) or {}
+        return _na(entry.get("sign_p"), ".4f")
+    return _na((payload.get("rates") or {}).get(arm, {}).get(field), ".3f")
+
+
 def _merged_calibration(t7: dict) -> dict:
     """Human-vs-judge agreement as merged from the marks and the current payload."""
     return t7.get("calibration_merged") or {}
@@ -1151,6 +1161,13 @@ def headline_values(bundle: dict[str, Any]) -> dict[str, str]:
         "tKeyPairPSmall": _router_pair(bundle, _router_best(bundle), "sign_p"),
         "tKeyEntropyTop": _router_stat(bundle, "entropy", "top1"),
         "tKeyShallowTop": _router_stat(bundle, "shallow", "top1"),
+        # ---- the trained key and multi-key voting (T2-e) ----
+        "tKeyLearnedTop": _learned_key(bundle, "learned", "top1"),
+        "tKeyLearnedEm": _learned_key(bundle, "learned", "em"),
+        "tKeyVoteTop": _learned_key(bundle, "voting", "top1"),
+        "tKeyVoteEm": _learned_key(bundle, "voting", "em"),
+        "tKeyPairLearnedP": _learned_key(bundle, "learned", "paired"),
+        "tKeyPairVoteP": _learned_key(bundle, "voting", "paired"),
     }
 
 

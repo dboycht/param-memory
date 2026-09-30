@@ -86,12 +86,14 @@ def parse_args() -> argparse.Namespace:
 
 
 def hidden(bb: Backbone, text: str) -> tuple[torch.Tensor, torch.Tensor]:
-    """(last-token, mean-pooled) hidden states with the memory switched off."""
-    with torch.no_grad():
-        prompt_ids = bb._ids(bb._chat(text))
-        out = bb.model(input_ids=prompt_ids, output_hidden_states=True)
-        states = out.hidden_states[-1][0]
-        return states[-1].float(), states.mean(dim=0).float()
+    """(last-token, mean-pooled) hidden states.
+
+    Delegates to ``Backbone.query_keys`` rather than reimplementing the forward pass:
+    that method owns the memory-off convention, and the three earlier versions of this
+    script that inline-copied it captured keys with a read mask still active.
+    """
+    keys = bb.query_keys(text)
+    return keys["last"], keys["mean"]
 
 
 def augment(text: str, rng: random.Random, drop: float) -> str:
@@ -112,6 +114,7 @@ def train_key(views: torch.Tensor, labels: torch.Tensor, args) -> torch.nn.Modul
         torch.nn.GELU(),
         torch.nn.Linear(args.key_dim, args.key_dim),
     ).to(views.device)
+    labels = labels.to(views.device)
     optimiser = torch.optim.AdamW(projector.parameters(), lr=args.key_lr)
     for _ in range(args.key_steps):
         optimiser.zero_grad()
@@ -150,8 +153,12 @@ def run_episode(bb: Backbone, episode, args) -> dict:
             raise RuntimeError(f"write isolation violated on slot {slot}")
         slot_of[item.item_id] = slot
 
+    # Every key is captured with the memory switched off; the write loop above leaves
+    # the last slot active, so this reset is load-bearing rather than tidiness.
     bb.set_read_slots([])
-    canonical_last, canonical_mean, canonical_text = {}, {}, {}
+    canonical_last: dict[int, torch.Tensor] = {}
+    canonical_mean: dict[int, torch.Tensor] = {}
+    canonical_text: dict[int, str] = {}
     for item in items:
         last, mean = hidden(bb, item.query)
         slot = slot_of[item.item_id]
@@ -180,12 +187,22 @@ def run_episode(bb: Backbone, episode, args) -> dict:
     tally = {arm: {"top1": 0, "top2_recall": 0, "em": 0} for arm in ARMS}
     per_probe: list[dict] = []
     probes = episode.probes
+    # Self-check against the model's own implementation, for the same reason T2-c has
+    # one: ``query_key`` handles the memory-off convention internally, so if this script
+    # captures keys with the previous arm's read mask still active, the mismatch shows up
+    # here instead of silently deflating every model-based column.
+    reference = bb.query_key(items[0].query)
+    mine_last, _mine_mean = hidden(bb, items[0].query)
+    if not torch.allclose(reference.float().cpu(), mine_last.float().cpu(), atol=1e-5):
+        raise RuntimeError("key capture disagrees with Backbone.query_key: the memory "
+                           "is probably not switched off")
     # Project the canonical keys once: recomputing them per probe would run a model
     # forward per slot per probe for no reason.
     learned_canonical = {slot: learned_key(text)
                          for slot, text in canonical_text.items()}
     for index, probe in enumerate(probes):
         own = slot_of[probe.item_id]
+        bb.set_read_slots([])          # keys are a property of the query, not of the bank
         last, mean = hidden(bb, probe.query)
         probe_last = last / last.norm().clamp_min(1e-6)
         probe_mean = mean / mean.norm().clamp_min(1e-6)

@@ -348,6 +348,38 @@ class Backbone:
                 for name, mask in saved.items():
                     self.wrappers[name].set_read_mask(mask)
 
+    def query_keys(self, query: str) -> dict[str, torch.Tensor]:
+        """Normalised retrieval keys for one query, under several pooling variants.
+
+        The variants live here, next to :meth:`query_key`, because experiments kept
+        reimplementing them and forgetting the memory-off discipline that method
+        documents. That mistake was made four times, and each time it silently deflated
+        every model-based column of the comparison -- most recently turning a key that
+        routes 0.938 into one that appeared to route 0.688. Reimplementing a function
+        that carries a convention is how the convention gets lost; call this instead.
+
+        Keys are ``last`` (final token), ``mean`` (final layer pooled over the prompt),
+        ``mid`` (60% depth) and ``shallow`` (30% depth).
+        """
+        saved = {name: w.read_mask() for name, w in self.wrappers.items()}
+        self.set_read_slots([])
+        try:
+            prompt_ids = self._ids(self._chat(query))
+            out = self.model(input_ids=prompt_ids, output_hidden_states=True)
+            states = out.hidden_states
+            depth = len(states)
+            picks = {
+                "last": states[-1][0, -1],
+                "mean": states[-1][0].mean(dim=0),
+                "mid": states[max(0, int(depth * 0.6) - 1)][0, -1],
+                "shallow": states[max(0, int(depth * 0.3) - 1)][0, -1],
+            }
+            return {name: (vec.float() / vec.float().norm().clamp_min(1e-6))
+                    for name, vec in picks.items()}
+        finally:
+            for name, mask in saved.items():
+                self.wrappers[name].set_read_mask(mask)
+
     # ------------------------------------------------------------------ arms
     def set_read_slots(self, slots: Iterable[int] | None) -> None:
         for wrapper in self.wrappers.values():
