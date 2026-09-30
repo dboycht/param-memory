@@ -691,6 +691,36 @@ def _retention_probes(t8: dict, arm: str = "top2") -> int | None:
     return len(base) if base else None
 
 
+def _router_rates(bundle: dict, scale: str = "") -> dict:
+    """Router-key accuracies from the T2-c payload.
+
+    Takes the whole bundle rather than the ``t2.summary`` sub-dict: the experiment
+    payloads are merged at the *stage* level, so looking inside ``summary`` silently
+    returns nothing (which is exactly how these macros first rendered as n/a).
+    """
+    t2 = _get(bundle, "t2") or {}
+    payload = t2.get("router_keys_17b" if scale else "router_keys") or {}
+    return payload.get("rates") or {}
+
+
+def _router_best(bundle: dict, scale: str = "") -> str:
+    rates = _router_rates(bundle, scale)
+    if not rates:
+        return "n/a"
+    return max(rates, key=lambda name: (rates[name].get("top1", -1),
+                                        rates[name].get("em", -1)))
+
+
+def _router_stat(bundle: dict, arm: str, field: str, scale: str = "") -> str:
+    rates = _router_rates(bundle, scale)
+    return _na((rates.get(arm) or {}).get(field), ".3f")
+
+
+def _merged_calibration(t7: dict) -> dict:
+    """Human-vs-judge agreement as merged from the marks and the current payload."""
+    return t7.get("calibration_merged") or {}
+
+
 def _scale_judge_arms(t7: dict) -> dict:
     payload = ((t7.get("scale_17b") or {}).get("judge")) or {}
     return (((payload.get("standards") or {}).get("lenient") or {}).get("arms")) or {}
@@ -902,6 +932,22 @@ def headline_values(bundle: dict[str, Any]) -> dict[str, str]:
             ".3f"),
         "tJudgeCalibMarks": _na((t7.get("calibration") or {}).get("agreement")),
         "tJudgeCalibRate": _na((t7.get("calibration") or {}).get("rate"), ".3f"),
+        # The authoritative calibration numbers come from the merge tool, which reads
+        # the human marks and the *current* judge payload. The older result file only
+        # recorded the first pass, where two rows were unusable because the judge's own
+        # reply was truncated; after the prompt revision all rows are readable and the
+        # agreement is higher. Quoting the stale file understated our own evidence.
+        "tJudgeMergedMarks": _na(
+            f"{_merged_calibration(t7).get('agreement')}/"
+            f"{_merged_calibration(t7).get('n_scored')}"
+            if _merged_calibration(t7).get("n_scored") else None),
+        "tJudgeMergedRate": _na(_merged_calibration(t7).get("agreement_rate"), ".3f"),
+        "tJudgeMergedLow": _na((_merged_calibration(t7).get("wilson_95") or [None])[0],
+                               ".3f"),
+        "tJudgeMergedHigh": _na((_merged_calibration(t7).get("wilson_95") or [None, None])[1],
+                                ".3f"),
+        "tJudgeMergedFalsePositives": _na(
+            _merged_calibration(t7).get("judge_false_positive")),
         # ---- T8-a (B1): the retention term in the write objective ----
         "tRetentionTopTwoBase": _retention_em(t8, "0.0", "top2"),
         "tRetentionTopTwoBest": _retention_em(t8, _retention_best(t8), "top2"),
@@ -961,6 +1007,20 @@ def headline_values(bundle: dict[str, Any]) -> dict[str, str]:
         "tScaleTwoTopTwo": _t2_scale_em(bundle, "top2"),
         "tScaleTwoSum": _t2_scale_em(bundle, "all"),
         "tScaleTwoRouter": _t2_scale_router(bundle),
+        # ---- which key the router should use (T2-c) ----
+        # LaTeX control words end at the first non-letter, so these names are letters
+        # only; the guard in _headline_macros rejects digits and underscores.
+        "tKeyBest": _router_best(bundle),
+        "tKeyBestTop": _router_stat(bundle, _router_best(bundle), "top1"),
+        "tKeyBestEm": _router_stat(bundle, _router_best(bundle), "em"),
+        "tKeyLastTop": _router_stat(bundle, "last", "top1"),
+        "tKeyLastEm": _router_stat(bundle, "last", "em"),
+        "tKeyBestLarge": _router_best(bundle, "17b"),
+        "tKeyBestTopLarge": _router_stat(bundle, _router_best(bundle, "17b"), "top1",
+                                         "17b"),
+        "tKeyBestEmLarge": _router_stat(bundle, _router_best(bundle, "17b"), "em",
+                                        "17b"),
+        "tKeyLastTopLarge": _router_stat(bundle, "last", "top1", "17b"),
     }
 
 

@@ -55,7 +55,7 @@ for _stream in (sys.stdout, sys.stderr):
     if hasattr(_stream, "reconfigure"):
         _stream.reconfigure(encoding="utf-8", errors="replace")
 
-KEY_KINDS = ("last", "mean", "mid", "shallow", "lexical")
+KEY_KINDS = ("last", "mean", "mid", "shallow", "lexical", "hybrid")
 
 
 def parse_args() -> argparse.Namespace:
@@ -75,19 +75,25 @@ def parse_args() -> argparse.Namespace:
 
 
 def hidden_keys(bb: Backbone, query: str) -> dict[str, torch.Tensor]:
-    """Every model-based key for one query, from a single forward pass."""
-    prompt_ids = bb._ids(bb._chat(query))
-    out = bb.model(input_ids=prompt_ids, output_hidden_states=True)
-    states = out.hidden_states
-    depth = len(states)
-    picks = {
-        "last": states[-1][0, -1],
-        "mean": states[-1][0].mean(dim=0),
-        "mid": states[max(0, int(depth * 0.6) - 1)][0, -1],
-        "shallow": states[max(0, int(depth * 0.3) - 1)][0, -1],
-    }
-    return {name: (vec.float() / vec.float().norm().clamp_min(1e-6))
-            for name, vec in picks.items()}
+    """Every model-based key for one query, from a single forward pass.
+
+    Wrapped in ``no_grad``: the keys are read-only statistics, and without this the
+    forward pass builds an autograd graph on every call and then warns when the values
+    are converted to floats.
+    """
+    with torch.no_grad():
+        prompt_ids = bb._ids(bb._chat(query))
+        out = bb.model(input_ids=prompt_ids, output_hidden_states=True)
+        states = out.hidden_states
+        depth = len(states)
+        picks = {
+            "last": states[-1][0, -1],
+            "mean": states[-1][0].mean(dim=0),
+            "mid": states[max(0, int(depth * 0.6) - 1)][0, -1],
+            "shallow": states[max(0, int(depth * 0.3) - 1)][0, -1],
+        }
+        return {name: (vec.float() / vec.float().norm().clamp_min(1e-6))
+                for name, vec in picks.items()}
 
 
 def lexical_keys(queries: list[str]) -> dict[int, dict[str, float]]:
@@ -115,6 +121,18 @@ def lexical_scores(query_vec: dict[str, float],
         scores.append((slot, score))
     scores.sort(key=lambda item: (-item[1], item[0]))
     return scores
+
+
+def minmax(scores: list[tuple[int, float]]) -> dict[int, float]:
+    """Scale a score list to [0, 1] so two different scorers can be averaged."""
+    if not scores:
+        return {}
+    values = [value for _, value in scores]
+    low, high = min(values), max(values)
+    span = high - low
+    if span <= 1e-12:
+        return {slot: 0.5 for slot, _ in scores}
+    return {slot: (value - low) / span for slot, value in scores}
 
 
 def entropy_of(logits: torch.Tensor) -> float:
@@ -169,12 +187,26 @@ def run_episode(bb: Backbone, episode, args: argparse.Namespace) -> dict:
         lex = lexical_scores(lex_all[len(canonical) + index], slot_lexical)
         rankings["lexical"] = [slot for slot, _ in lex[:2]]
 
+        # Hybrid: average the two scorers after scaling each to [0, 1] over the
+        # candidates. Lexical wins on template-generated queries whose content words
+        # are distinctive; the model key should help where they are not, so the
+        # average is the honest single-parameter-free combination to try.
+        cosine_scores = route(probe_hidden["last"], slot_hidden["last"],
+                              k=len(written)).scores
+        scaled_key = minmax(cosine_scores)
+        scaled_lex = minmax(lex)
+        blended = sorted(scaled_key,
+                         key=lambda slot: (-(0.5 * scaled_key[slot] +
+                                             0.5 * scaled_lex.get(slot, 0.0)), slot))
+        rankings["hybrid"] = blended[:2]
+
         # entropy tie-break over the top two of the current (last-token) key
         top2 = rankings["last"][:2]
         entropies = {}
         for slot in top2:
             bb.set_read_slots([slot])
-            entropies[slot] = entropy_of(bb.next_token_logits(probe.query))
+            with torch.no_grad():
+                entropies[slot] = entropy_of(bb.next_token_logits(probe.query))
         rankings["entropy"] = (sorted(entropies, key=lambda s: entropies[s]) +
                                [s for s in top2 if s not in entropies])[:2]
 

@@ -300,10 +300,14 @@ benchmark's own $(q,a)$ pair and the evidence turn is located with the benchmark
 comparison arms receive the \emph{same} information through the context, selected by
 the \emph{same} query-key router, so the medium is the only variable that changes.
 Grading is semantic. The containment measure used on the synthetic experiments rewards reproducing the reference string, which is exactly what a trained write is for, and it therefore cannot compare arms that answer by paraphrase. So the real-content results are graded by a hosted LLM judge, one
-candidate per call, calibrated against \tJudgeCalibMarks{} human marks collected on
+candidate per call, calibrated against \tJudgeMergedMarks{} human marks collected on
 an anonymised, shuffled sample with the judge's own verdicts hidden until after
-marking. We report the size of that calibration and the fact that the judge prompt
-was revised once, because both bound what the agreement is worth. Two further
+marking. The agreement is \tJudgeMergedRate{} (Wilson 95\% interval
+[\tJudgeMergedLow{}, \tJudgeMergedHigh{}]) with \tJudgeMergedFalsePositives{} cases of
+the judge accepting an answer the human rejected. We report the size of that
+calibration and the fact that the judge prompt was revised once, because both bound
+what the agreement is worth: the first prompt, on the same rows, agreed on 8 of the
+10 rows whose verdict was usable. Two further
 protocol points carry weight: wherever every arm answers the \emph{same} items we compare them paired (exact sign test), not by overlapping intervals, and the generation budget is treated as part of the treatment: every arm is generated with the same limit, set so that the longest reference answer fits, since a budget
 below that measures truncation instead of memory.
 
@@ -406,7 +410,7 @@ questions, containment is \tHoldoutOn{}, \tHoldoutVerdict{} of the pre-registere
 
 \paragraph{Why not just keep it in the context?} We measured that too, on the same
 questions and with the same router, and graded every arm's answer against the
-reference with an LLM judge calibrated against \tJudgeCalibMarks{} human marks: the
+reference with an LLM judge calibrated against \tJudgeMergedMarks{} human marks: the
 parametric arm is correct on \tJudgeWeights{} of the questions and \emph{never loses
 one} to any context arm (paired: \tJudgeWins{} won, \tJudgeLosses{} lost).
 \texttt{context\_all} reaches \tJudgeContextAll{} while carrying all \tLongMemSubset{} pairs and
@@ -427,8 +431,10 @@ memory items \emph{are} the benchmark's own $(q,a)$ pairs, the evidence turn is
 located with the benchmark's own flags (retrieval is oracle-indexed), the write query
 is the read query (so \tLongMemRouting{} is an upper bound; paraphrased routing
 measured \tRouterAcc{} in Section~\ref{sec:routing}), the calibration rests on
-\tJudgeCalibMarks{} marks, and a residual preference for near-verbatim answers cannot
-be excluded.
+\tJudgeMergedMarks{} marks, and a residual preference for near-verbatim answers cannot
+be excluded. A zero observed disagreement is not a zero error rate: with
+\tJudgeMergedMarks{} marks the Wilson interval still admits an error rate up to
+$1 - \tJudgeMergedLow{}$.
 
 The same comparison on a 1.7B backbone (Table~\ref{tab:t7}) gives \tScaleWeights{} for
 the parametric arm against \tScaleContextTarget{}--\tScaleContextAll{} for context

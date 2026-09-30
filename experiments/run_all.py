@@ -56,7 +56,9 @@ STAGES: dict[str, dict] = {
     },
     "t2": {
         "script": "t2_composition.py",
-        "inputs": ["t2_paraphrase.json", "t2_paraphrase_17b.json"],
+        "inputs": ["t2_paraphrase.json", "t2_paraphrase_17b.json",
+                   "t2c_router_keys.json", "t2c_router_keys_17b.json",
+                   "t2b_mechanism.json", "t2d_composable.json"],
         # Five episodes, not three: the per-episode spread on two-slot recall is
         # large (4, 0, 4, 4, 3 of 8), so an aggregate is only meaningful when one
         # bad seed cannot carry it. The second phase repeats it on a 1.7B backbone,
@@ -129,7 +131,8 @@ STAGES: dict[str, dict] = {
         "inputs": ["t7d_longmemeval.json", "t7d_longmemeval_holdout.json",
                    "t7e_context_baselines.json", "t7f_judge.json",
                    "t7d_longmemeval_gen32.json", "judge_calibration_result.json",
-                   "t7d_17b.json", "t7e_17b.json", "t7f_judge_17b.json"],
+                   "t7d_17b.json", "t7e_17b.json", "t7f_judge_17b.json",
+                   "t7h_calibration.json"],
         # Four phases: the weights run, its pre-registered held-out replication
         # (docs/06 section 9), the context/RAG baselines, and the LLM judge. The
         # judge needs the user's API key and ~70 minutes at 3 requests/minute, so it
@@ -259,6 +262,10 @@ def collect(stage: str, recipe: dict, mode: str) -> dict:
                 # earlier "the arms are indistinguishable" reading was an artefact
                 # of our own generation budget
                 merged["archived_gen32"] = payload
+            elif name.startswith("t7h"):
+                # merged human-vs-judge calibration; authoritative over the older
+                # single-pass result file, which recorded the first prompt's run
+                merged["calibration_merged"] = payload
             elif name.startswith("judge_calibration"):
                 merged["calibration"] = payload
             else:
@@ -271,6 +278,14 @@ def collect(stage: str, recipe: dict, mode: str) -> dict:
         merged = dict(by_name.get("t2_paraphrase.json") or {})
         if "t2_paraphrase_17b.json" in by_name:
             merged["scale_17b"] = by_name["t2_paraphrase_17b.json"]
+        if "t2c_router_keys.json" in by_name:
+            merged["router_keys"] = by_name["t2c_router_keys.json"]
+        if "t2c_router_keys_17b.json" in by_name:
+            merged["router_keys_17b"] = by_name["t2c_router_keys_17b.json"]
+        if "t2b_mechanism.json" in by_name:
+            merged["mechanism"] = by_name["t2b_mechanism.json"]
+        if "t2d_composable.json" in by_name:
+            merged["composable"] = by_name["t2d_composable.json"]
         return merged
     if stage == "t3":
         by_name = dict(pairs)

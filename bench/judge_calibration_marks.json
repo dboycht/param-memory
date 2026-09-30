@@ -16,8 +16,9 @@
     "first_pass_agreement": "8/10",
     "first_pass_disagreements": [8, 9],
     "first_pass_note": "both disagreements were the judge applying a stricter reading than the chosen standard, which is why the prompt was revised once.",
+    "second_pass_note": "the marks are compared against the judge payload in the repository, which is the SECOND pass (after the prompt revision). In that pass all twelve rows were readable and all twelve agree with the human, so the current headline is 12/12 over 12 marks rather than 10/10 over 10; runs/t7h_calibration.json is the merged record and the paper quotes it. The two rows discounted in the first pass are still listed below, because that is what the first pass did.",
     "caveats": [
-      "n = 10 usable marks, so a 0/10 error rate is consistent with a true error rate of roughly 0-26% at 95% confidence",
+      "n = 12 usable marks in the current payload, so a 0/12 error rate is consistent with a true error rate of roughly 0-24% at 95% confidence (Wilson interval [0.757, 1.000])",
       "the prompt was revised once after seeing the first pass, so the second agreement figure is partly in-sample and must not be reported as a 0% error rate"
     ]
   },
