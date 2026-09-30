@@ -804,10 +804,10 @@ def _t5_range(bundle, arm: str, field: str) -> str:
     return f"{min(values):.3f}--{max(values):.3f}"
 
 
-def _learned_key(bundle: dict, arm: str, field: str) -> str:
-    """One cell of the trained-key comparison (T2-e)."""
+def _learned_key(bundle: dict, arm: str, field: str, scale: str = "") -> str:
+    """One cell of the trained-key comparison (T2-e), optionally on the larger model."""
     t2 = _get(bundle, "t2") or {}
-    payload = t2.get("learned_key") or {}
+    payload = t2.get("learned_key_17b" if scale else "learned_key") or {}
     if field == "paired":
         entry = (payload.get("paired_vs_last") or {}).get(arm) or {}
         return _na(entry.get("sign_p"), ".4f")
@@ -1168,6 +1168,12 @@ def headline_values(bundle: dict[str, Any]) -> dict[str, str]:
         "tKeyVoteEm": _learned_key(bundle, "voting", "em"),
         "tKeyPairLearnedP": _learned_key(bundle, "learned", "paired"),
         "tKeyPairVoteP": _learned_key(bundle, "voting", "paired"),
+        # the same two candidates on the larger backbone
+        "tKeyLearnedTopLarge": _learned_key(bundle, "learned", "top1", "17b"),
+        "tKeyLearnedEmLarge": _learned_key(bundle, "learned", "em", "17b"),
+        "tKeyVoteTopLarge": _learned_key(bundle, "voting", "top1", "17b"),
+        "tKeyVoteEmLarge": _learned_key(bundle, "voting", "em", "17b"),
+        "tKeyBestEmLarge": _learned_key(bundle, "hybrid", "em", "17b"),
     }
 
 
