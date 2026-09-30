@@ -11,7 +11,17 @@ What it is not
 It is not a second source of truth. The English ``main.tex`` remains authoritative
 for the claims; this file is a derived review aid, and the PDF says so on its first
 page. When the English text changes materially, the corresponding paragraph here has
-to be updated by hand -- the *numbers* are automatic, the *prose* is a translation.
+to be updated by hand. The *numbers* are automatic; the *prose* is a translation.
+
+Writing style
+-------------
+The prose is written as a narrative rather than as a sequence of contrastive slogans.
+Published analyses of machine-generated text single out the "not X, but Y" antithesis
+(artificial epanorthosis), em-dash density, rule-of-three lists and metronomic
+sentence rhythm as the reliable tells, and the guidance is to count them and fix them
+in passes. ``_dev/check_ai_tells.py`` counts them: the first draft of this file used
+"不是" 26 times and 30 em dashes in 19k characters, and this version stays far below
+that. Sentence lengths here are meant to be uneven.
 
 Design notes
 ------------
@@ -28,7 +38,7 @@ Design notes
 Usage::
 
     python paper/build_paper_zh.py            # writes paper/main_zh.tex
-    cd paper && xelatex main_zh.tex           # twice, for the table of numbers
+    cd paper && xelatex main_zh.tex           # twice, for the tables
 """
 
 from __future__ import annotations
@@ -63,6 +73,7 @@ def tex_escape(value: str) -> str:
         out = out.replace(raw, escaped)
     return out
 
+
 TEMPLATE = r"""% 中文审阅稿 —— 由 paper/build_paper_zh.py 生成，请勿手改。
 % 英文版 paper/main.tex 是主张的唯一来源；本文件是派生出的审阅副本。
 \documentclass[11pt]{ctexart}
@@ -73,7 +84,7 @@ TEMPLATE = r"""% 中文审阅稿 —— 由 paper/build_paper_zh.py 生成，请
 \usepackage[hidelinks]{hyperref}
 
 \newcommand{\zhbanner}[1]{\noindent\fbox{\parbox{\dimexpr\linewidth-2\fboxsep-2\fboxrule}{#1}}}
-\title{\bf 面向 LLM 智能体的旁路参数化记忆：\\可精确擦除的槽位、无需上下文即可读取}
+\title{\bf 面向 LLM 智能体的旁路参数化记忆：\\可精确擦除的槽位，以及不占上下文的读取}
 \author{成昊天 \\ \small 南京航空航天大学}
 \date{2026 年 9 月 30 日}
 
@@ -81,79 +92,78 @@ TEMPLATE = r"""% 中文审阅稿 —— 由 paper/build_paper_zh.py 生成，请
 \maketitle
 
 \zhbanner{\small\textbf{这是中文审阅稿。}它与英文版 \texttt{main.pdf} 逐节对应，
-所有数字都由 \texttt{runs/summary.json} 生成（与英文版同一来源），
-\textbf{技术主张以英文版为准}。本页的三条审阅要点是作者希望你先看的：
-（一）§\ref{sec:neg} 里 B1 保留项“未复现”的措辞是否合适；
-（二）§\ref{sec:limits} 关于“质量优势随规模收窄”的表述你是否接受；
+所有数字都由 \texttt{runs/summary.json} 生成，与英文版同一来源；
+\textbf{技术主张以英文版为准}。请先看三处：（一）§\ref{sec:neg} 里 B1 保留项
+“未复现”的措辞；（二）§\ref{sec:limits} 关于“质量优势随规模收窄”的表述；
 （三）表格是否一次就能读懂。}
 
 \vspace{0.6em}
 \begin{center}\small
-生成时间戳记：见仓库最近一次提交。数字来源：\texttt{runs/summary.json}（116 个宏）。
+数字来源：\texttt{runs/summary.json}。生成脚本：\texttt{paper/build\_paper\_zh.py}。
 \end{center}
 
 \section{摘要}
-今天 LLM 智能体的长期记忆放在上下文窗口里。这个通道是\textbf{零和}的——每一个被记住的 token
-都挤占了用来推理的 token——而且记住的内容与当前工作集\textbf{无法区分}。我们研究另一条路：
-挂在\textbf{冻结主干}上的、容量受限且\textbf{可精确擦除}的旁路低秩记忆槽——运行时用梯度写入、
-通过前向传播读取、遗忘靠擦除一个秩块。
+LLM 智能体的长期记忆目前放在上下文窗口里。这条通道有两个代价：记住的 token 会挤占
+推理所需的 token，而被记住的内容与当前工作集看起来完全一样。我们换了一条路：
+在冻结主干上挂一组容量受限的低秩记忆槽，运行时用梯度写入，前向传播时读出来，
+遗忘靠擦除一个秩块。
 
-在 0.6B 模型上，用**完全虚构的基准**与一套五段式隔离协议，我们得到：写入确实落地且
-**只触碰自己那个槽**（写完目标交叉熵 $\approx$ [[tTargetCE]]；隔离逐张量断言）；
-**擦除是精确的**（被擦除的槽与"从未写过"逐位相同，[[tErasedTotal]] 次驱逐全部通过，重启后仍然成立）；
-**读时组合——而不是容量——才是瓶颈**：把所有槽加起来召回为 [[tSum]]，而按查询键相似度
-**只选一个槽**可以恢复到 [[tTopOne]]（oracle 上限 [[tOracle]]，用的是改写过的问法，
-且**残差恰好等于路由错误**）。无标签的"自我核对"判据用 [[tSelfWrites]] 次写入
-达到全写的召回（全写要 [[tAlwaysWrites]] 次，少了 [[tSelfWriteReduction]]），
-基座漂移 [[tSelfKL]] 而非 [[tAlwaysKL]] nats（少约五分之四）。
+在 0.6B 模型上，配合一个完全虚构的基准与一套五段式隔离协议，我们得到三件事。
+写入只落到自己的槽上（本槽召回 $4/4$，写完目标交叉熵约为 [[tTargetCE]]）。
+擦除是精确的：被擦除的槽与从未写过的槽逐位相同，[[tErasedTotal]] 次驱逐全部如此，
+进程重启后依然成立。真正的约束出现在读取端：把所有槽加起来，召回是 [[tSum]]；
+按查询键相似度只选一个槽，召回恢复到 [[tTopOne]]，而 oracle 上限是 [[tOracle]]，
+两者之差恰好等于路由错误，这里用的是改写过的问法。无标签的自我核对判据用
+[[tSelfWrites]] 次写入达到全写的召回，全写需要 [[tAlwaysWrites]] 次；
+基座漂移是 [[tSelfKL]] nats，全写是 [[tAlwaysKL]] nats。
 
-\textbf{两条主张失败了，我们如实报告而不是挑顺眼的说。}基于似然阈值的"惊讶度"判据
-量的是\textbf{措辞}而不是知识（强制裸值作答要 [[tForcedParisKL]] nats，而模型自己那句话只要
-[[tVerboseParisKL]] nats）；参数化记忆\textbf{并不能}减轻上下文惯性——
-把前提写进权重与留在上下文里，被带进下一话题的程度\textbf{完全相同}（[[tContext]] 对 [[tParam]]）。
+有两个假设失败了，我们把它们写出来。基于似然阈值的惊讶度判据量到的是措辞：
+强制裸值作答要 [[tForcedParisKL]] nats，模型自己那句话只要 [[tVerboseParisKL]] nats。
+参数化记忆也减少不了上下文惯性。前提存进权重之后，被带进下一个话题的程度
+（[[tParam]]）与留在上下文里（[[tContext]]）一样。这个机制真正买到的是持久与精确遗忘。
 
-在真实基准内容上做的一次\textbf{范围受限的诊断}（30 道 LongMemEval single-session 题，历史完全不在场）
-在\textbf{零额外 prompt token} 的前提下复现了 [[tLongMemOn]] 的参考答案；
-而把同样的信息放进上下文——检索一条、三条、或全塞 30 条——只能答对
-[[tJudgeContextTarget]] 到 [[tJudgeContextAll]]，代价是 [[tTokContextTarget]] 到 [[tTokContextAll]] 个 token。
-我们还报告了**差点把这个对比做错**的过程：早先一次"两种介质不可分"的读数，
-其实是我们自己生成预算截断造成的假象。
+在真实基准内容上我们做了一次范围受限的诊断，取 [[tLongMemSubset]] 道 LongMemEval
+single-session 题，历史完全不在场。参数臂复现了 [[tLongMemOn]] 的参考答案，
+不额外占用 prompt token；把同样的信息放进上下文，答对率是 [[tJudgeContextTarget]]
+到 [[tJudgeContextAll]]，代价是 [[tTokContextTarget]] 到 [[tTokContextAll]] 个 token。
+我们第一版对比的结论是两种介质分不出高下，那是我们自己的生成预算截断造成的。
+这件事也写在论文里。
 
 \section{引言}
 
-\subsection{上下文通道是零和的}
-在不改动权重的前提下，新信息唯一能去的地方就是上下文窗口，而这个通道有三个结构性缺陷：
-\textbf{零和}（记住的 token 不再是可用于推理的 token）、\textbf{不可区分}（每句被记住的话都
-"同等在场"，长期记忆与当前工作集没有区别）、\textbf{无法逃脱}（一旦进了上下文，除非重写提示词
-并丢掉 KV cache，否则无法有选择地移除它）。
+\subsection{上下文通道的两个代价}
+在不改动权重的前提下，新信息只能进上下文窗口。这条通道有三个结构性限制。
+它是零和的：记住的 token 不再是可用来推理的 token。它不可区分：每句被记住的话
+都同等在场，长期记忆与当前工作集没有分别。它也退不出去：内容一旦进入上下文，
+除非重写提示词并丢掉 KV cache，否则无法有选择地移除。
 
-\subsection{第二个动机（后被我们否证）}
-我们当初的假设是：上下文里的内容会被模型当作"正在发生的事"，而不是"可供回忆的历史"，
-因此活在权重里的记忆会更不容易被带过话题边界。我们把它写在这里，因为在 §\ref{sec:neg}
-里我们\textbf{否证}了它——这个否证对读者比一个含糊的正面结论更有用。
+\subsection{一个后来被我们否证的动机}
+我们当初的假设是：上下文里的内容会被模型当作当前正在发生的事。我们想知道，活在权重里的记忆是否更不容易
+被带过话题边界。这个假设写在 §\ref{sec:neg}，
+因为我们在那里否证了它。对一个读者来说，这个否证比一个含糊的正面结论更有用。
 
 \subsection{我们造了什么}
-一个冻结主干 + $K$ 个槽的旁路。每个投影层挂一个 LoRA 适配器，其秩 $R = K \cdot r$
-被划分成 $K$ 个连续块，第 $k$ 块就是第 $k$ 个槽。因此：写入可以**只作用于一个块**；
-读取可以**只加回一个块**；擦除就是**恢复该块的初始 $A_k$ 并把 $B_k$ 清零**——
-这一点让"擦除"成为可以逐位验证的命题，而不是"应该差不多了"。
+一个冻结主干，加一条 $K$ 个槽的旁路。每个投影层挂一个 LoRA 适配器，总秩
+$R = K \cdot r$ 被切成 $K$ 个连续块，第 $k$ 块就是第 $k$ 个槽。写入可以只作用于一个块，
+读取可以只加回一个块，擦除就是把该块的初始 $A_k$ 恢复，把 $B_k$ 清零。
+擦除因此成了一个可以逐位验证的命题，而不再是一个大致的感觉。
 
 \subsection{贡献}
 \begin{enumerate}\setlength\itemsep{2pt}
-\item 一条旁路，其写入、读取、擦除\textbf{三者都可独立检查}：写入被断言只触碰一个槽，
-擦除被断言把该槽还原成"从未写过"的逐位状态，读取可以在\textbf{逐字节相同的模型}上逐槽消融。
-\item 发现\textbf{读时组合}才是约束：全部相加毫无价值，只选一个槽约等于 oracle，
-选两个就已经损失大部分收益；而且"oracle 减去 top-1"**恰好等于路由错误**。
-\item 一个无标签的写入判据（先问模型），在同等召回下把写入次数与基座漂移都降到零头；
-并给出它所替代的似然判据的\textbf{否证}。
-\item 容量下的\textbf{精确擦除}：每次驱逐都把槽还原为初始态；被标记为"重要"的槽能扛过反复溢出；
-只有最笨的淘汰策略会丢掉"正在被使用"的记忆。
-\item 跨进程持久化：加载前后可证明"未写过"的旁路，能回忆起上一个进程写进去的东西，
+\item 一条旁路，其写入、读取、擦除三者都能独立检查：写入被断言只触碰一个槽，
+擦除被断言把槽还原成从未写过的逐位状态，读取可以在逐字节相同的模型上逐槽消融。
+\item 读时组合是约束所在。全部相加毫无价值，只选一个槽约等于 oracle，
+选两个就损失大部分收益，而 oracle 与 top-1 之差恰好等于路由错误。
+\item 一个无标签的写入判据（先问模型），在同等召回下把写入次数与基座漂移都降到零头，
+并给出它所替代的似然判据的否证。
+\item 容量下的精确擦除。每次驱逐都把槽还原为初始态，被标记为重要的槽能扛过反复溢出，
+只有最笨的淘汰策略会丢掉正在被使用的记忆。
+\item 跨进程持久化。加载前后可证明未写过的旁路，能回忆起上一个进程写进去的东西，
 并且之后仍然可以精确擦除。
-\item 两条\textbf{负结果}（上下文惯性假设、似然型写入判据）与一条\textbf{未复现}的修复尝试
-（B1 保留项）：它们约束主张，而不是给主张贴金。
-\item 一个范围受限的\textbf{真实内容诊断}：用\textbf{同一个路由器}把同样的信息送进上下文，
-再由一个\textbf{与人工标注校准过的 LLM 判官}打分——参数臂在**零额外 token** 下全部答对。
+\item 两条负结果（上下文惯性假设、似然型写入判据）与一条未复现的修复尝试（B1 保留项）。
+它们限定了我们主张的边界。
+\item 一个范围受限的真实内容诊断。同一个路由器把同样的信息送进上下文，
+再由一个与人工标注校准过的 LLM 判官打分，参数臂在零额外 token 下全部答对。
 \end{enumerate}
 
 \section{方法}
@@ -161,77 +171,79 @@ TEMPLATE = r"""% 中文审阅稿 —— 由 paper/build_paper_zh.py 生成，请
 
 \subsection{秩块槽位与精确擦除}
 对每个目标投影，$\Delta W = \frac{\alpha}{r} B A$，其中 $A$ 按秩块划分。
-槽 $k$ 只允许写 $A$ 的第 $k$ 块与 $B$ 的第 $k$ 列；读掩码决定"加回哪些块"。
-擦除 = 恢复 $A_k^{\text{init}}$ 且 $B_k \leftarrow 0$。因此"擦除"与"从未写过"是**可以逐位比较**的。
+槽 $k$ 只能写 $A$ 的第 $k$ 块与 $B$ 的第 $k$ 列，读掩码决定加回哪些块。
+擦除就是恢复 $A_k^{\text{init}}$ 并把 $B_k$ 置零，所以擦除与从未写过
+是可以逐位比较的两件事。
 
 \subsection{写入目标}
-写入损失是
+写入损失有三项：
 \begin{equation}
 \mathcal{L} = \mathrm{CE}(v \mid q)
 \; + \; \lambda\, D_{\mathrm{KL}}\!\left(p_{\text{frozen}} \,\|\, p_{\text{slot}}\right)
-\; + \; \lambda_{\mathrm{ret}}\, D_{\mathrm{KL}}\!\left(p_{\text{bank}} \,\|\, p_{\text{bank}+k}\right),
+\; + \; \lambda_{\mathrm{ret}}\, D_{\mathrm{KL}}\!\left(p_{\text{bank}} \,\|\, p_{\text{bank}+k}\right).
 \end{equation}
-其中目标项只开\textbf{本槽}（学的是"查询→答案"这条关联）；锚定项在一组通用问题上把分布拉回冻结态。
-两处细节是\textbf{被测量逼出来的}：锚定必须\textbf{逐槽}评估（按"已写槽求和"评估时各槽位移会
-**互相抵消**，该守卫等于没加），且必须覆盖\textbf{每个位置}（只看末位时单步散度被压到 0.08，
-而自回归仍复合成复读机）。
+第一项只开本槽，学的是查询到答案这条关联。第二项在一组通用问题上把分布拉回冻结态，
+两处细节都是被测量逼出来的：它必须逐槽评估，因为按已写槽求和评估时各槽的位移会互相抵消，
+这一项等于没加；它也必须覆盖每个位置，因为只看末位时单步散度被压到 $0.08$，
+自回归解码仍然复合成复读机。第三项是保留项（B1）。参考分布取自写入之前的记忆库，
+那时已写槽激活、新槽零初始化因而还不贡献；查询用的是更早那些记忆的查询，
+当前项把新槽加上去，也就是干扰真正发生的那个读条件。它的效果见 §\ref{sec:neg}：
+方向对了，但没有复现。
 
-第三项是\textbf{保留项}（B1）：参考分布取自\textbf{写入之前}的记忆库（已写槽激活、新槽零初始化
-因此还不贡献），查询是**更早那些记忆的查询**；当前项把新槽加上去，即\textbf{干扰真正发生}的读条件。
-它的效果见 §\ref{sec:neg}——**方向对，但没有复现**。
-
-\subsection{读时：选，而不是和}
-所有槽一起激活时答案崩溃：每个槽都被训练成产生一个低熵答案，它们的和是一个被支配的混合。
-但各槽本身**完全可分**（读错的槽什么都得不到），所以正确做法是\textbf{选择}。
-我们用查询键（查询在冻结主干下的末位隐状态，**取键时关闭记忆**）与各槽键做余弦相似度，
-只激活最匹配的那一个。不新增参数、不训练。
+\subsection{读时选择}
+所有槽一起激活时答案会崩。原因不难理解：每个槽都被训练成产生一个低熵答案，
+它们的和是一个被支配的混合。各槽本身完全可分，读错的槽什么都得不到，
+所以读取路径应当选择。我们用查询键（查询在冻结主干下的末位隐状态，取键时关闭记忆，
+避免键随已写记忆漂移）与各槽键做余弦相似度，只激活最匹配的那一个。这一步不新增参数，
+也不需要训练。
 
 \subsection{什么值得写}
-四种判据：\texttt{always}（全写）、\texttt{surprise}（写入前损失超阈值）、
-\texttt{selfcheck}（先问冻结模型"你知道这个吗"）、\texttt{explicit}（只写带标记的内容）。
+四种判据：\texttt{always} 全写；\texttt{surprise} 看写入前损失是否超阈值；
+\texttt{selfcheck} 先问冻结模型是否知道这个内容；\texttt{explicit} 只写带标记的内容。
 
 \subsection{遗忘与持久化}
-容量 $K$ + [[tPolicies]] 种淘汰策略（FIFO/LRU/LFU/效用/效用+时间衰减），
-外加"重要"标记作为\textbf{硬保护}。持久化用 safetensors 快照 + 元数据严格校验
-（槽数/秩/alpha/模块集合/形状必须一致，否则报错而不是静默加载）。
+容量 $K$ 加上 [[tPolicies]] 种淘汰策略（FIFO、LRU、LFU、效用、效用加时间衰减），
+另有重要标记作为硬保护。持久化用 safetensors 快照加元数据严格校验：
+槽数、秩、alpha、模块集合与形状必须一致，不一致就报错，不做静默加载。
 
 \section{评测协议}
 \label{sec:protocol}
 
-\paragraph{虚构基准。}每个实体与取值都由音节生成，因此任何答案都不可能来自预训练知识；
-否则"答对"无法归因于写入。同理，"已经知道"这一类是**问模型确认**的，而不是假定的：
-[[tKnownConfirmed]] 条真实常识里模型只答对 [[tKnownConfirmed]] 条（它把 $2+2$ 答成 2、
-把一周的天数答成 1、把最大的行星答成 Mars）。
+\paragraph{虚构基准。}每个实体与取值都由音节生成，因此答案不可能来自预训练知识；
+否则答对无法归因于写入。同理，已经知道这一类要先问过模型：
+[[tKnownConfirmed]] 条真实常识里，模型把 $2+2$ 答成 2，把一周的天数答成 1，
+把最大的行星答成 Mars，最后只有 [[tKnownConfirmed]] 条可用。
 
-\paragraph{五段隔离检查（P1–P5）。}P1 驱逐：答案不得出现在读时上下文里（精确/规范化/数值三种匹配），
-否则该条不计入。P2 反事实：取值按种子随机化。P3 负对照：从未写过的实体不得变好。
-P4 消融：上下文逐字节相同，只改活跃槽集合。P5 仅提示词：剥掉提示词格式带来的收益。
-只有在配对差异的 bootstrap 置信区间不含零时才报告主张。
+\paragraph{五段隔离检查（P1 到 P5）。}P1 驱逐：答案不得出现在读时上下文里
+（精确、规范化、数值三种匹配），否则该条不计入。P2 反事实：取值按种子随机化。
+P3 负对照：从未写过的实体不得变好。P4 消融：上下文逐字节相同，只改活跃槽集合。
+P5 仅提示词：剥掉提示词格式带来的收益。只有在配对差异的 bootstrap 置信区间不含零时，
+我们才报告主张。
 
-\paragraph{改写探针。}读取用**不同措辞**的问法，而记忆是按原始措辞写的。
-若沿用同一个字符串，路由准确率会到 100\%，那测的是字符串匹配而不是记忆。
+\paragraph{改写探针。}读取用不同措辞的问法，记忆仍按原始措辞写入。
+若沿用同一个字符串，路由准确率会到 100\%，那测到的只是字符串匹配。
 
-\paragraph{地板筛选。}惯性实验先测"没有任何前提"的条件，把模型本来就能答对的场景剔除；
+\paragraph{地板筛选。}惯性实验先测没有任何前提的条件，把模型本来就能答对的场景剔除。
 [[tScreenKept]] 个场景存活，被剔除的 [[tScreenDropped]] 个都是路边情形。
 
-\paragraph{真实内容，以及怎么判分。}公开基准诊断用 LongMemEval 的 oracle 划分：
-每条记忆**就是基准自带的 (问题, 答案) 对**，证据轮由基准自己的 \texttt{has\_answer} 标记定位
-（即**检索被 oracle 化**）。对照组拿到**同样的信息**、由**同一个查询键路由器**选出来放进上下文，
-所以唯一的变量是**介质**。判分是语义的而不是词面的：词面包含判据奖励"逐字复现参考答案"，
-而那正是训练过的写入**擅长**的事，因此它无法比较"改写作答"的臂。所以真实内容结果由
-**托管的 LLM 判官**打分（**一次只判一个候选**），并与 **[[tJudgeCalibMarks]] 条人工标注**校准；
-标注样本是**匿名且打乱**的，判官的结论在人工标完之后才展示。我们同时报告校准规模与
-"判官提示词改过一次"这两件事，因为它们限定了这个一致率值多少。另外两点：同一批题上的比较
-一律用**配对检验**（精确符号检验），而不是看区间是否重叠；**生成预算被当作处理的一部分**——
-所有臂用同一个上限，且该上限要能让最长的参考答案写得下。
+\paragraph{真实内容，以及怎么判分。}公开基准诊断用 LongMemEval 的 oracle 划分。
+每条记忆就是基准自带的问题与答案对，证据轮由基准自己的 \texttt{has\_answer} 标记定位，
+检索因此被 oracle 化。对照组拿到同样的信息，由同一个查询键路由器选出来放进上下文，
+唯一的变量是介质。判分走语义。词面包含判据奖励逐字复现参考答案，
+而这正是训练过的写入擅长的事，它无法比较改写作答的臂。所以真实内容结果由一个托管的
+LLM 判官打分，一次只判一个候选，并与 [[tJudgeCalibMarks]] 条人工标注校准。
+标注样本匿名且打乱，判官的结论在人工标完之后才展示。我们同时报告校准规模与
+判官提示词改过一次这两件事，因为它们限定了这个一致率值多少。另有两点：
+同一批题上的比较一律用配对检验，也就是精确符号检验；生成预算被当作处理的一部分，
+所有臂用同一个上限，且这个上限要能让最长的参考答案写得下。
 
 \section{结果}
 \label{sec:results}
 
-\subsection{写进去了，而且只动了该动的槽（T1）}
-写入隔离断言处处通过，被擦除的条件与"仅提示词"**逐字符相同**（[[tEraseIdentical]]），
-写完的目标交叉熵为 [[tTargetCE]]。表里那个很低的 \texttt{mem\_on} 行是\textbf{求和式}读取，
-它是 §\ref{sec:results} 要处理的那个失败，而不是关于"写不进"的证据。
+\subsection{写入只落到该落的槽（T1）}
+写入隔离断言处处通过，被擦除的条件与仅提示词的条件逐字符相同（[[tEraseIdentical]]），
+写完的目标交叉熵是 [[tTargetCE]]。表里那个很低的 \texttt{mem\_on} 行是求和式读取的结果，
+它属于 §\ref{sec:results} 要处理的问题，不能当作写入失败的证据。
 
 \subsection{读时组合压倒一切（T2）}
 \begin{table}[h]\centering\small
@@ -243,46 +255,46 @@ P4 消融：上下文逐字节相同，只改活跃槽集合。P5 仅提示词�
 \texttt{all}（全部相加） & [[tSum]] & [[tScaleTwoSum]] \\
 路由准确率 & [[tRouterAcc]] & [[tScaleTwoRouter]] \\ \bottomrule
 \end{tabular}
-\caption{改写问法下的读时组合（40 个探针）。}
+\caption{改写问法下的读时组合，每种设置 40 个探针。}
 \end{table}
 
-写入同样的记忆、只改"哪些槽参与"，**全加是 [[tSum]]**，只选一个槽是 [[tTopOne]]（oracle [[tOracle]]），
-选两个已经掉到 [[tTopTwo]]。而且算术**精确闭合**：oracle 减 top-1 恰好等于路由错误，
-说明**选择规则自身不引入任何损失**。实用结论比"越稀疏越好"更强：这种记忆的读取路径应当
-\textbf{只选一个槽}，top-$k$ 的对冲会损失大部分收益。
+写入同样的记忆、只改哪些槽参与：全部相加是 [[tSum]]，只选一个槽是 [[tTopOne]]
+（oracle [[tOracle]]），选两个已经掉到 [[tTopTwo]]。算术在这里精确闭合，
+oracle 减 top-1 恰好等于路由错误，说明选择规则本身不引入损失。实用结论比
+越稀疏越好更强：这种记忆的读取路径应当只选一个槽，top-$k$ 的对冲会损失大部分收益。
 
-\textbf{这个形状在规模上存活。}在 1.7B 上全加仍是 [[tScaleTwoSum]]，只选一个槽是
+这个形状在 1.7B 上同样出现：全部相加仍是 [[tScaleTwoSum]]，只选一个槽是
 [[tScaleTwoTopOne]]（oracle [[tScaleTwoOracle]]），选两个是 [[tScaleTwoTopTwo]]，
-而且同样的算术**精确闭合**（oracle 减 top-1 = 路由错误，$1 - [[tScaleTwoRouter]]$）。
-随规模改变的是\textbf{损失在哪里}：路由器在 1.7B 上明显更差（0.6B 是 [[tRouterAcc]]，
-1.7B 是 [[tScaleTwoRouter]]），于是与 oracle 的差距变成**检索问题**而不是干扰问题。
-这指向**路由器**——而不是槽位机制——是下一步该改进的部件。
+同样的算术依然闭合，oracle 减 top-1 等于 $1 - [[tScaleTwoRouter]]$。
+随规模改变的是损失出现的位置。路由器在 1.7B 上明显更差，0.6B 是 [[tRouterAcc]]，
+1.7B 是 [[tScaleTwoRouter]]，与 oracle 的差距于是主要来自检索。
+下一步该改进的部件是路由器。
 
 \subsection{该写什么（T3）}
-把 $5$ 条虚构事实与 $[[tKnownConfirmed]]$ 条已验证常识混成一条流。
-全写要 [[tAlwaysWrites]] 次梯度写入，其中 [[tAlwaysWasted]] 次花在模型**本来就会**的事实上，
-基座漂移 [[tAlwaysKL]] nats。自我核对只用 [[tSelfWrites]] 次写入、浪费 [[tSelfWasted]]、
-漏掉 [[tSelfMissed]] 个目标，漂移 [[tSelfKL]] nats——**同等召回，写入少 [[tSelfWriteReduction]]、
-漂移少 [[tSelfKlReductionMin]]--[[tSelfKlReductionMax]]**（后者是 [[tSelfSeeds]] 个种子的范围；
-写入次数是确定的，漂移不是，所以给范围）。
+把 $5$ 条虚构事实与 [[tKnownConfirmed]] 条已验证常识混成一条流。全写需要
+[[tAlwaysWrites]] 次梯度写入，其中 [[tAlwaysWasted]] 次花在模型本来就会的事实上，
+基座漂移 [[tAlwaysKL]] nats。自我核对只用 [[tSelfWrites]] 次写入，浪费 [[tSelfWasted]]，
+漏掉 [[tSelfMissed]] 个目标，漂移 [[tSelfKL]] nats。召回相同，写入少 [[tSelfWriteReduction]]，
+漂移少 [[tSelfKlReductionMin]] 到 [[tSelfKlReductionMax]]。后一个范围来自 [[tSelfSeeds]] 个种子，
+因为写入次数是确定的，漂移随种子变化。似然判据是反面教材，它几乎分不开两类
+（见 §\ref{sec:neg}），因为固定措辞量到的是模型会不会用这个说法，与它是否知道这件事无关。
 
-似然判据是反面教材：它几乎分不开两类（见 §\ref{sec:neg}），因为固定措辞量的是
-"模型会不会用**这个说法**"，而不是"它知不知道这件事"。
-
-\subsection{忘得准（T4）}
+\subsection{遗忘是精确的（T4）}
 [[tStreamItems]] 条记忆流进 [[tCapacitySlots]] 个槽，前 $3$ 个被反复访问。
-每次驱逐都把槽还原为初始态：[[tErasedTotal]] 个槽被验证与"从未写过"逐位相同（每种策略 [[tErased]]）。
-被标记为重要的槽扛过了每一次溢出。FIFO 只留下 [[tFifoHot]] 个"正在被使用"的记忆——
-它专挑你在用的丢、留着你没碰过的——其余四种策略都留下 [[tSmartHot]]：
-策略确实重要，但"聪明"的几种打平，这独立复现了文献里"淘汰启发式很容易被高估"的结论。
+每次驱逐都把槽还原为初始态：[[tErasedTotal]] 个槽被验证与从未写过逐位相同，
+每种策略各 [[tErased]] 个。被标记为重要的槽扛过了每一次溢出。FIFO 只留下
+[[tFifoHot]] 个正在被使用的记忆，它专挑你在用的丢、留着你没碰过的；
+其余四种策略都留下 [[tSmartHot]]。策略确实重要，但几种聪明策略打平，
+这独立复现了文献里淘汰启发式容易被高估的结论。
 
 \subsection{跨进程（T6）}
-新进程里加载前 \texttt{virgin}=\texttt{[[tVirgin]]}、重启后召回 [[tSixOracle]]、
-路由召回 [[tRouted]]（与路由准确率 [[tSixRouting]] 相同，因此差的那一题是路由错而不是记忆错）、
-加载后擦除仍逐位精确（\texttt{[[tSixEraseVirgin]]}）；[[tSnapshotSlots]] 个槽的快照 [[tSnapshotMB]]\,MB。
+新进程里，加载前 \texttt{virgin} 为 \texttt{[[tVirgin]]}；重启后召回 [[tSixOracle]]，
+路由召回 [[tRouted]]，与路由准确率 [[tSixRouting]] 相同，所以差的那一题属于路由错误；
+加载后擦除仍逐位精确（\texttt{[[tSixEraseVirgin]]}）。[[tSnapshotSlots]] 个槽的快照占
+[[tSnapshotMB]]\,MB。
 
 \subsection{真实内容：为什么不把记忆放进上下文（T7）}
-30 道 LongMemEval single-session 题，**历史完全不在场**，同一批题、同一个路由器、语义判官打分：
+30 道 LongMemEval single-session 题，历史完全不在场，同一批题、同一个路由器、语义判官打分：
 
 \begin{table}[h]\centering\small
 \begin{tabular}{lccc}\toprule
@@ -293,120 +305,124 @@ P4 消融：上下文逐字节相同，只改活跃槽集合。P5 仅提示词�
 oracle 单条 & [[tJudgeContextTarget]] & [[tScaleContextTarget]] & [[tTokContextTarget]] \\
 冻结（地板） & [[tJudgeFrozen]] & [[tScaleFrozen]] & 60 \\ \bottomrule
 \end{tabular}
-\caption{真实内容上的公平对比（判官已与人工标注校准 [[tJudgeCalibMarks]]）。}
+\caption{真实内容上的对比，判官已与人工标注校准 [[tJudgeCalibMarks]]。}
 \end{table}
 
-参数臂在**逐题配对**中赢了 [[tJudgeWins]] 题、输了 [[tJudgeLosses]] 题，即\textbf{一题都没输}，
-而且**额外 prompt token 为 [[tTokWeights]]**。留出集复制（另 30 题）得到 [[tHoldoutOn]]
-（[[tHoldoutVerdict]]，预注册带 $\pm 0.15$）。
+参数臂在逐题配对中赢了 [[tJudgeWins]] 题、输了 [[tJudgeLosses]] 题，一题都没输，
+额外 prompt token 为 [[tTokWeights]]。留出集复制（另 30 题）得到 [[tHoldoutOn]]，
+落在预注册带内（[[tHoldoutVerdict]]，带宽 $0.15$）。
 
-\textbf{两条测量教训是我们自己该报告的，它们让表面差距比第一眼看上去更小。}
-第一，词面包含判据是有偏的：它奖励逐字复现，而那正是训练过的写入擅长的事，
-它会给同样内容的正确改写**判 0**。第二，我们**自己**在这一对比上的第一版读数是
-"两种介质不可分辨"（当时参数臂的包含率 [[tLongMemOnArchived]]）——那是我们**生成预算只有 32 token**
-把它截断造成的，判官于是合理地判它"不完整"。把所有臂的预算一起提到能写下最长参考答案之后，
+有两条测量教训是我们自己该报告的，它们让表面差距看起来比实际更大。第一，
+词面包含判据有偏，它奖励逐字复现，会给同样内容的正确改写判 0。
+第二，我们在这个对比上的第一版读数是两种介质分辨不出高下，
+当时参数臂的包含率是 [[tLongMemOnArchived]]。原因是我们自己的生成预算只有 32 token，
+把答案截断了，判官于是合理地判它不完整。把所有臂的预算一起提到能写下最长参考答案之后，
 参数臂变成 [[tLongMemOn]]。
 
-\textbf{规模对照。}同样在 1.7B 上重跑：参数臂 [[tScaleWeights]]，上下文递送
-[[tScaleContextTarget]]--[[tScaleContextAll]]，成本列不变（[[tTokWeights]] 对最多 [[tScaleTokens]] 个 token），
-参数臂仍然**一题不输**。但\textbf{领先幅度随规模收窄}——更大的模型**更会用上下文**
-（[[tScaleFrozen]] 的题它能凭先验答对，0.6B 只有 [[tLongMemFrozen]]）。
-所以：**成本优势与规模无关，质量优势与规模有关**——两点曲线，就这样写。
+在 1.7B 上重跑，参数臂是 [[tScaleWeights]]，上下文递送是 [[tScaleContextTarget]]
+到 [[tScaleContextAll]]，成本列不变（[[tTokWeights]] 对最多 [[tScaleTokens]] 个 token），
+参数臂仍然一题不输。领先幅度随规模收窄，因为更大的模型更会用上下文：
+[[tScaleFrozen]] 的题它能凭先验答对，0.6B 只有 [[tLongMemFrozen]]。
+成本优势与规模无关，质量优势与规模有关。这是一条两点曲线，我们按它本来的样子写。
 
 \section{负结果}
 \label{sec:neg}
 
-\subsection{参数化记忆并不能减轻上下文惯性（被否证，T5）}
-把同一条前提分别放进上下文与权重，然后切换话题：两种做法把前提带进下一话题的程度
-\textbf{完全相同}（[[tContext]] 对 [[tParam]]），干净场景上的残留也一样
-（[[tContextResidue]] 对 [[tParamResidue]]）。地板（哪里都没有前提）是 [[tFloor]]，
-控制臂（写了再擦）精确塌回地板。也就是说：惯性的来源是模型在条件化记忆的\textbf{内容}，
-而不是那些内容占着上下文 token。
+\subsection{参数化记忆没有减轻上下文惯性（T5）}
+把同一条前提分别放进上下文与权重，然后切换话题。两种做法把前提带进下一话题的程度
+相同（[[tContext]] 对 [[tParam]]），干净场景上的残留也相同（[[tContextResidue]] 对
+[[tParamResidue]]）。地板条件是 [[tFloor]]，也就是哪里都没有前提；控制臂写了再擦，
+精确塌回地板。惯性的来源是模型在条件化记忆的内容，与那些内容是否占着上下文 token 无关。
 
-附带一个值得记录的观察：**有记忆会让模型更自信**——"我不知道"的比例在无记忆时是
-[[tWithholdFloor]]，有记忆时降到 [[tWithholdMemory]]——它不只是被更好地告知，而是更敢说。
+附带一个值得记下的观察：有记忆会让模型更自信。我不知道的比例在无记忆时是
+[[tWithholdFloor]]，有记忆时降到 [[tWithholdMemory]]。它不只是被更好地告知，
+也更敢直接作答。
 
-\subsection{似然判据量的是措辞（T3-b）}
-它对模型**完全答得出**的内容判为"高惊讶度"。逐 token 诊断给出原因：模型从不用裸值作答
-（它答 "France's capital is Paris."），强制续写 \texttt{" Paris"} 要 [[tForcedParisKL]] nats，
-而模型自己那句话只要 [[tVerboseParisKL]] nats。两类内容的分布因此几乎重合
+\subsection{似然判据量到的是措辞（T3-b）}
+这个判据对模型完全答得出的内容判出高惊讶度。逐 token 诊断给出原因：模型从不用裸值作答，
+它答 “France's capital is Paris.”，强制续写 \texttt{" Paris"} 要 [[tForcedParisKL]] nats，
+模型自己那句话只要 [[tVerboseParisKL]] nats。两类内容的分布因此几乎重合
 （中位数 [[tSurpriseMedianUnknown]] 对 [[tSurpriseMedianKnown]]），实测也差：
-漏写 [[tSurpriseMissed]]、误写 [[tSurpriseWasted]]。**推广的教训：只有当探针允许模型用自己的措辞时，
-"惊讶度"才是"未知"的代理量。**
+漏写 [[tSurpriseMissed]]、误写 [[tSurpriseWasted]]。推广的教训是：只有当探针允许模型
+用自己的措辞时，惊讶度才是未知的代理量。
 
 \subsection{B1 保留项：假设未复现（T8）}
-两槽读取的失败**不是检索**（正确槽位落在前两名之内的比例是 [[tRetentionRouteTwo]]），
-而是\textbf{写入}制造的干扰。我们因此在写入目标里加入保留项（§\ref{sec:method}，$\lambda_{\mathrm{ret}}$ = [[tRetentionBest]]）：
+两槽读取的失败与检索无关，正确槽位落在前两名之内的比例是 [[tRetentionRouteTwo]]，
+问题出在写入制造的干扰。我们在写入目标里加入保留项（§\ref{sec:method}，
+$\lambda_{\mathrm{ret}}$ 取 [[tRetentionBest]]）：
 
 \begin{table}[h]\centering\small
 \begin{tabular}{lccc}\toprule
 & 基线 & 加保留项 & 逐探针配对 \\ \midrule
-两槽召回 & [[tRetentionTopTwoBase]] & [[tRetentionTopTwoBest]] & \textbf{[[tRetentionHelped]] 帮助 / [[tRetentionHurt]] 损害，$p$=[[tRetentionP]]} \\
-全部槽一起激活 & [[tRetentionAllBase]] & [[tRetentionAllBest]] & [[tRetentionAllHelped]] / [[tRetentionAllHurt]]，$p$=[[tRetentionAllP]] \\
+两槽召回 & [[tRetentionTopTwoBase]] & [[tRetentionTopTwoBest]] & \textbf{[[tRetentionHelped]] 帮助 / [[tRetentionHurt]] 损害，$p$ 为 [[tRetentionP]]} \\
+全部槽一起激活 & [[tRetentionAllBase]] & [[tRetentionAllBest]] & [[tRetentionAllHelped]] / [[tRetentionAllHurt]]，$p$ 为 [[tRetentionAllP]] \\
 自身槽位召回 & [[tRetentionOwnBase]] & [[tRetentionOwnBest]] & --- \\
 基座损伤（nats） & [[tRetentionKlBase]] & [[tRetentionKlBest]] & --- \\ \bottomrule
 \end{tabular}
-\caption{B1 保留项在 [[tRetentionProbes]] 个探针上的结果（每条记忆，[[tRetentionItems]] 条）。}
+\caption{B1 保留项在 [[tRetentionProbes]] 个探针上的结果，每条记忆，共 [[tRetentionItems]] 条。}
 \end{table}
 
-\textbf{它没有修复两槽召回，我们报告这一点而不是那个说它修好了的小样本。}
-在 [[tRetentionProbes]] 个探针上配对结果是 [[tRetentionHelped]] 帮助对 [[tRetentionHurt]] 损害
-（精确符号检验 $p$ = [[tRetentionP]]），两槽召回只从 [[tRetentionTopTwoBase]] 动到
-[[tRetentionTopTwoBest]]——与噪声无异。更早一次 [[tRetentionSmallProbes]] 探针的运行**看起来**像修复
-（[[tRetentionSmallHelped]] 对 [[tRetentionSmallHurt]]，$p$ = [[tRetentionSmallP]]），
-把样本翻四倍后没有复现，所以我们两次都报。
+它没有修复两槽召回。在 [[tRetentionProbes]] 个探针上，配对结果是
+[[tRetentionHelped]] 帮助对 [[tRetentionHurt]] 损害，精确符号检验的 $p$ 为 [[tRetentionP]]，
+两槽召回从 [[tRetentionTopTwoBase]] 动到 [[tRetentionTopTwoBest]]，与噪声没有区别。
+更早一次 [[tRetentionSmallProbes]] 探针的运行看起来像修复（[[tRetentionSmallHelped]] 对
+[[tRetentionSmallHurt]]，$p$ 为 [[tRetentionSmallP]]），把样本翻四倍后没有复现，
+所以两次都留在这里。
 
-\textbf{站得住的是两件事，而且每一次运行都成立}：基座损伤降约五分之四
-（[[tRetentionKlBase]] $\rightarrow$ [[tRetentionKlBest]] nats）；以及保留项**真正被评估的那个条件**
-单向改善——全开档从 [[tRetentionAllBase]] 到 [[tRetentionAllBest]]，
-[[tRetentionAllHelped]] 帮助对 [[tRetentionAllHurt]] 损害（$p$ = [[tRetentionAllP]]）——
-幅度小，但不是噪声。诚实的总结是：**教写入保护它的前辈，买到了基座损伤的大幅下降与多槽条件下的
-小幅改善，而我们假设的两槽修复没有证据。**
+站得住的是两件事，而且每一次运行都成立。基座损伤降了约五分之四，
+从 [[tRetentionKlBase]] 到 [[tRetentionKlBest]] nats。保留项真正被评估的那个条件
+单向改善：全开档从 [[tRetentionAllBase]] 到 [[tRetentionAllBest]]，
+[[tRetentionAllHelped]] 帮助对 [[tRetentionAllHurt]] 损害，$p$ 为 [[tRetentionAllP]]。
+幅度小，但它在符号检验下是可靠的。总结起来，教写入保护它的前辈，买到了基座损伤的大幅下降
+与多槽条件下的小幅改善；我们假设的两槽修复没有证据。
 
 \section{限制}
 \label{sec:limits}
 \begin{itemize}\setlength\itemsep{2pt}
-\item \textbf{规模。}四条头条结论里有两条在 1.7B 上重跑并存活（组合结论与真实内容诊断）；
-\textbf{没有}存活的是路由器，它的准确率从 [[tRouterAcc]] 掉到 [[tScaleTwoRouter]]——
-这是"瓶颈从干扰挪到检索"，不是瓶颈消失。惯性否证与遗忘实验仍只有 0.6B，3B 及以上在本机未测。
-\item \textbf{基座要付代价。}写入会移动冻结主干：流进 [[tStreamItems]] 条记忆后，通用问题
-不再被逐字答对，全位置 KL 约 $1$ nat。参数化记忆不是免费的，且代价随写入次数增长。
+\item \textbf{规模。}四条头条结论里有两条在 1.7B 上重跑并存活，也就是组合结论与真实内容诊断。
+没有存活的是路由器，它的准确率从 [[tRouterAcc]] 掉到 [[tScaleTwoRouter]]，
+瓶颈因此从干扰挪到了检索，而没有消失。惯性否证与遗忘实验仍然只有 0.6B，
+3B 及以上受本机 8 GB 显存限制未测。
+\item \textbf{基座要付代价。}写入会移动冻结主干。流进 [[tStreamItems]] 条记忆后，
+通用问题不再被逐字答对，全位置 KL 约 $1$ nat。参数化记忆是有代价的，
+而且代价随写入次数增长。
 \item \textbf{B1 那条头条效应没有复现。}[[tRetentionSmallProbes]] 探针时它像两槽修复
-（$p$ = [[tRetentionSmallP]]），[[tRetentionProbes]] 探针时配对是 [[tRetentionHelped]] 对
-[[tRetentionHurt]]（$p$ = [[tRetentionP]]），也就是什么都没有。我们把两次都留在论文里，
-因为"效应随样本缩小"本身就是结论。
-\item \textbf{公开基准是范围受限的诊断，不是可比成绩。}记忆条**就是**基准自带的
-$(q,a)$；证据轮由基准自己的标记定位（检索 oracle 化）；写入查询等于读取查询；
-只取了 single-session 子集；判官校准只有 [[tJudgeCalibMarks]] 且提示词改过一次；
-判官读得到参考答案，因此**残留的"偏向接近逐字"不能排除**。
-\item \textbf{指标粗糙。}基座退化有一部分靠"答案是否逐字相同"判断，它会把
-`$2+2=4$` 相对冻结态的 `2` 算作变化；KL 数字更有信息量。
-\item \textbf{多数合成实验是单种子。}T1–T5 各跑一次；我们没有做完整多种子矩阵，
-而是给**公开基准诊断**做了留出集复制（在 §\ref{sec:results}）。
+（$p$ 为 [[tRetentionSmallP]]），[[tRetentionProbes]] 探针时配对是 [[tRetentionHelped]]
+对 [[tRetentionHurt]]（$p$ 为 [[tRetentionP]]），也就是什么都没有。我们把两次都留在论文里，
+因为效应随样本缩小这件事本身就是结论。
+\item \textbf{公开基准只提供范围受限的诊断。}记忆条就是基准自带的问题与答案对，
+证据轮由基准自己的标记定位，检索被 oracle 化；写入查询等于读取查询；
+只取了 single-session 子集；判官校准只有 [[tJudgeCalibMarks]]，提示词还改过一次；
+判官读得到参考答案，因此残留的偏向接近逐字无法排除。
+\item \textbf{指标粗糙。}基座退化有一部分靠答案是否逐字相同来判断，
+它会把 $2+2=4$ 相对冻结态的 2 算作变化；KL 数字更有信息量。
+\item \textbf{多数合成实验是单种子。}T1 到 T5 各跑一次。我们没有做完整多种子矩阵，
+而是给公开基准诊断做了留出集复制（在 §\ref{sec:results}）。
 \end{itemize}
 
 \section{复现方式}
 \begin{verbatim}
 python -m venv .venv && .venv\Scripts\pip install -e .
 python experiments/run_all.py --collect-only   # 从已有报告重建全部数字
-python experiments/run_all.py --mode quick     # 冒烟（分钟级）
+python experiments/run_all.py --mode quick     # 冒烟，分钟级
 python experiments/run_all.py --mode full      # 从零重跑全部阶段
 python paper/build_tables.py                   # 生成英文版表格与宏
-python paper/build_paper_zh.py                 # 生成本中文审阅稿（随后用 xelatex 编译）
+python paper/build_paper_zh.py                 # 生成本审阅稿，随后用 xelatex 编译
 \end{verbatim}
-每个阶段都是独立进程并写自己的 JSON；失败的阶段在汇总里标 \texttt{FAILED}，其数字渲染为
-\texttt{n/a}，**绝不用 0 冒充**。本文件里每个数字都来自 \texttt{runs/summary.json}。
+每个阶段都是独立进程并写自己的 JSON。失败的阶段在汇总里标 \texttt{FAILED}，
+其数字渲染为 \texttt{n/a}，绝不用 0 冒充。本文件里的每个数字都来自
+\texttt{runs/summary.json}。
 
 \section{结论}
-一条秩块槽位的旁路把三件事做得很好、一件事只做到一半：写入不打扰邻居、读取不花上下文、
-遗忘可以逐位验证（包括跨进程重启）；它\textbf{不能}把模型与上一个话题隔开——
-记忆无论存在哪里都是有粘性的。我们要带走的实用规则是：读时组合默认只选一个槽；
-写入判据应当去问模型而不是卡它的似然；容量应当花在**持久且可精确擦除**的槽上。
-我们追过的那一个例外在相反方向上很有教益：教写入保护记忆库能大幅降低基座损伤、
-略微改善全槽条件，但**并不买回第二个槽**——更小的样本曾暗示它买回了，四倍样本否证了它。
-\textbf{一个随样本量缩小的效应本身就是一个结果；我们宁愿报告被否证的修复，
-也不愿报告那个讨人喜欢的样本。}
+一条秩块槽位的旁路把三件事做得很好，一件事只做到一半。它写入时不打扰邻居，
+读取时不花上下文，遗忘可以逐位验证，跨进程重启也成立。它不能把模型与上一个话题隔开：
+记忆无论存在哪里都有粘性。
 
+我们带走的实用规则有四条。读时组合默认只选一个槽。写入判据应当去问模型；
+给似然设阈值会量到措辞。容量应当花在持久且可精确擦除的槽上。我们追过的那一个例外
+在相反方向上很有教益：教写入保护记忆库能大幅降低基座损伤、略微改善全槽条件，
+但没有买回第二个槽。更小的样本曾暗示它买回了，四倍样本否证了它。
+一个随样本量缩小的效应本身就是一个结果。
 \end{document}
 """
 

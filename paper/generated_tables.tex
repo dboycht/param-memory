@@ -263,45 +263,46 @@ snapshot size & 18.4 MB (8 slots) \\
 measurement & value \\
 \midrule
 questions (single-session subset) & 30 \\
-\textbackslash\{\}texttt\{frozen\} containment & 0.017 \\
-\textbackslash\{\}texttt\{mem\textbackslash\{\}\_on\} containment & 1.000 \\
-\textbackslash\{\}texttt\{mem\textbackslash\{\}\_off\} containment & 0.017 \\
-verbatim containment (mem\textbackslash\{\}\_on) & 1.000 \\
+frozen containment & 0.017 \\
+mem\_on containment & 1.000 \\
+mem\_off containment & 0.017 \\
+verbatim containment (mem\_on) & 1.000 \\
 routing accuracy & 1.000 \\
-mem\textbackslash\{\}\_off bit-identical to frozen & 1.000 \\
-negative control (frozen $\textbackslash\{\}rightarrow$ mem\textbackslash\{\}\_on) & 0.100 $\textbackslash\{\}rightarrow$ 0.000 \\
+mem\_off bit-identical to frozen & 1.000 \\
+negative control: mem\_on after writing to frozen & 0.100 to 0.000 \\
 write cost & 30 items / 8.2 min \\
-\textbackslash\{\}emph\{held-out replication\}, mem\textbackslash\{\}\_on & 0.917 \\
-\textbackslash\{\}emph\{held-out replication\}, mem\textbackslash\{\}\_off & 0.067 \\
-pre-registered verdict (docs/06 \textbackslash\{\}S9) & within the pre-registered band \\
-\textbackslash\{\}midrule &  \\
-\textbackslash\{\}emph\{LLM judge\}, weights & 1.000 \\
-\textbackslash\{\}quad \textbackslash\{\}texttt\{context\textbackslash\{\}\_all\} & 0.967 \\
-\textbackslash\{\}quad \textbackslash\{\}texttt\{rag\textbackslash\{\}\_top1\} & 0.900 \\
-\textbackslash\{\}quad \textbackslash\{\}texttt\{context\textbackslash\{\}\_target\} & 0.867 \\
-\textbackslash\{\}quad paired wins / losses & 8 / 0 \\
-\textbackslash\{\}quad extra prompt tokens (weights) & n/a \\
-\textbackslash\{\}quad extra prompt tokens (context\textbackslash\{\}\_all) & 1688 \\
-\textbackslash\{\}midrule &  \\
-\textbackslash\{\}emph\{scale control\}, 1.7B weights & 1.000 \\
-\textbackslash\{\}quad \textbackslash\{\}texttt\{context\textbackslash\{\}\_all\} & 0.967 \\
-\textbackslash\{\}quad \textbackslash\{\}texttt\{context\textbackslash\{\}\_target\} & 0.967 \\
-\textbackslash\{\}quad \textbackslash\{\}texttt\{frozen\} & 0.100 \\
-\textbackslash\{\}quad containment (weights) & 1.000 \\
+\midrule
+held-out replication, mem\_on & 0.917 \\
+held-out replication, mem\_off & 0.067 \\
+pre-registered verdict (docs/06 section 9) & within the pre-registered band \\
+\midrule
+LLM judge, weights & 1.000 \\
+LLM judge, context\_all & 0.967 \\
+LLM judge, rag\_top1 & 0.900 \\
+LLM judge, context\_target & 0.867 \\
+LLM judge, paired wins / losses & 8 / 0 \\
+extra prompt tokens, weights & 0 \\
+extra prompt tokens, context\_all & 1688 \\
+\midrule
+scale control 1.7B, weights & 1.000 \\
+scale control 1.7B, context\_all & 0.967 \\
+scale control 1.7B, context\_target & 0.967 \\
+scale control 1.7B, frozen & 0.100 \\
+scale control 1.7B, containment (mem\_on) & 1.000 \\
 \bottomrule
 \end{tabular}
 \end{table}
 
 \begin{table}[t]
 \centering
-\caption{T8-a: the write objective also protects earlier memories (B1). $\lambda_{\mathrm{ret}} = 0$ reproduces the T2 composition result. `top2` is recall with the two best-routed slots active; base KL is the damage the bank does to generic prompts while in use.}
+\caption{T8-a: the write objective also protects earlier memories (B1). $\lambda_{\mathrm{ret}} = 0$ reproduces the T2 composition result. \texttt{top2} is recall with the two best-routed slots active; base KL is the damage the bank does to generic prompts while in use.}
 \label{tab:t8}
 \begin{tabular}{lccc}
 \toprule
-$\textbackslash\{\}lambda\_\{\textbackslash\{\}mathrm\{ret\}\}$ & \textbackslash\{\}texttt\{top2\} & \textbackslash\{\}texttt\{oracle\} & base KL \\
+lambda\_ret & top2 & oracle & base KL \\
 \midrule
-$\textbackslash\{\}lambda\_\{\textbackslash\{\}mathrm\{ret\}\} = 0.0$ & 0.375 & 0.953 & 1.518 \\
-$\textbackslash\{\}lambda\_\{\textbackslash\{\}mathrm\{ret\}\} = 3.0$ & 0.391 & 0.984 & 0.317 \\
+0.0 & \texttt{0.375} & \texttt{0.953} & 1.518 \\
+3.0 & \texttt{0.391} & \texttt{0.984} & 0.317 \\
 \bottomrule
 \end{tabular}
 \end{table}

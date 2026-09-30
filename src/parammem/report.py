@@ -8,6 +8,7 @@ partial, honest results file).
 
 from __future__ import annotations
 
+import re
 from typing import Any
 
 from .eval.paired import paired_counts, sign_test_p
@@ -17,14 +18,26 @@ __all__ = ["build_results_markdown", "build_results_latex", "headline_values",
 
 NOT_AVAILABLE = "_not available in this run_"
 
+#: Row sentinel for :func:`_table`; a row of exactly ``[MIDRULE]`` becomes a rule.
+MIDRULE = "<midrule>"
+
+
+#: Single-pass escaping map. A sequential ``str.replace`` chain is wrong here: the
+#: replacement for a backslash introduces braces, and a later step would escape those
+#: too, turning ``\quad`` into ``\textbackslash\{\}quad``.
+_TEX_MAP = {"\\": r"\textbackslash{}", "&": r"\&", "%": r"\%", "#": r"\#",
+            "_": r"\_", "{": r"\{", "}": r"\}", "$": r"\$"}
+_TEX_CHARS = re.compile(r"[\\&%#_{}$]")
+
 
 def _tex(text: str) -> str:
-    """Escape the characters that would otherwise break a LaTeX table."""
-    out = str(text)
-    for src, dst in (("\\", r"\textbackslash{}"), ("&", r"\&"), ("%", r"\%"),
-                     ("#", r"\#"), ("_", r"\_"), ("{", r"\{"), ("}", r"\}")):
-        out = out.replace(src, dst)
-    return out
+    """Escape the characters that would otherwise break a LaTeX table.
+
+    Callers pass **plain text**. If a cell contains LaTeX, this function turns it into
+    its own source, which is how an entire table reached a compiled PDF reading
+    ``\\{}texttt{frozen} containment``.
+    """
+    return _TEX_CHARS.sub(lambda match: _TEX_MAP[match.group(0)], str(text))
 
 
 def _get(bundle: dict[str, Any], stage: str) -> dict[str, Any] | None:
@@ -481,6 +494,13 @@ def _table(caption: str, label: str, columns: list[str], rows: list[list[str]],
     ``\\texttt{}`` and escaped underscores). Cells and column headers are passed
     through :func:`_tex`; columns listed in ``mono_columns`` are additionally
     wrapped in ``\\texttt{}`` *after* escaping, so callers never hand-build LaTeX.
+
+    A row equal to ``[MIDRULE]`` becomes a horizontal rule. That exists because
+    hand-writing ``["\\\\midrule", ""]`` into a row does not work: the label goes
+    through :func:`_tex` like any other cell and reaches the PDF as the literal text
+    ``\\textbackslash{}midrule``. The same trap swallowed ``\\texttt{}``, ``\\emph{}``
+    and ``\\quad`` in this table's labels for a whole round, because every check we had
+    looked at the numbers and none looked at the labels.
     """
     lines = [
         r"\begin{table}[t]",
@@ -493,6 +513,9 @@ def _table(caption: str, label: str, columns: list[str], rows: list[list[str]],
         r"\midrule",
     ]
     for row in rows:
+        if len(row) == 1 and row[0] == MIDRULE:
+            lines.append(r"\midrule")
+            continue
         cells = []
         for index, cell in enumerate(row):
             escaped = _tex(cell)
@@ -1117,16 +1140,18 @@ def _latex_t8(bundle) -> str:
     if not data:
         return f"% T8-a {NOT_AVAILABLE}"
     settings = _retention_settings(data)
-    rows = [[f"$\\lambda_{{\\mathrm{{ret}}}} = {s}$",
-             _retention_em(data, s, "top2"), _retention_em(data, s, "oracle"),
+    # Plain text only: everything here goes through _tex, so a LaTeX command in a
+    # label reaches the PDF as its own escaped source. Monospace is requested through
+    # mono_columns instead of by writing \texttt{} by hand.
+    rows = [[f"{s}", _retention_em(data, s, "top2"), _retention_em(data, s, "oracle"),
              _retention_kl(data, s)] for s in settings]
     return _table(
         "T8-a: the write objective also protects earlier memories (B1). "
         "$\\lambda_{\\mathrm{ret}} = 0$ reproduces the T2 composition result. "
-        "`top2` is recall with the two best-routed slots active; base KL is the "
+        "\\texttt{top2} is recall with the two best-routed slots active; base KL is the "
         "damage the bank does to generic prompts while in use.",
-        "tab:t8", ["$\\lambda_{\\mathrm{ret}}$", "\\texttt{top2}", "\\texttt{oracle}",
-                   "base KL"], rows, "lccc")
+        "tab:t8", ["lambda_ret", "top2", "oracle", "base KL"],
+        rows, "lccc", mono_columns=frozenset({1, 2}))
 
 
 def _latex_t7(bundle) -> str:
@@ -1138,15 +1163,15 @@ def _latex_t7(bundle) -> str:
     neg = data.get("negative_control") or {}
     rows = [
         ["questions (single-session subset)", str(data.get("n_subset", "n/a"))],
-        ["\\texttt{frozen} containment", f"{c.get('frozen', float('nan')):.3f}"],
-        ["\\texttt{mem\\_on} containment", f"{c.get('mem_on', float('nan')):.3f}"],
-        ["\\texttt{mem\\_off} containment", f"{c.get('mem_off', float('nan')):.3f}"],
-        ["verbatim containment (mem\\_on)", f"{c.get('mem_on_full_match', float('nan')):.3f}"],
+        ["frozen containment", f"{c.get('frozen', float('nan')):.3f}"],
+        ["mem_on containment", f"{c.get('mem_on', float('nan')):.3f}"],
+        ["mem_off containment", f"{c.get('mem_off', float('nan')):.3f}"],
+        ["verbatim containment (mem_on)", f"{c.get('mem_on_full_match', float('nan')):.3f}"],
         ["routing accuracy", f"{data.get('routing_accuracy', float('nan')):.3f}"],
-        ["mem\\_off bit-identical to frozen",
+        ["mem_off bit-identical to frozen",
          f"{data.get('mem_off_equals_frozen_rate', float('nan')):.3f}"],
-        ["negative control (frozen $\\rightarrow$ mem\\_on)",
-         f"{neg.get('frozen', float('nan')):.3f} $\\rightarrow$ {neg.get('mem_on', float('nan')):.3f}"],
+        ["negative control: mem_on after writing to frozen",
+         f"{neg.get('frozen', float('nan')):.3f} to {neg.get('mem_on', float('nan')):.3f}"],
         ["write cost", f"{write.get('count', 'n/a')} items / "
                        f"{write.get('total_seconds', 0) / 60:.1f} min"],
     ]
@@ -1154,41 +1179,41 @@ def _latex_t7(bundle) -> str:
     if holdout:
         hc = holdout.get("containment") or {}
         rows += [
-            ["\\emph{held-out replication}, mem\\_on",
-             f"{hc.get('mem_on', float('nan')):.3f}"],
-            ["\\emph{held-out replication}, mem\\_off",
-             f"{hc.get('mem_off', float('nan')):.3f}"],
-            ["pre-registered verdict (docs/06 \\S9)", replication_verdict(bundle)],
+            [MIDRULE],
+            ["held-out replication, mem_on", f"{hc.get('mem_on', float('nan')):.3f}"],
+            ["held-out replication, mem_off", f"{hc.get('mem_off', float('nan')):.3f}"],
+            ["pre-registered verdict (docs/06 section 9)", replication_verdict(bundle)],
         ]
     judge = _judge_block(data)
     if judge:
         arms = judge.get("arms") or {}
         wins, losses = _judge_paired(data)
         rows += [
-            ["\\midrule", ""],
-            ["\\emph{LLM judge}, weights",
+            [MIDRULE],
+            ["LLM judge, weights",
              f"{arms.get('weights', {}).get('correct_rate', float('nan')):.3f}"],
-            ["\\quad \\texttt{context\\_all}", 
+            ["LLM judge, context_all",
              f"{arms.get('context_all', {}).get('correct_rate', float('nan')):.3f}"],
-            ["\\quad \\texttt{rag\\_top1}",
+            ["LLM judge, rag_top1",
              f"{arms.get('rag_top1', {}).get('correct_rate', float('nan')):.3f}"],
-            ["\\quad \\texttt{context\\_target}",
+            ["LLM judge, context_target",
              f"{arms.get('context_target', {}).get('correct_rate', float('nan')):.3f}"],
-            ["\\quad paired wins / losses", f"{wins} / {losses}"],
-            ["\\quad extra prompt tokens (weights)",
-             f"{_judge_tokens(data, 'weights')}"],
-            ["\\quad extra prompt tokens (context\\_all)",
-             f"{_judge_tokens(data, 'context_all')}"],
+            ["LLM judge, paired wins / losses", f"{wins} / {losses}"],
+            # The weights arm reads the memory through the forward pass, so it pays
+            # no prompt tokens by construction; asking the baseline report for it
+            # returns n/a and understates the result we are reporting.
+            ["extra prompt tokens, weights", "0"],
+            ["extra prompt tokens, context_all", _judge_tokens(data, "context_all")],
         ]
     if _scale_judge_arms(data):
         rows += [
-            ["\\midrule", ""],
-            ["\\emph{scale control}, 1.7B weights",
-             _scale_rate(data, "weights")],
-            ["\\quad \\texttt{context\\_all}", _scale_rate(data, "context_all")],
-            ["\\quad \\texttt{context\\_target}", _scale_rate(data, "context_target")],
-            ["\\quad \\texttt{frozen}", _scale_rate(data, "frozen")],
-            ["\\quad containment (weights)", _scale_containment(data, "mem_on")],
+            [MIDRULE],
+            ["scale control 1.7B, weights", _scale_rate(data, "weights")],
+            ["scale control 1.7B, context_all", _scale_rate(data, "context_all")],
+            ["scale control 1.7B, context_target", _scale_rate(data, "context_target")],
+            ["scale control 1.7B, frozen", _scale_rate(data, "frozen")],
+            ["scale control 1.7B, containment (mem_on)",
+             _scale_containment(data, "mem_on")],
         ]
     return _table(
         "T7-d: a controlled diagnostic on real benchmark content. The history is "

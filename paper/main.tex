@@ -28,43 +28,34 @@ Exactly Erasable Slots, Read Without Context}
 \input{generated_tables}
 
 \begin{abstract}
-Long-term memory in today's LLM agents lives in the context window. That channel
-is zero-sum --- every remembered token competes with the tokens needed to reason
---- and remembered content is indistinguishable from the current working set. We
-study the alternative: a capacity-bounded, \emph{exactly erasable} side path of
-low-rank memory slots attached to a frozen backbone, written at runtime by
-gradient steps, read through the forward pass, and forgotten by erasing a rank
-block. On a 0.6B model, with a purely fictional benchmark and a five-part
-eviction-isolation protocol, we find that \textbf{writes land and touch only their
-own slot} (per-slot recall $4/4$; target cross-entropy $\approx 0$ after a write;
-isolation asserted per tensor), that \textbf{erasure is exact} (an erased slot is
-bit-identical to a never-written one --- checked at every eviction, \tErasedTotal{}
-of them across the \tPolicies{} policies, and again after a process restart), and
-that \textbf{read-time composition, not
-capacity, is the bottleneck}: summing the slots destroys recall
-($\sum = \tSum{}$) while selecting one slot by query-key similarity recovers it
-($\mathrm{top\text{-}1} = \tTopOne{}$ against an oracle of $\tOracle{}$, a
-paraphrased query, and the residual gap equals the routing error exactly). A
-label-free self-check criterion matches full-write recall with
-$\tSelfWrites$ instead of $\tAlwaysWrites$ writes ($-\tSelfWriteReduction$) and
-$\tSelfKL$ instead of $\tAlwaysKL$ nats of backbone drift (about four fifths less).
-\textbf{Two claims fail, and we report them rather than the ones that flatter
-the idea.} A likelihood-threshold ``surprise'' criterion measures \emph{wording}
-rather than knowledge --- the model never answers with the bare value, so a fact
-it knows perfectly scores as highly surprising --- and parametric memory
-\textbf{does not} reduce context inertia: storing a premise in the weights drags
-it into the next topic exactly as much as leaving it in the context
-($\tContext$ vs $\tParam$ inheritance). The honest summary is that parametric
-memory buys durability and exact forgetting, not insulation from the previous
-topic.
-A scoped diagnostic on real benchmark content (\tLongMemSubset{} single-session LongMemEval
-questions, history absent) reproduces \tLongMemOn{} of the reference answers at zero
-prompt-token cost, whereas delivering the same information through the context ---
-one retrieved pair, three, or all \tLongMemSubset{} --- answers \tJudgeContextTarget{} to
-\tJudgeContextAll{} of them while paying \tTokContextTarget{} to \tTokContextAll{}
-extra tokens; the erased condition collapses back to the frozen answers bit-for-bit.
-We also report how we nearly got that comparison wrong: an earlier reading of parity
-between the arms was an artefact of our own generation budget.
+Long-term memory in LLM agents lives in the context window, where remembered tokens
+compete with the tokens needed to reason and remembered content is indistinguishable
+from the current working set. We study an alternative: a capacity-bounded side path of
+low-rank memory slots on a frozen backbone, written at runtime by gradient steps, read
+through the forward pass, and forgotten by erasing a rank block.
+
+On a 0.6B model with a fictional benchmark and a five-part isolation protocol, writes
+touch only their own slot (per-slot recall $4/4$; target cross-entropy $\approx 0$),
+and erasure is exact: an erased slot is bit-identical to a never-written one, at all
+\tErasedTotal{} evictions and after a process restart. The binding constraint is
+read-time composition. Summing the slots destroys recall ($\tSum{}$); selecting one
+slot by query-key similarity recovers it ($\tTopOne{}$ against an oracle of
+$\tOracle{}$ on paraphrased queries, with the residual gap equal to the routing
+error). A label-free self-check reaches full-write recall with $\tSelfWrites$ writes
+instead of $\tAlwaysWrites$, and $\tSelfKL$ nats of backbone drift instead of
+$\tAlwaysKL$.
+
+Two hypotheses fail. A likelihood-threshold surprise criterion measures wording rather
+than knowledge, and parametric memory does not reduce context inertia: a premise in
+the weights carries into the next topic as much as one in the context ($\tContext$
+against $\tParam$). What the mechanism buys is durability and exact forgetting.
+
+On \tLongMemSubset{} LongMemEval single-session questions with the history absent, the
+written arm reproduces \tLongMemOn{} of the reference answers at no extra prompt-token
+cost, while context delivery answers \tJudgeContextTarget{} to \tJudgeContextAll{} and
+costs \tTokContextTarget{} to \tTokContextAll{} tokens. Our first run of that
+comparison showed the arms as indistinguishable; the difference came from our own
+generation budget.
 \end{abstract}
 
 \section{Introduction}
@@ -92,9 +83,7 @@ another positive result would have been.
 \paragraph{What we build.} A frozen backbone plus a side path of $K$ memory slots,
 each occupying a contiguous block of a single low-rank adapter's rank dimension
 (Section~\ref{sec:method}). A slot is written by gradient steps restricted to its
-own block, read implicitly through the forward pass --- the memory content is
-never placed in the context --- and forgotten by restoring that block to its
-initial state, which makes forgetting \emph{verifiable} rather than gradual.
+own block, read implicitly through the forward pass, so the memory content never enters the context, and forgotten by restoring that block to its initial state, which makes forgetting \emph{verifiable}.
 
 \paragraph{Contributions.}
 \begin{enumerate}\itemsep2pt
@@ -110,9 +99,7 @@ initial state, which makes forgetting \emph{verifiable} rather than gradual.
 \item A retention term in the write objective, tested against that constraint and
   reported with its non-replication: it cuts backbone damage from \tRetentionKlBase{}
   to \tRetentionKlBest{} nats and improves the all-slots condition from
-  \tRetentionAllBase{} to \tRetentionAllBest{} ($p = \tRetentionAllP{}$), but it does
-  \emph{not} repair two-slot recall --- an earlier smaller run suggested it did and
-  four times the sample refuted it (Table~\ref{tab:t8}).
+  \tRetentionAllBase{} to \tRetentionAllBest{} ($p = \tRetentionAllP{}$), but it does \emph{not} repair two-slot recall: an earlier, smaller run suggested it did, and four times the sample refuted it (Table~\ref{tab:t8}).
 \item A scoped diagnostic on real benchmark content, compared against delivering the
   same information through the context with the \emph{same} router and graded by an
   LLM judge calibrated against human marks: the parametric arm answers every
@@ -127,8 +114,7 @@ initial state, which makes forgetting \emph{verifiable} rather than gradual.
 \item Persistence across processes, in which a side path that is provably virgin
   before loading still recalls what it learned in an earlier process, and remains
   exactly erasable afterwards (Table~\ref{tab:t6}).
-\item Two negative results, both of which constrain the claim rather than
-  decorate it (Section~\ref{sec:negative}).
+\item Two negative results that constrain the claim (Section~\ref{sec:negative}).
 \end{enumerate}
 
 \section{Related work}
@@ -138,8 +124,7 @@ initial state, which makes forgetting \emph{verifiable} rather than gradual.
 precedent: a neural long-term memory updated at test time by surprise, with a
 decay that acts as forgetting. It changes the backbone, whereas we freeze it.
 GradMem~\cite{gradmem} writes contextual information into memory tokens by
-test-time gradient descent and is the closest work to our setting --- but it has
-no forgetting mechanism, which is the axis we measure most carefully.
+test-time gradient descent and is the closest work to our setting, but it has no forgetting mechanism, which is the axis we measure most carefully.
 TTT-style methods~\cite{ttt,ttte2e} compress context into weights and report
 latency wins at long context; \cite{ttte2e} also documents that the naive
 per-token cost of full attention at 128K is $2.7\times$ what its method needs.
@@ -147,8 +132,7 @@ None of these provide per-item erasure.
 
 \paragraph{Slots and adapters.} ProCL~\cite{procl} organizes LoRA adapters into
 structured \emph{program memory} slots retrieved by input-conditioned attention,
-motivated by complementary learning systems --- architecturally the nearest
-neighbour to our slot idea. Its setting is task-incremental fine-tuning with task
+motivated by complementary learning systems. Architecturally it is the nearest neighbour to our slot idea. Its setting is task-incremental fine-tuning with task
 datasets, it does not forget, and its slots are separate adapters rather than rank
 blocks inside one adapter. WISE~\cite{wise} observes an impossibility triangle for
 lifelong editing (reliability, generalization, locality) and uses a main/side
@@ -165,9 +149,7 @@ metric, a warning that we take seriously (Section~\ref{sec:limits}).
 Zep~\cite{memgpt,mem0,amem,memorybank,memoRAG,zep} are the systems practitioners
 actually use. Every one of them stores memory in a context layer or an external
 store and retrieves it back into the prompt; none performs runtime parameter
-updates. That leaves our setting genuinely unoccupied --- and also means there is
-no established baseline protocol to inherit, which is why
-Section~\ref{sec:protocol} defines one.
+updates. That leaves our setting genuinely unoccupied, and it also means there is no established baseline protocol to inherit. Section~\ref{sec:protocol} defines one.
 
 \section{Method}
 \label{sec:method}
@@ -182,7 +164,7 @@ weight is
 W = W_0 + \frac{\alpha}{r} \, B A , \qquad
 \Delta = \frac{\alpha}{r}\sum_{k \in \mathrm{active}} B_k A_k .
 \end{equation}
-Three properties follow, and each is enforced rather than hoped for.
+Three properties follow, and each is enforced by an assertion.
 
 \emph{Writing isolates.} A write activates a gradient mask that zeroes every rank
 block but the target, and builds a \textbf{fresh optimiser} for each write.
@@ -202,8 +184,7 @@ with every slot erased the model's output is \emph{string-identical} to the
 prompt-only condition.
 
 \emph{Reading is ablatable.} Because the read path multiplies $A$ and $B$ by a
-per-slot mask, MEM\_ON / MEM\_OFF / MEM\_SHUFFLE are produced on a byte-identical
-model --- the only difference between arms is which slots contribute.
+per-slot mask, MEM\_ON / MEM\_OFF / MEM\_SHUFFLE are produced on a byte-identical model, so the only difference between arms is which slots contribute.
 
 \subsection{Write objective}
 
@@ -246,9 +227,7 @@ p_{\text{slot}}^{(t)}\right)
 \,\|\, p_{\text{bank}+k}^{(t)}\right),
 \label{eq:retention}
 \end{equation}
-whose reference $p_{\text{bank}}$ is captured from the bank \emph{as it stands before
-the write} --- previously written slots active, new slot zero-initialised and
-therefore contributing nothing --- on the queries of earlier memories, and whose
+whose reference $p_{\text{bank}}$ is captured from the bank \emph{as it stands before the write} (previously written slots active, new slot zero-initialised and therefore contributing nothing) on the queries of earlier memories, and whose
 current term is evaluated with the new slot added, i.e. under the read condition
 where the interference actually appears. Its weight is swept in
 Table~\ref{tab:t8}; $\lambda_{\mathrm{ret}} = 0$ recovers
@@ -260,8 +239,7 @@ Equation~\ref{eq:loss}.
 With every slot active the answers collapse (Table~\ref{tab:t2}), which is
 unsurprising once the slots are seen as additive perturbations of the same
 weights: each was trained to produce a low-entropy answer, and their sum is a
-dominated mixture. The slots are nevertheless perfectly separable --- reading with
-the \emph{wrong} slot yields nothing --- so the read path should select.
+dominated mixture. The slots are nevertheless perfectly separable: reading with the \emph{wrong} slot yields nothing. The read path should therefore select.
 We use the query key, the final hidden state of the query under the frozen
 backbone (captured with the memory switched off, so a key does not drift as
 memories accumulate), and activate the single best-matching slot by cosine
@@ -274,10 +252,7 @@ We compare three criteria, all label-free with respect to ``which item matters''
 (write iff the pre-write loss exceeds a threshold), and a \emph{self-check}
 (ask the frozen model the question; write only if it cannot already answer it).
 An explicit-instruction criterion (``remember this'') is included for contrast.
-Information gain --- the loss difference before and after a tentative write --- is
-the natural fourth criterion and is deliberately \emph{not} implemented: it costs
-a full extra write per candidate, and after
-Table~\ref{tab:t3} that cost has to be earned rather than assumed.
+Information gain, the loss difference before and after a tentative write, is the natural fourth criterion. We deliberately do not implement it: it costs a full extra write per candidate, and after Table~\ref{tab:t3} that cost has to be earned.
 
 \subsection{Forgetting and persistence}
 
@@ -285,8 +260,7 @@ Capacity is the integer $K$. A :class:`MemoryStore` (in the implementation, a
 dataclass) tracks per-slot utility, recency, norms and an importance flag;
 ``important'' slots are excluded from eviction, which is what makes an item a
 \emph{thought stamp} in the intended sense. Utility decays with a logical clock,
-and five eviction policies are implemented --- FIFO, LRU, LFU, utility and
-utility-with-time --- deliberately including the classic baselines, because the
+and five eviction policies are implemented: FIFO, LRU, LFU, utility and utility-with-time. The classic baselines are included deliberately, because the
 one study with hard numbers on eviction reports that no policy beats LFU by more
 than $0.041$ points \cite{semcache}.
 
@@ -334,18 +308,12 @@ benchmark's own $(q,a)$ pair and the evidence turn is located with the benchmark
 \texttt{has\_answer} flags, i.e. retrieval is oracle-indexed by construction. The
 comparison arms receive the \emph{same} information through the context, selected by
 the \emph{same} query-key router, so the medium is the only variable that changes.
-Grading is semantic rather than lexical: the containment measure used on the
-synthetic experiments rewards reproducing the reference string --- which is exactly
-what a trained write is for --- and therefore cannot compare arms that answer by
-paraphrase. So the real-content results are graded by a hosted LLM judge, one
+Grading is semantic. The containment measure used on the synthetic experiments rewards reproducing the reference string, which is exactly what a trained write is for, and it therefore cannot compare arms that answer by paraphrase. So the real-content results are graded by a hosted LLM judge, one
 candidate per call, calibrated against \tJudgeCalibMarks{} human marks collected on
 an anonymised, shuffled sample with the judge's own verdicts hidden until after
 marking. We report the size of that calibration and the fact that the judge prompt
 was revised once, because both bound what the agreement is worth. Two further
-protocol points carry weight: wherever every arm answers the \emph{same} items we
-compare them paired (exact sign test) rather than by overlapping intervals, and the
-generation budget is treated as part of the treatment --- every arm is generated
-with the same limit, set so that the longest reference answer fits, since a budget
+protocol points carry weight: wherever every arm answers the \emph{same} items we compare them paired (exact sign test), not by overlapping intervals, and the generation budget is treated as part of the treatment: every arm is generated with the same limit, set so that the longest reference answer fits, since a budget
 below that measures truncation instead of memory.
 
 \section{Results}
@@ -377,26 +345,21 @@ closes exactly (oracle minus top-1 equals the routing error, $1 -
 \tScaleTwoRouter{}$). What moves with scale is \emph{where} the loss sits: the router
 is markedly weaker at 1.7B ($\tRouterAcc{}$ at 0.6B against $\tScaleTwoRouter{}$), so
 the gap to the oracle becomes a retrieval problem rather than an interference one.
-That points at the router --- not the slot mechanism --- as the component to improve
-next.
+That makes the router the component to improve next.
 
 \paragraph{Testing a repair for the composition failure.} The boundary is not
 retrieval: the correct slot is among the two best-routed ones on
 \tRetentionRouteTwo{} of the probes, yet two-slot recall is only
-\tRetentionTopTwoBase{}. The interference is manufactured by the writes --- each one
-is trained to produce its own value and told nothing about the queries the bank
-already answers --- so we made it explicit. The write objective gains a
+\tRetentionTopTwoBase{}. The interference is manufactured by the writes: each one is trained to produce its own value and told nothing about the queries the bank already answers. We therefore made it explicit. The write objective gains a
 \textbf{retention term} (Equation~\ref{eq:retention}): earlier memories' queries must
 keep their next-token distributions under the read condition where interference
 actually appears (all written slots active), with the reference captured from the
 bank as it stands before the write. It reuses the anchor machinery of
 Section~\ref{sec:results}, pointed at real memories instead of generic prompts.
 
-\textbf{It does not repair two-slot recall, and we report that rather than the run
-that said it did.} Over \tRetentionProbes{} probes the paired comparison is
+\textbf{It does not repair two-slot recall, and we report it alongside the smaller run that said otherwise.} Over \tRetentionProbes{} probes the paired comparison is
 \tRetentionHelped{} probes helped against \tRetentionHurt{} hurt (exact sign test
-$p = \tRetentionP{}$), and the two-slot rate moves only from \tRetentionTopTwoBase{}
-to \tRetentionTopTwoBest{} --- indistinguishable from noise. An earlier, smaller run
+$p = \tRetentionP{}$), and the two-slot rate moves only from \tRetentionTopTwoBase{} to \tRetentionTopTwoBest{}, which is indistinguishable from noise. An earlier, smaller run
 of \tRetentionSmallProbes{} probes had looked like a repair (up to
 \tRetentionSmallBest{}, \tRetentionSmallHelped{} helped against
 \tRetentionSmallHurt{} hurt, $p = \tRetentionSmallP{}$); the effect did not survive
@@ -404,9 +367,7 @@ four times the sample, which is why we report both. Two things \emph{do} hold, a
 they hold in every run we did. Backbone damage falls by about four fifths, from
 \tRetentionKlBase{} to \tRetentionKlBest{} nats. And the condition the term is
 actually evaluated on improves one-directionally: reading \emph{every} slot goes from
-\tRetentionAllBase{} to \tRetentionAllBest{}, with \tRetentionAllHelped{} probes
-helped and \tRetentionAllHurt{} hurt ($p = \tRetentionAllP{}$) --- small in
-magnitude, but not noise. The honest summary is that teaching a write to protect its
+\tRetentionAllBase{} to \tRetentionAllBest{}, with \tRetentionAllHelped{} probes helped and \tRetentionAllHurt{} hurt ($p = \tRetentionAllP{}$). The magnitude is small, and the direction holds. The honest summary is that teaching a write to protect its
 predecessors buys a large reduction in backbone damage and a small gain in the
 many-slot condition, while the two-slot repair we hypothesised is unsupported.
 
@@ -415,8 +376,7 @@ criteria on a stream mixing $5$ fictional facts with $13$ verified-known facts.
 Writing everything costs $\tAlwaysWrites$ gradient writes, of which
 $\tAlwaysWasted$ are spent on facts the model already answers, and moves the
 frozen backbone by $\tAlwaysKL$ nats. The self-check criterion spends
-$\tSelfWrites$ writes, wastes $\tSelfWasted$, misses $\tSelfMissed$ targets, and
-moves the backbone by $\tSelfKL$ nats --- the same recall for
+$\tSelfWrites$ writes, wastes $\tSelfWasted$, misses $\tSelfMissed$ targets, and moves the backbone by $\tSelfKL$ nats. That is the same recall for
 $\tSelfWriteReduction$ fewer writes and $\tSelfKlReductionMin$--$\tSelfKlReductionMax$
 less drift across \tSelfSeeds{} seeds (the counts are deterministic; the drift is
 not, which is why it is a range). The likelihood-based criterion is the cautionary
@@ -432,10 +392,7 @@ actually produces, even though the answer is right.
 Table~\ref{tab:t4} streams $12$ memories into $6$ slots, of which the first $3$
 are accessed repeatedly. Every eviction restores its slot to the virgin state:
 \tErasedTotal{} slots verified bit-identical to never-written, \tErased{} of them
-in each policy. The slot flagged important survives every overflow. FIFO keeps
-only $\tFifoHot$ of the memories that were in use --- it evicts what you use and
-keeps what you never touched --- while the other four policies keep
-$\tSmartHot$: the policy matters, but the ``smart'' policies tie, which
+in each policy. The slot flagged important survives every overflow. FIFO keeps only $\tFifoHot$ of the memories that were in use: it evicts what you use and keeps what you never touched. The other four policies keep $\tSmartHot$: the policy matters, but the ``smart'' policies tie, which
 independently reproduces the literature's finding that eviction heuristics are
 easy to over-credit.
 
@@ -443,9 +400,7 @@ easy to over-credit.
 read process's side path is virgin before loading ($\tVirgin$), so its
 $\tSixOracle$ oracle recall can only come from disk; routed recall is $\tRouted$,
 equal to its routing accuracy. Erasing a restored slot still returns it to the
-virgin state and the memory does not come back, so forgetting survives a restart
---- without which a ``forgotten'' memory would be one reboot away from
-resurrection.
+virgin state and the memory does not come back, so forgetting survives a restart. Without that property, a ``forgotten'' memory would be one reboot away from resurrection.
 
 \paragraph{Real content, under oracle indexing.} Table~\ref{tab:t7} reports a
 controlled diagnostic on LongMemEval's oracle split~\cite{longmembench}: the 30
@@ -456,9 +411,7 @@ condition collapses to \tLongMemOff{} and is bit-identical to the frozen answers
 and the router selects the correct slot every time (\tLongMemRouting). Writing real
 answers costs \tLongMemWriteMin{} minutes for \tLongMemSubset{} items and leaves a
 mean cross-entropy of \tLongMemCe{}. On a held-out replication over the next 30
-questions, containment is \tHoldoutOn{} --- \tHoldoutVerdict{} of the pre-registered
-band (first value $\pm 0.15$), so the effect is not an artefact of which questions
-were drawn.
+questions, containment is \tHoldoutOn{}, \tHoldoutVerdict{} of the pre-registered band (first value $\pm 0.15$). The effect is not an artefact of which questions were drawn.
 
 \paragraph{Why not just keep it in the context?} We measured that too, on the same
 questions and with the same router, and graded every arm's answer against the
@@ -492,8 +445,7 @@ delivery, with the cost column unchanged (\tTokWeights{} against up to
 \tScaleTokens{} tokens) and again no question lost by the parametric arm. The margin
 does narrow with scale, because a larger backbone uses the context better
 (\tScaleFrozen{} of these questions are answered from its prior, against
-\tLongMemFrozen{} at 0.6B). So the cost advantage is scale-invariant while the quality
-advantage is not --- which is the honest reading of a two-point curve. This is a
+\tLongMemFrozen{} at 0.6B). So the cost advantage is scale-invariant and the quality advantage is not. That is the honest reading of a two-point curve. This is a
 scoped diagnosis, not a LongMemEval result.
 
 \section{Negative results}
@@ -510,8 +462,7 @@ In other words the carry-over comes from the model conditioning on memory
 \emph{content}, not from that content occupying context tokens. A secondary
 observation deserves recording: withholding (the model saying it does not know)
 occurs at rate $\tWithholdFloor$ when there is no memory and at
-$\tWithholdMemory$ when the memory is present --- \emph{having a memory makes the
-model more confident, not only better informed}.
+$\tWithholdMemory$ when the memory is present: \emph{having a memory makes the model more confident as well as better informed}.
 
 \paragraph{A likelihood-threshold criterion measures wording.} Described above
 and visible in Table~\ref{tab:t3loss}. It is worth stating as a general caution:
@@ -527,9 +478,7 @@ verbosity structure instead.
   backbone and both survive: the composition shape (Table~\ref{tab:t2}: the sum is
   still worthless and the selection rule still introduces no loss of its own) and the
   real-content diagnostic (Table~\ref{tab:t7}). What does \emph{not} survive is the
-  router, whose accuracy falls from $\tRouterAcc{}$ to $\tScaleTwoRouter{}$ --- a
-  scale effect that shifts the bottleneck from interference to retrieval rather than
-  removing it. The inertia refutation and the forgetting experiments remain
+  router, whose accuracy falls from $\tRouterAcc{}$ to $\tScaleTwoRouter{}$. That scale effect shifts the bottleneck from interference to retrieval; it does not remove it. The inertia refutation and the forgetting experiments remain
   0.6B-only, and 3B and above is untested on this hardware.
 \item \textbf{The base model pays.} Writing moves the frozen backbone: after a
   $12$-memory stream the generic prompts are no longer answered verbatim and the
@@ -550,9 +499,7 @@ verbosity structure instead.
   LongMemEval~\cite{longmembench} on this machine instead of waving at it: its
   oracle split is small enough that a pilot is minutes of compute, so compute is
   \emph{not} the obstacle. Two obstacles are. First, a memory item here is a
-  $(q,v)$ pair, while a benchmark turn is a sentence, so a turn$\rightarrow$pair
-  extraction step is required --- genuine new code, and noisy extraction lands
-  directly in the weights. Second, and more fundamental: the benchmark's hard
+  $(q,v)$ pair, while a benchmark turn is a sentence, so a turn$\rightarrow$pair extraction step is required. That is genuine new code, and noisy extraction lands directly in the weights. Second, and more fundamental: the benchmark's hard
   question types (multi-session and temporal reasoning) require combining evidence
   from \emph{several} stored items, whereas our read path deliberately activates
   exactly one slot (Section~\ref{sec:routing} shows two already collapse recall,
@@ -562,7 +509,7 @@ verbosity structure instead.
   isolates test-time learning \emph{and} selective forgetting, remains the right
   target once a cross-item read path exists; we do not claim comparability we have
   not measured.
-\item \textbf{Two-timescale consolidation is not implemented} --- the
+\item \textbf{Two-timescale consolidation is not implemented.} The
   session-fast / cross-session-slow split remains future work, and after the
   inertia refutation its motivation needs restating.
 \item \textbf{Metric crudeness.} Base degradation is partly judged by exact
@@ -580,8 +527,7 @@ verbosity structure instead.
 
 A side path of rank-blocked slots does three things well and one thing only
 partly. It writes without disturbing its neighbours, it reads without spending
-context, and it forgets in a way that can be verified bit-for-bit --- including
-across a process restart. On real benchmark content, delivering the same information
+context, and it forgets in a way that can be verified bit-for-bit, including across a process restart. On real benchmark content, delivering the same information
 through the context with the \emph{same} router answers \tJudgeContextTarget{} to
 \tJudgeContextAll{} of the questions while paying \tTokContextTarget{} to
 \tTokContextAll{} extra prompt tokens per question; the parametric arm answers
@@ -594,8 +540,7 @@ on durable, exactly erasable slots rather than on trying to keep memories out of
 working set by moving them into weights. The one exception we chased is instructive
 in the opposite direction: training each write to protect the memories already in the
 bank cuts backbone damage by about four fifths and slightly improves the all-slots
-condition, but it does \emph{not} buy back the second slot --- an earlier, smaller run
-suggested it did, and four times the sample refuted it. A measured effect that
+condition, but it does \emph{not} buy back the second slot: an earlier, smaller run suggested it did, and four times the sample refuted it. A measured effect that
 shrinks with $n$ is a result worth publishing; we would rather report the refuted
 repair than the flattering sample.
 
@@ -626,9 +571,7 @@ rather than re-derived by \texttt{--collect-only}. The human marks the judge was
 calibrated against \emph{are} in the repository
 (\texttt{bench/judge\_calibration\_marks.json}), so the calibration can be checked
 without an API key. Second, the per-stage reports live in \texttt{runs/}, which is
-not pushed (the repository is source-only), so re-deriving the tables means
-re-running the stages --- with \texttt{--mode quick} first, since a full run is
-hours.
+not pushed (the repository is source-only), so re-deriving the tables means re-running the stages, starting with \texttt{--mode quick}, since a full run is hours.
 
 \begin{thebibliography}{99}\small
 \bibitem{titans} A. Behrouz, P. Zhong, V. Mirrokni. Titans: Learning to Memorize
