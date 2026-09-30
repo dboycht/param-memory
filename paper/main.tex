@@ -510,6 +510,20 @@ be excluded. A zero observed disagreement is not a zero error rate: with
 \tJudgeMergedMarks{} marks the Wilson interval still admits an error rate up to
 $1 - \tJudgeMergedLow{}$.
 
+\paragraph{The oracle turn is not doing the context arm a favour.} Handing the context arm
+the gold turn invites the objection that this comparison flatters context delivery: worse
+retrieval would make the context arms look worse and the parametric arm better. We replaced
+the oracle with similarity retrieval over the session's turns, and it changes nothing
+measurable. Exact-match containment is identical -- \tRagTopOne{} retrieved against
+\tOracleContextBase{} oracle-selected at 0.6B, and \tRagTopOneLarge{} against
+\tOracleContextLarge{} at 1.7B -- and under the judge the retrieved arm is level with the
+oracle within noise (\tJudgeRagOne{} against \tJudgeContextTarget{}). Retrieving three
+turns instead of one buys \tRagTopThree{} for \tRagTopThreeTokens{} prompt tokens against
+\tRagTopOneTokens{}, so the second and third turns mostly cost. That parity is a property
+of a short single-session subset; on the multi-session questions, where the evidence is
+spread over several sessions, we do not expect it to survive, and
+Section~\ref{sec:limits} says why.
+
 The same comparison on a 1.7B backbone (Table~\ref{tab:t7}) gives \tScaleWeights{} for
 the parametric arm against \tScaleContextTarget{}--\tScaleContextAll{} for context
 delivery, with the cost column unchanged (\tTokWeights{} against up to

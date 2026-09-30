@@ -850,6 +850,24 @@ def _mechanism(bundle: dict, field: str, sub: str | None = None) -> str:
     return _na(value, ".3f")
 
 
+def _probe_baseline(bundle: dict, arm: str, field: str, scale: str = "") -> str:
+    """An arm of the external-baseline stage (T7-e), which includes real retrieval.
+
+    ``rag_top1`` retrieves a turn by similarity instead of being handed the gold one, so
+    comparing it against ``context_target`` says whether the oracle convention flattered
+    the context arm. It does not: the two are equal on this subset.
+    """
+    t7 = _get(bundle, "t7") or {}
+    # The collector files the larger backbone under "scale" so that the 0.6B baselines
+    # are not silently overwritten by the 1.7B run, which shares their filename prefix.
+    if scale:
+        payload = ((t7.get("scale_17b") or {}).get("baselines")) or {}
+    else:
+        payload = t7.get("baselines") or {}
+    row = (payload.get("arms") or {}).get(arm) or {}
+    return _na(row.get(field), ".3f" if field != "mean_prompt_tokens" else ".0f")
+
+
 def _merged_calibration(t7: dict) -> dict:
     """Human-vs-judge agreement as merged from the marks and the current payload."""
     return t7.get("calibration_merged") or {}
@@ -1228,6 +1246,17 @@ def headline_values(bundle: dict[str, Any]) -> dict[str, str]:
         "tMechRivalProb": _mechanism(bundle, "value_token_probability", "rival"),
         "tMechTopTwoProb": _mechanism(bundle, "value_token_probability", "top2"),
         "tMechAllProb": _mechanism(bundle, "value_token_probability", "all"),
+        # ---- does real retrieval beat the oracle convention? (T7-e) ----
+        "tRagTopOne": _probe_baseline(bundle, "rag_top1", "containment"),
+        "tRagTopThree": _probe_baseline(bundle, "rag_top3", "containment"),
+        "tRagTopOneTokens": _probe_baseline(bundle, "rag_top1", "mean_prompt_tokens"),
+        "tRagTopThreeTokens": _probe_baseline(bundle, "rag_top3", "mean_prompt_tokens"),
+        "tOracleContextBase": _probe_baseline(bundle, "context_target", "containment"),
+        "tAllContextBase": _probe_baseline(bundle, "context_all", "containment"),
+        "tFrozenBase": _probe_baseline(bundle, "frozen", "containment"),
+        "tRagTopOneLarge": _probe_baseline(bundle, "rag_top1", "containment", "17b"),
+        "tRagTopThreeLarge": _probe_baseline(bundle, "rag_top3", "containment", "17b"),
+        "tOracleContextLarge": _probe_baseline(bundle, "context_target", "containment", "17b"),
     }
 
 
