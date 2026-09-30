@@ -724,6 +724,16 @@ def _router_pair(bundle: dict, arm: str, field: str, scale: str = "") -> str:
     return _na(entry.get(field), ".4f" if field == "sign_p" else ".0f")
 
 
+def _training_baseline(t7: dict, arm: str, field: str) -> str:
+    """One cell of the T7-g comparison, or n/a while the arm is still running."""
+    payload = t7.get("training_baselines") or {}
+    row = (payload.get("results") or {}).get(arm) or {}
+    value = row.get(field)
+    if isinstance(value, bool):
+        return str(value)
+    return _na(value, ".3f") if field == "containment" else _na(value, ".4f")
+
+
 def _merged_calibration(t7: dict) -> dict:
     """Human-vs-judge agreement as merged from the marks and the current payload."""
     return t7.get("calibration_merged") or {}
@@ -956,6 +966,13 @@ def headline_values(bundle: dict[str, Any]) -> dict[str, str]:
                                 ".3f"),
         "tJudgeMergedFalsePositives": _na(
             _merged_calibration(t7).get("judge_false_positive")),
+        # ---- training baselines on the same memories (T7-g) ----
+        "tBaseFull": _training_baseline(t7, "full_ft", "containment"),
+        "tBaseFullKl": _training_baseline(t7, "full_ft", "backbone_drift"),
+        "tBaseAdapter": _training_baseline(t7, "one_adapter", "containment"),
+        "tBaseAdapterKl": _training_baseline(t7, "one_adapter", "backbone_drift"),
+        "tBaseSlots": _training_baseline(t7, "slots", "containment"),
+        "tBaseSlotsKl": _training_baseline(t7, "slots", "backbone_drift"),
         # ---- T8-a (B1): the retention term in the write objective ----
         "tRetentionTopTwoBase": _retention_em(t8, "0.0", "top2"),
         "tRetentionTopTwoBest": _retention_em(t8, _retention_best(t8), "top2"),

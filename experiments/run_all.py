@@ -155,7 +155,7 @@ STAGES: dict[str, dict] = {
                    "t7e_context_baselines.json", "t7f_judge.json",
                    "t7d_longmemeval_gen32.json", "judge_calibration_result.json",
                    "t7d_17b.json", "t7e_17b.json", "t7f_judge_17b.json",
-                   "t7h_calibration.json"],
+                   "t7h_calibration.json", "t7g_baselines.json"],
         # Four phases: the weights run, its pre-registered held-out replication
         # (docs/06 section 9), the context/RAG baselines, and the LLM judge. The
         # judge needs the user's API key and ~70 minutes at 3 requests/minute, so it
@@ -285,6 +285,10 @@ def collect(stage: str, recipe: dict, mode: str) -> dict:
                 # earlier "the arms are indistinguishable" reading was an artefact
                 # of our own generation budget
                 merged["archived_gen32"] = payload
+            elif name.startswith("t7g"):
+                # training baselines on the same thirty memories (full fine-tune,
+                # one equal-capacity adapter, the slot bank)
+                merged["training_baselines"] = payload
             elif name.startswith("t7h"):
                 # merged human-vs-judge calibration; authoritative over the older
                 # single-pass result file, which recorded the first prompt's run
