@@ -44,10 +44,16 @@ for _stream in (sys.stdout, sys.stderr):
     if hasattr(_stream, "reconfigure"):
         _stream.reconfigure(encoding="utf-8", errors="replace")
 
+ROOT = Path(__file__).resolve().parents[1]
+#: Same questions as the T7-d diagnostic, so the baselines answer exactly the items
+#: the paper already reports.
+DATA = ROOT / "data" / "public" / "longmemeval_oracle.json"
+
 
 def parse_args() -> argparse.Namespace:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--model", default="Qwen/Qwen3-0.6B")
+    ap.add_argument("--data", default=str(DATA))
     ap.add_argument("--items", type=int, default=30)
     ap.add_argument("--steps", type=int, default=8)
     ap.add_argument("--lr", type=float, default=1e-3)
@@ -59,8 +65,8 @@ def parse_args() -> argparse.Namespace:
     return ap.parse_args()
 
 
-def load_pairs(limit: int) -> list[dict]:
-    return select_single_session(load_oracle())[:limit]
+def load_pairs(limit: int, data_path: Path = DATA) -> list[dict]:
+    return select_single_session(load_oracle(data_path), limit)
 
 
 def containment(bb: Backbone, pairs: list[dict]) -> float:
@@ -154,7 +160,7 @@ def erasure_check(bb: Backbone, pairs: list[dict], slots: list[int]) -> dict:
 def main() -> int:
     args = parse_args()
     t0 = time.perf_counter()
-    pairs = load_pairs(args.items)
+    pairs = load_pairs(args.items, Path(args.data))
     cfg = BackboneConfig(model_id=resolve_model_path(args.model),
                          n_slots=max(args.items, 2), rank=args.rank,
                          alpha=args.alpha, max_new_tokens=args.max_new_tokens)
