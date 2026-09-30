@@ -80,6 +80,12 @@ def parse_args() -> argparse.Namespace:
                          "cap that silently dropped memories would bias the result, so "
                          "the script reports when it binds")
     ap.add_argument("--min-interval", type=float, default=21.0)
+    ap.add_argument("--timeout", type=float, default=300.0,
+                    help="seconds. The judge client defaults to 90, which is right for a "
+                         "one-line verdict and wrong here: extracting from a twelve-turn "
+                         "session makes a reasoning model think for minutes, so every "
+                         "call timed out and retried (measured: six minutes per call "
+                         "instead of the response time)")
     ap.add_argument("--out", default="runs/t7i_multisession.json")
     return ap.parse_args()
 
@@ -94,7 +100,7 @@ def do_extract(args) -> int:
     # the memory is lost, which is exactly the failure this stage can least afford.
     judge = LLMJudge(api_key=key, model="kimi-k2.6",
                      base_url="https://api.moonshot.cn/v1",
-                     min_interval=args.min_interval)
+                     min_interval=args.min_interval, timeout=args.timeout)
     print(f"extracting from {len(items)} multi-session items "
           f"({sha256_file(args.data)[:16]}…)", flush=True)
 
