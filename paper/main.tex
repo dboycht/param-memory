@@ -575,12 +575,17 @@ more.
 \paragraph{Parametric memory does not reduce context inertia.} We pre-registered
 the prediction that storing a premise in the weights would drag it into a later,
 unrelated topic \emph{less} than leaving it in the context. Table~\ref{tab:t5}
-refutes it: inheritance is $\tContext$ for the context arm and $\tParam$ for the
-parametric arm, and over \tSeedsInertia{} seeds the two are equal in every one of them
-(\tContextRange{} against \tParamRange{}), with identical residue. The floor (no premise anywhere) is
-$\tFloor$, so the effect is real and not a prior artefact; the control arm, in
-which the premise is written and then erased, collapses onto the floor exactly.
-In other words the carry-over comes from the model conditioning on memory
+refutes it. At 0.6B inheritance is $\tContext$ for the context arm and $\tParam$ for the
+parametric arm, equal in every one of \tSeedsInertia{} seeds (\tContextRange{} against
+\tParamRange{}) with identical residue. The floor (no premise anywhere) is $\tFloor$, so
+the effect is real rather than a prior artefact, and the control arm, in which the premise
+is written and then erased, collapses onto the floor exactly. On the larger backbone the
+two media separate, and they separate in the direction that strengthens the refutation:
+the parametric arm still inherits $\tParamLarge$ while the context arm falls to
+$\tContextLarge$ against a floor of $\tFloorLarge$, so a premise in the weights carries
+over \emph{at least} as far as the same premise in context, never less, and the erased
+control collapses onto the floor at that scale too. In other words the carry-over comes
+from the model conditioning on memory
 \emph{content}, not from that content occupying context tokens. A secondary
 observation deserves recording, together with the honesty that its rate is
 seed-dependent while its direction is not: withholding (the model saying it does not
@@ -599,14 +604,16 @@ verbosity structure instead.
 \label{sec:limits}
 
 \begin{itemize}\itemsep2pt
-\item \textbf{Scale.} Three of the four headline results are repeated on a 1.7B
-  backbone and all three survive: the composition shape (Table~\ref{tab:t2}: the sum is
+\item \textbf{Scale.} All four headline results except the forgetting experiments are
+  repeated on a 1.7B backbone and every one of them survives: the composition shape (Table~\ref{tab:t2}: the sum is
   still worthless and the selection rule still introduces no loss of its own), the
   criterion that decides what to write (Table~\ref{tab:t3}: the same
   $\tLargeSelfWrites$ writes against $\tLargeAlwaysWrites$, with the drift margin
   \emph{widening} from \tSelfKlRatio{} to \tLargeKlRatio{}), and the
-  real-content diagnostic (Table~\ref{tab:t7}). What does \emph{not} survive is the
-  router, whose accuracy falls from $\tRouterAcc{}$ to $\tScaleTwoRouter{}$. That scale effect shifts the bottleneck from interference to retrieval; it does not remove it, although Section~\ref{sec:routing} shows that half of it is a key choice rather than a capacity limit: a model-free lexical key closes the 1.7B gap to $\tKeyBestTopLarge{}$. The inertia refutation and the forgetting experiments remain
+  real-content diagnostic (Table~\ref{tab:t7}), and the inertia refutation, which survives
+  with a margin instead of an exact tie: the two media are equal at 0.6B and the
+  parametric arm is ahead at 1.7B (Table~\ref{tab:t5}). What does \emph{not} survive is the
+  router, whose accuracy falls from $\tRouterAcc{}$ to $\tScaleTwoRouter{}$. That scale effect shifts the bottleneck from interference to retrieval; it does not remove it, although Section~\ref{sec:routing} shows that half of it is a key choice rather than a capacity limit: a model-free lexical key closes the 1.7B gap to $\tKeyBestTopLarge{}$. The forgetting experiments remain
   0.6B-only, and 3B and above is untested on this hardware.
 \item \textbf{The base model pays.} Writing moves the frozen backbone: after a
   $12$-memory stream the generic prompts are no longer answered verbatim and the

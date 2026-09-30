@@ -424,11 +424,14 @@ oracle 单条 & [[tJudgeContextTarget]] & [[tScaleContextTarget]] & [[tTokContex
 \label{sec:neg}
 
 \subsection{参数化记忆没有减轻上下文惯性（T5）}
-把同一条前提分别放进上下文与权重，然后切换话题。两种做法把前提带进下一话题的程度
+把同一条前提分别放进上下文与权重，然后切换话题。0.6B 上两种做法把前提带进下一话题的程度
 相同（[[tContext]] 对 [[tParam]]），干净场景上的残留也相同（[[tContextResidue]] 对
 [[tParamResidue]]）。在 [[tSeedsInertia]] 个种子上，这两者**每一个种子都相等**
 （[[tContextRange]] 对 [[tParamRange]]）。地板条件是 [[tFloor]]，也就是哪里都没有前提；
-控制臂写了再擦，精确塌回地板。惯性的来源是模型在条件化记忆的内容，
+控制臂写了再擦，精确塌回地板。**换到更大的基座之后两者分开了，而分开的方向让否证更强**：
+参数臂仍然继承 [[tParamLarge]]，而上下文臂掉到 [[tContextLarge]]（地板是 [[tFloorLarge]]）
+—— 也就是说，把前提放进权重**至少**和放进上下文一样会被带过去，绝不会更少；
+擦除控制臂在这个规模上也精确塌回地板。惯性的来源是模型在条件化记忆的内容，
 与那些内容是否占着上下文 token 无关。
 
 附带一个值得记下的观察，以及一条诚实说明 —— **它的方向每个种子都成立，但幅度随种子变化**：
@@ -488,11 +491,13 @@ $\lambda_{\mathrm{ret}}$ 取 [[tRetentionBest]]）：
 \section{限制}
 \label{sec:limits}
 \begin{itemize}\setlength\itemsep{2pt}
-\item \textbf{规模。}四条头条结论里有**三条**在 1.7B 上重跑并存活，也就是组合结论、
+\item \textbf{规模。}除遗忘实验以外，**其余头条结论都在 1.7B 上重跑并存活**，也就是组合结论、
 写入判据（T3：同样是 [[tLargeSelfWrites]] 次写入对 [[tLargeAlwaysWrites]]，
-而漂移优势从 [[tSelfKlRatio]] **扩大到** [[tLargeKlRatio]]）与真实内容诊断。
+而漂移优势从 [[tSelfKlRatio]] **扩大到** [[tLargeKlRatio]]）、真实内容诊断，
+以及惯性否证 —— 它在更大基座上由"精确相等"变成"**参数臂更强**"
+（[[tParamLarge]] 对 [[tContextLarge]]），结论因此没有变弱。
 没有存活的是路由器，它的准确率从 [[tRouterAcc]] 掉到 [[tScaleTwoRouter]]，
-瓶颈因此从干扰挪到了检索，而没有消失。惯性否证与遗忘实验仍然只有 0.6B，
+瓶颈因此从干扰挪到了检索，而没有消失。遗忘实验仍然只有 0.6B，
 3B 及以上受本机 8 GB 显存限制未测。
 \item \textbf{基座要付代价。}写入会移动冻结主干。流进 [[tStreamItems]] 条记忆后，
 通用问题不再被逐字答对，全位置 KL 约 $1$ nat。参数化记忆是有代价的，
