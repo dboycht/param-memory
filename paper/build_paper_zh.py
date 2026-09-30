@@ -114,6 +114,10 @@ LLM 智能体的长期记忆放在上下文窗口里，既要挤占推理所需�
 道 LongMemEval single-session 题（历史完全不在场）上，参数臂复现 [[tLongMemOn]] 的参考答案
 且不额外占用 prompt token，而把同样信息放进上下文只能答对 [[tJudgeContextTarget]] 到
 [[tJudgeContextAll]]，并付出 [[tTokContextTarget]] 到 [[tTokContextAll]] 个 token。
+另外两项对照值得一提：在**条目-梯度步数相同**的条件下，槽位方案能复现这 30 条记忆中的
+[[tBaseSlots]]，而全量微调只到 [[tBaseFull]]、等秩单适配器只到 [[tBaseAdapter]]；
+而**只用模型之外的手段**换一个检索键，就能把 1.7B 的路由从 [[tKeyLastTopLarge]] 抬到
+[[tKeyBestTopLarge]]。
 
 \section{引言}
 

@@ -44,7 +44,11 @@ wording rather than knowledge, and parametric memory does not reduce context ine
 \tLongMemSubset{} LongMemEval single-session questions with the history absent, the
 written arm reproduces $\tLongMemOn{}$ of the reference answers at no extra prompt-token
 cost, while context delivery answers $\tJudgeContextTarget{}$ to $\tJudgeContextAll{}$ and
-pays $\tTokContextTarget{}$ to $\tTokContextAll{}$ tokens.
+pays $\tTokContextTarget{}$ to $\tTokContextAll{}$ tokens. Two checks round it out: at
+equal item-gradient-steps the bank recalls $\tBaseSlots{}$ of those thirty memories where
+full fine-tuning reaches $\tBaseFull{}$ and one equal-rank adapter $\tBaseAdapter{}$, and
+a model-free change of retrieval key lifts 1.7B routing from $\tKeyLastTopLarge{}$ to
+$\tKeyBestTopLarge{}$.
 \end{abstract}
 
 \section{Introduction}
@@ -84,7 +88,9 @@ own block, read implicitly through the forward pass, so the memory content never
 \item The finding that read-time \emph{composition} is the binding constraint: the sum
   of the slots is worthless, one selected slot is as good as an oracle, and two
   selected slots already lose most of the benefit. The residual gap equals the routing
-  error exactly, on both backbones we test (Table~\ref{tab:t2}).
+  error exactly, on both backbones we test, and the key that drives the selection turns
+  out to matter more than the slot mechanism: a model-free lexical overlap lifts 1.7B
+  routing from $\tKeyLastTopLarge{}$ to $\tKeyBestTopLarge{}$ (Table~\ref{tab:t2}).
 \item A label-free write criterion that reaches full-write recall with
   $\tSelfWrites$ writes instead of $\tAlwaysWrites$ and $\tSelfKL$ nats of backbone
   drift instead of $\tAlwaysKL$, together with a refutation of the likelihood-based
@@ -93,7 +99,9 @@ own block, read implicitly through the forward pass, so the memory content never
   delivers the \emph{same} information through the context, graded by a judge
   calibrated against human marks: the parametric arm answers every question correctly
   at zero extra prompt tokens, while context delivery pays
-  $\tTokContextTarget{}$--$\tTokContextAll{}$ (Table~\ref{tab:t7}).
+  $\tTokContextTarget{}$--$\tTokContextAll{}$. At equal training budget the bank also
+  beats writing those memories into the weights, and it is the only arm that can erase
+  one of them afterwards (Table~\ref{tab:t7}).
 \item Negative results we report instead of burying: parametric memory does not reduce
   context inertia; a likelihood threshold measures wording; and a retention term that
   looked like a repair of two-slot recall at $n = \tRetentionSmallProbes{}$ does not
