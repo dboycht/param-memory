@@ -716,6 +716,14 @@ def _router_stat(bundle: dict, arm: str, field: str, scale: str = "") -> str:
     return _na((rates.get(arm) or {}).get(field), ".3f")
 
 
+def _router_pair(bundle: dict, arm: str, field: str, scale: str = "") -> str:
+    """Paired outcome for one key against the incumbent, on the same probes."""
+    t2 = _get(bundle, "t2") or {}
+    payload = t2.get("router_keys_17b" if scale else "router_keys") or {}
+    entry = (payload.get("paired_vs_last") or {}).get(arm) or {}
+    return _na(entry.get(field), ".4f" if field == "sign_p" else ".0f")
+
+
 def _merged_calibration(t7: dict) -> dict:
     """Human-vs-judge agreement as merged from the marks and the current payload."""
     return t7.get("calibration_merged") or {}
@@ -1021,6 +1029,17 @@ def headline_values(bundle: dict[str, Any]) -> dict[str, str]:
         "tKeyBestEmLarge": _router_stat(bundle, _router_best(bundle, "17b"), "em",
                                         "17b"),
         "tKeyLastTopLarge": _router_stat(bundle, "last", "top1", "17b"),
+        "tKeyPairHelpedLarge": _router_pair(bundle, _router_best(bundle, "17b"),
+                                            "helped", "17b"),
+        "tKeyPairHurtLarge": _router_pair(bundle, _router_best(bundle, "17b"), "hurt",
+                                          "17b"),
+        "tKeyPairPLarge": _router_pair(bundle, _router_best(bundle, "17b"), "sign_p",
+                                       "17b"),
+        "tKeyPairHelpedSmall": _router_pair(bundle, _router_best(bundle), "helped"),
+        "tKeyPairHurtSmall": _router_pair(bundle, _router_best(bundle), "hurt"),
+        "tKeyPairPSmall": _router_pair(bundle, _router_best(bundle), "sign_p"),
+        "tKeyEntropyTop": _router_stat(bundle, "entropy", "top1"),
+        "tKeyShallowTop": _router_stat(bundle, "shallow", "top1"),
     }
 
 

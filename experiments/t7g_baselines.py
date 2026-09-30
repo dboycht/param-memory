@@ -55,8 +55,15 @@ def parse_args() -> argparse.Namespace:
     ap.add_argument("--model", default="Qwen/Qwen3-0.6B")
     ap.add_argument("--data", default=str(DATA))
     ap.add_argument("--items", type=int, default=30)
-    ap.add_argument("--steps", type=int, default=8)
-    ap.add_argument("--lr", type=float, default=1e-3)
+    ap.add_argument("--steps", type=int, default=12)
+    ap.add_argument("--lr", type=float, default=1e-3,
+                    help="learning rate for the adapter arms, which is the rate the "
+                         "slot writes use in every other experiment")
+    ap.add_argument("--lr-full", type=float, default=1e-5,
+                    help="learning rate for the full fine-tune arm. A full model needs "
+                         "a much smaller step than an adapter; running it at 1e-3 "
+                         "destroys the backbone in two steps (measured: all-position KL "
+                         "12.8) and would make the comparison a straw man")
     ap.add_argument("--rank", type=int, default=4)
     ap.add_argument("--alpha", type=float, default=16.0)
     ap.add_argument("--lambda-kl", type=float, default=1.0)
@@ -87,7 +94,7 @@ def train_full_backbone(bb: Backbone, pairs, args, anchors) -> None:
     bb.set_read_slots([])
     for parameter in bb.model.parameters():
         parameter.requires_grad_(True)
-    optimiser = torch.optim.AdamW(list(bb.model.parameters()), lr=args.lr)
+    optimiser = torch.optim.AdamW(list(bb.model.parameters()), lr=args.lr_full)
     for _ in range(args.steps):
         optimiser.zero_grad()
         total = None
@@ -176,7 +183,8 @@ def main() -> int:
                          "backbone_drift": backbone_drift(bb, anchors),
                          "erasable": True}
 
-    print(f"  arm full_ft ({args.steps} steps, all parameters) ...", flush=True)
+    print(f"  arm full_ft ({args.steps} steps at lr={args.lr_full}, all parameters) ...",
+          flush=True)
     train_full_backbone(bb, pairs, args, anchors)
     results["full_ft"] = {"containment": containment(bb, pairs),
                           "backbone_drift": backbone_drift(bb, anchors),

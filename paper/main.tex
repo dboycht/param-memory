@@ -342,6 +342,27 @@ is markedly weaker at 1.7B ($\tRouterAcc{}$ at 0.6B against $\tScaleTwoRouter{}$
 the gap to the oracle becomes a retrieval problem rather than an interference one.
 That makes the router the component to improve next.
 
+\paragraph{The key, not the slot, is what limits that gap.} Because routing accuracy
+converts one-for-one into recall, it is worth asking whether the key is simply the wrong
+key, and it is: with the same writes and the same probes, changing only the definition
+of the retrieval key moves top-1 routing from $\tKeyLastTop{}$ to $\tKeyBestTop{}$ at
+0.6B and from $\tKeyLastTopLarge{}$ to $\tKeyBestTopLarge{}$ at 1.7B, and end-to-end
+recall moves with it. Nothing is trained; the winning definitions are the ones that keep
+more of the query. The best of them is \tKeyBest{}, a bag-of-words TF-IDF overlap
+between the query and the stored query, and a 50/50 blend of it with the hidden-state
+cosine is close behind. Two variants lose to the incumbent, and both are worth
+reporting: keys read from shallower layers (\tKeyShallowTop{} at 0.6B) discard most of
+the signal, and re-ranking the two best-routed candidates by the model's own confidence
+is \emph{worse} than trusting the key (\tKeyEntropyTop{}), so a slot being sure of
+itself is not evidence that it is the right slot. Paired on the same probes, the gain is
+significant at 1.7B (\tKeyPairHelpedLarge{} probes helped, \tKeyPairHurtLarge{} hurt,
+$p = \tKeyPairPLarge{}$) and absent at 0.6B (\tKeyPairHelpedSmall{} against
+\tKeyPairHurtSmall{}, $p = \tKeyPairPSmall{}$): the key matters more as the backbone
+grows. One boundary is essential here. These queries come from our synthetic generator,
+where content words are distinctive; real benchmark items about a single entity share
+almost all of their surface form, so whether a lexical component helps there is a
+separate question, and Section~\ref{sec:limits} leaves it open.
+
 \paragraph{Testing a repair for the composition failure.} The boundary is not
 retrieval: the correct slot is among the two best-routed ones on
 \tRetentionRouteTwo{} of the probes, yet two-slot recall is only
@@ -475,7 +496,7 @@ verbosity structure instead.
   backbone and both survive: the composition shape (Table~\ref{tab:t2}: the sum is
   still worthless and the selection rule still introduces no loss of its own) and the
   real-content diagnostic (Table~\ref{tab:t7}). What does \emph{not} survive is the
-  router, whose accuracy falls from $\tRouterAcc{}$ to $\tScaleTwoRouter{}$. That scale effect shifts the bottleneck from interference to retrieval; it does not remove it. The inertia refutation and the forgetting experiments remain
+  router, whose accuracy falls from $\tRouterAcc{}$ to $\tScaleTwoRouter{}$. That scale effect shifts the bottleneck from interference to retrieval; it does not remove it, although Section~\ref{sec:routing} shows that half of it is a key choice rather than a capacity limit: a model-free lexical key closes the 1.7B gap to $\tKeyBestTopLarge{}$. The inertia refutation and the forgetting experiments remain
   0.6B-only, and 3B and above is untested on this hardware.
 \item \textbf{The base model pays.} Writing moves the frozen backbone: after a
   $12$-memory stream the generic prompts are no longer answered verbatim and the
