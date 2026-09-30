@@ -524,6 +524,17 @@ of a short single-session subset; on the multi-session questions, where the evid
 spread over several sessions, we do not expect it to survive, and
 Section~\ref{sec:limits} says why.
 
+\paragraph{The same pipeline on the multi-session questions, and what it does not show.}
+We ran the identical protocol on \tMultiSessN{} multi-session questions, where the evidence
+is spread across sessions. It scores the same as the single-session subset
+(\tMultiSessOn{} containment against a floor of \tMultiSessFrozen{}, routing
+\tMultiSessRoute{}), and that number should not be read as this mechanism handling
+multi-session reasoning. A memory item in this protocol is the benchmark's own question
+paired with its own answer, so every item is self-contained and the read path never has to
+combine two sessions; the multi-session structure does not reach it. We report the result
+together with the reason it is uninformative, because the alternative is a reader finding
+that out and wondering what else the protocol was hiding.
+
 The same comparison on a 1.7B backbone (Table~\ref{tab:t7}) gives \tScaleWeights{} for
 the parametric arm against \tScaleContextTarget{}--\tScaleContextAll{} for context
 delivery, with the cost column unchanged (\tTokWeights{} against up to
@@ -611,6 +622,11 @@ verbosity structure instead.
   from \emph{several} stored items, whereas our read path deliberately activates
   exactly one slot (Section~\ref{sec:routing} shows two already collapse recall,
   and the retention term of Section~\ref{sec:results} does not repair that).
+  Our own protocol cannot demonstrate that boundary either, and we measured why: it
+  stores the benchmark's question-answer pair as one self-contained memory, so the
+  multi-session subset passes the identical diagnostic while never asking the read path to
+  combine sessions (Section~\ref{sec:results}). The boundary is therefore an argument about
+  realistic memories, not a measured property of this protocol.
   That is a mechanism boundary, not a compute limit, and it would not move on a
   larger machine. MemoryAgentBench~\cite{mab}, the one public skeleton that
   isolates test-time learning \emph{and} selective forgetting, remains the right

@@ -868,6 +868,24 @@ def _probe_baseline(bundle: dict, arm: str, field: str, scale: str = "") -> str:
     return _na(row.get(field), ".3f" if field != "mean_prompt_tokens" else ".0f")
 
 
+def _multi_oracle(bundle: dict, field: str) -> str:
+    """The same diagnostic on the benchmark's multi-session questions.
+
+    It scores as well as the single-session subset, and that is the point: with the
+    benchmark's own question as the memory key and its answer as the value, every item is
+    self-contained, so the multi-session structure never reaches the read path. The
+    measurement therefore does not test the limitation the paper argues for, and saying so
+    is more useful than quoting the number.
+    """
+    t7 = _get(bundle, "t7") or {}
+    payload = t7.get("multi_session_oracle") or {}
+    if field == "n":
+        return _na(payload.get("n_subset"))
+    if field == "route":
+        return _na(payload.get("routing_accuracy"), ".3f")
+    return _na((payload.get("containment") or {}).get(field), ".3f")
+
+
 def _merged_calibration(t7: dict) -> dict:
     """Human-vs-judge agreement as merged from the marks and the current payload."""
     return t7.get("calibration_merged") or {}
@@ -1257,6 +1275,11 @@ def headline_values(bundle: dict[str, Any]) -> dict[str, str]:
         "tRagTopOneLarge": _probe_baseline(bundle, "rag_top1", "containment", "17b"),
         "tRagTopThreeLarge": _probe_baseline(bundle, "rag_top3", "containment", "17b"),
         "tOracleContextLarge": _probe_baseline(bundle, "context_target", "containment", "17b"),
+        # ---- the same diagnostic on the multi-session questions ----
+        "tMultiSessN": _multi_oracle(bundle, "n"),
+        "tMultiSessOn": _multi_oracle(bundle, "mem_on"),
+        "tMultiSessFrozen": _multi_oracle(bundle, "frozen"),
+        "tMultiSessRoute": _multi_oracle(bundle, "route"),
     }
 
 

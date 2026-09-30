@@ -154,6 +154,7 @@ STAGES: dict[str, dict] = {
     "t7": {
         "script": "t7d_longmemeval_pilot.py",
         "inputs": ["t7d_longmemeval.json", "t7d_longmemeval_holdout.json",
+                   "t7d_multisession.json",
                    "t7e_context_baselines.json", "t7f_judge.json",
                    "t7d_longmemeval_gen32.json", "judge_calibration_result.json",
                    "t7d_17b.json", "t7e_17b.json", "t7f_judge_17b.json",
@@ -270,7 +271,11 @@ def collect(stage: str, recipe: dict, mode: str) -> dict:
             # "17b" is checked FIRST: t7e_17b.json also starts with "t7e", and
             # letting the generic prefix win would silently overwrite the 0.6B
             # baselines with the larger-backbone run's numbers.
-            if "holdout" in name:
+            if "multisession" in name:
+                # the same diagnostic on the multi-session pool; kept separate because
+                # its result says the protocol cannot test what the paper argues about
+                merged["multi_session_oracle"] = payload
+            elif "holdout" in name:
                 merged["holdout"] = payload
             elif "17b" in name:
                 if name.startswith("t7d"):
