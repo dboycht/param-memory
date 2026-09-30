@@ -119,7 +119,7 @@ STAGES: dict[str, dict] = {
     },
     "t5": {
         "script": "t5_inertia.py",
-        "inputs": ["t5_inertia.json", "t5_inertia_seed1.json", "t5_inertia_seed2.json"],
+        "inputs": ["t5_inertia.json", "t5_inertia_17b.json", "t5_inertia_seed1.json", "t5_inertia_seed2.json"],
         # The refutation is reported from one draw in the paper; three seeds make the
         # "context and weights are equally sticky" claim a range instead.
         "phases": [
@@ -344,6 +344,13 @@ def collect(stage: str, recipe: dict, mode: str) -> dict:
                  if "seed" in name and name != primary]
         if extra:
             merged["extra_seeds"] = extra
+        # The larger-backbone runs are kept apart from the seed list: their filenames do
+        # not contain "seed", but a future rename could sweep them in, and a 1.7B run
+        # silently averaged into the 0.6B seeds would be invisible in the output.
+        if "t5_inertia_17b.json" in by_name:
+            merged["inertia_17b"] = by_name["t5_inertia_17b.json"]
+        if "t4_capacity_17b.json" in by_name:
+            merged["capacity_17b"] = by_name["t4_capacity_17b.json"]
         return merged
     if stage == "t3":
         by_name = dict(pairs)

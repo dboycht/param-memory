@@ -946,6 +946,14 @@ def _anchor_cancel(bundle: dict, field: str, legacy: bool = False) -> str:
     return "n/a"
 
 
+def _inertia_large(bundle: dict, arm: str, field: str) -> str:
+    """One arm of the inertia stage on the larger backbone (T5, scale control)."""
+    t5 = _get(bundle, "t5") or {}
+    payload = t5.get("inertia_17b") or {}
+    row = (payload.get("arms") or {}).get(arm) or {}
+    return _na(row.get(field), ".3f")
+
+
 def _merged_calibration(t7: dict) -> dict:
     """Human-vs-judge agreement as merged from the marks and the current payload."""
     return t7.get("calibration_merged") or {}
@@ -1116,6 +1124,14 @@ def headline_values(bundle: dict[str, Any]) -> dict[str, str]:
         "tParamRange": _t5_range(bundle, "param_memory", "inheritance_rate"),
         "tWithholdFloorRange": _t5_range(bundle, "no_memory", "withholding_rate"),
         "tWithholdMemoryRange": _t5_range(bundle, "param_memory", "withholding_rate"),
+        # ---- the same refutation on the larger backbone ----
+        "tContextLarge": _inertia_large(bundle, "context_memory", "inheritance_rate"),
+        "tParamLarge": _inertia_large(bundle, "param_memory", "inheritance_rate"),
+        "tFloorLarge": _inertia_large(bundle, "no_memory", "inheritance_rate"),
+        "tContextResidueLarge": _inertia_large(bundle, "context_memory", "residue_rate"),
+        "tParamResidueLarge": _inertia_large(bundle, "param_memory", "residue_rate"),
+        "tWithholdFloorLarge": _inertia_large(bundle, "no_memory", "withholding_rate"),
+        "tWithholdMemoryLarge": _inertia_large(bundle, "param_memory", "withholding_rate"),
         "tCapacitySlots": _na(t4.get("config", {}).get("slots")),
         "tFloor": _na(arms.get("no_memory", {}).get("inheritance_rate"), ".2f"),
         "tContext": _na(arms.get("context_memory", {}).get("inheritance_rate"), ".2f"),
