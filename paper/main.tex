@@ -404,6 +404,20 @@ sum is worth $\tLexSumSmall{}$ and $\tLexSum{}$. That is the sharpest form of th
 section's finding: the failure a better key repairs is routing, and the failure it cannot
 reach is reading two memories at once.
 
+\paragraph{The same collapse on real content.} The synthetic episodes that establish the
+composition result have distinctive queries and one-sentence values, so the obvious question
+is whether the collapse is a property of the mechanism or of that generator. We wrote the
+\tRealCollisionItems{} LongMemEval single-session items into that many slots, exactly as the
+real-content diagnostic does, and read each question back with a growing number of slots
+open (Table~\ref{tab:t7collision}). Retrieval is oracle-indexed throughout, so the only
+thing that varies is how many memories the read path holds at once. Containment falls from
+\tRealCollisionOne{} with the single correct slot to \tRealCollisionTwo{} with one
+distractor, \tRealCollisionThree{} with two, \tRealCollisionFive{} with four, and
+\tRealCollisionAll{} with the entire bank, against a frozen floor of
+\tRealCollisionFloor{}. The mechanism behaves on real content as it does on generated
+content, and one difference is worth stating: the two-slot drop is gentler here than on the
+synthetic episodes, so the generator exaggerates the size of the effect without creating it.
+
 \paragraph{What the two-slot collapse actually is.} Before trying to repair it we measured
 it without training anything, over \tMechProbes{} probes. The written updates are nearly
 orthogonal to one another (pairwise cosine \tMechUpdateCosine{}, never above

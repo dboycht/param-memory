@@ -215,6 +215,13 @@
 \newcommand{\tMechStableRankMin}{1.88}
 \newcommand{\tMechStableRankMax}{2.05}
 \newcommand{\tMechSlots}{24}
+\newcommand{\tRealCollisionItems}{30}
+\newcommand{\tRealCollisionFloor}{0.000}
+\newcommand{\tRealCollisionOne}{1.000}
+\newcommand{\tRealCollisionTwo}{0.833}
+\newcommand{\tRealCollisionThree}{0.667}
+\newcommand{\tRealCollisionFive}{0.367}
+\newcommand{\tRealCollisionAll}{0.000}
 \newcommand{\tRagTopOne}{0.517}
 \newcommand{\tRagTopThree}{0.550}
 \newcommand{\tRagTopOneTokens}{117}
@@ -456,6 +463,24 @@ arm & containment & prompt tokens \\
 \texttt{1.7B rag top1} & 0.533 & 117 \\
 \texttt{1.7B rag top3} & 0.567 & 221 \\
 \texttt{1.7B context all} & 0.683 & 1688 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[t]
+\centering
+\caption{T7-j: the composition failure on real benchmark content, as a dose-response. Thirty single-session items are written one per slot and read back with a growing number of slots open, retrieval oracle-indexed throughout, so the only thing that varies is how many memories the read path holds at once.}
+\label{tab:t7collision}
+\begin{tabular}{lr}
+\toprule
+active slots & containment \\
+\midrule
+\texttt{frozen (no slot)} & 0.000 \\
+\texttt{1 (correct slot only)} & 1.000 \\
+\texttt{2} & 0.833 \\
+\texttt{3} & 0.667 \\
+\texttt{5} & 0.367 \\
+\texttt{all 30} & 0.000 \\
 \bottomrule
 \end{tabular}
 \end{table}

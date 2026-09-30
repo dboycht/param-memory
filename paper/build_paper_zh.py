@@ -331,6 +331,17 @@ oracle 几乎不受换键影响（0.6B 是 [[tLexOracleSmall]]、1.7B 是 [[tLex
 1.7B 是 [[tLexTopTwo]] 对 [[tLexTopOne]]，而全开在两种键下都只值 [[tLexSum]]。
 这是本节结论最锋利的形态：**换个更好的键能修的是路由，修不了的是"同时读两条记忆"**。
 
+\subsection{真实内容上同样会崩}
+合成数据的查询词高度区分、取值只有一句话，所以自然要问：**崩塌是机制的性质，还是生成器的性质？**
+我们把 [[tRealCollisionItems]] 道 LongMemEval single-session 题**一题一槽**写进去（与真实内容诊断完全一样），
+然后让**同时打开的槽数**逐步增加来读回（见 Table~\ref{tab:t7collision}）。
+检索全程 oracle，所以唯一变化的是**读取路径同时持有多少条记忆**：
+包含率从"只开正确那一槽"的 [[tRealCollisionOne]]，降到多开一个的 [[tRealCollisionTwo]]、
+两个的 [[tRealCollisionThree]]、四个的 [[tRealCollisionFive]]，再到整库全开的 [[tRealCollisionAll]]
+（冻结地板是 [[tRealCollisionFloor]]）。
+⇒ **机制在真实内容上的表现与在生成内容上一致**。有一个差别要如实说：
+**两槽那一步在真实内容上更温和**，也就是说**生成器放大了效应的大小，却没有凭空制造它**。
+
 \subsection{该写什么（T3）}
 把 $5$ 条虚构事实与 [[tKnownConfirmed]] 条已验证常识混成一条流。全写需要
 [[tAlwaysWrites]] 次梯度写入，其中 [[tAlwaysWasted]] 次花在模型本来就会的事实上，

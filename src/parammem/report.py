@@ -1013,6 +1013,23 @@ def _slot_ranks(bundle: dict, field: str) -> str:
     return "n/a"
 
 
+def _collision_real(bundle: dict, field: str) -> str:
+    """The composition failure measured on real content (T7-j).
+
+    The synthetic result is the paper's central claim, and until now the read-time collapse
+    had only been measured on generated episodes; a reviewer is entitled to ask whether it
+    is a property of the mechanism or of the generator.
+    """
+    t7 = _get(bundle, "t7") or {}
+    payload = t7.get("collision_real") or {}
+    rates = payload.get("rates") or {}
+    if field == "floor":
+        return _na(payload.get("floor_rate"), ".3f")
+    if field == "items":
+        return _na(payload.get("n_items"))
+    return _na(rates.get(field), ".3f")
+
+
 def _merged_calibration(t7: dict) -> dict:
     """Human-vs-judge agreement as merged from the marks and the current payload."""
     return t7.get("calibration_merged") or {}
@@ -1421,6 +1438,14 @@ def headline_values(bundle: dict[str, Any]) -> dict[str, str]:
         "tMechStableRankMin": _slot_ranks(bundle, "min"),
         "tMechStableRankMax": _slot_ranks(bundle, "max"),
         "tMechSlots": _slot_ranks(bundle, "count"),
+        # ---- the composition failure on real content (T7-j) ----
+        "tRealCollisionItems": _collision_real(bundle, "items"),
+        "tRealCollisionFloor": _collision_real(bundle, "floor"),
+        "tRealCollisionOne": _collision_real(bundle, "0"),
+        "tRealCollisionTwo": _collision_real(bundle, "1"),
+        "tRealCollisionThree": _collision_real(bundle, "2"),
+        "tRealCollisionFive": _collision_real(bundle, "4"),
+        "tRealCollisionAll": _collision_real(bundle, "all"),
         # ---- does real retrieval beat the oracle convention? (T7-e) ----
         "tRagTopOne": _probe_baseline(bundle, "rag_top1", "containment"),
         "tRagTopThree": _probe_baseline(bundle, "rag_top3", "containment"),
@@ -1661,6 +1686,7 @@ def build_results_latex(bundle: dict[str, Any]) -> str:
         _latex_t6(bundle),
         _latex_t7(bundle),
         _latex_t7_retrieval(bundle),
+        _latex_t7_collision(bundle),
         _latex_t8(bundle),
     ]
     return "\n".join(parts)
@@ -1717,6 +1743,26 @@ def _latex_t7_retrieval(bundle) -> str:
         "three turns instead of one costs more tokens and buys little.",
         "tab:t7retrieval", ["arm", "containment", "prompt tokens"], rows, "lrr",
         frozenset({0}))
+
+
+def _latex_t7_collision(bundle) -> str:
+    """The composition failure as a dose-response on real content."""
+    t7 = _get(bundle, "t7") or {}
+    payload = t7.get("collision_real") or {}
+    rates = payload.get("rates") or {}
+    if not rates:
+        return f"% T7 collision {NOT_AVAILABLE}"
+    rows = [["frozen (no slot)", f"{payload.get('floor_rate', float('nan')):.3f}"]]
+    for dose in payload.get("doses") or []:
+        label = "1 (correct slot only)" if dose == 0 else f"{1 + dose}"
+        rows.append([label, f"{rates.get(str(dose), float('nan')):.3f}"])
+    rows.append([f"all {payload.get('n_items', '?')}", f"{rates.get('all', float('nan')):.3f}"])
+    return _table(
+        "T7-j: the composition failure on real benchmark content, as a dose-response. "
+        "Thirty single-session items are written one per slot and read back with a growing "
+        "number of slots open, retrieval oracle-indexed throughout, so the only thing that "
+        "varies is how many memories the read path holds at once.",
+        "tab:t7collision", ["active slots", "containment"], rows, "lr", frozenset({0}))
 
 
 def _latex_t7(bundle) -> str:
