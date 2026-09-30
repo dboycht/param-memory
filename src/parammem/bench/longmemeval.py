@@ -38,7 +38,11 @@ __all__ = [
 ]
 
 SINGLE_SESSION_PREFIX = "single-session-"
-MULTI_SESSION_PREFIX = "multi-session-"
+# No trailing hyphen: the file spells this type "multi-session" exactly, while the
+# single-session variants are "single-session-user" and friends. Guessing the shape of
+# someone else's label produced an empty pool and a crash deep inside the statistics,
+# so the test below pins both pools as non-empty and disjoint.
+MULTI_SESSION_PREFIX = "multi-session"
 
 
 def sha256_file(path: str | Path) -> str:
