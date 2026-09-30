@@ -79,7 +79,7 @@ STAGES: dict[str, dict] = {
     },
     "t3": {
         "script": "t3_write_policy.py",
-        "inputs": ["t3_write_policy.json", "t3_seed1.json", "t3_seed2.json",
+        "inputs": ["t3_write_policy.json", "t3_write_policy_17b.json", "t3_seed1.json", "t3_seed2.json",
                    "t3_forced_span.json"],
         # Three seeds: the write counts are deterministic but the backbone drift is
         # not, so the paper quotes a range rather than one seed's number. The fourth
@@ -349,6 +349,10 @@ def collect(stage: str, recipe: dict, mode: str) -> dict:
             merged["extra_seeds"] = extra
         if "t3_forced_span.json" in by_name:
             merged["forced_span"] = by_name["t3_forced_span.json"]
+        if "t3_write_policy_17b.json" in by_name:
+            # the same criterion comparison on the larger backbone, which the paper's
+            # limitations list as an open scale gap
+            merged["write_policy_17b"] = by_name["t3_write_policy_17b.json"]
         return merged
     if stage == "t8":
         by_name = dict(pairs)

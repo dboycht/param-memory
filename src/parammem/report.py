@@ -886,6 +886,25 @@ def _multi_oracle(bundle: dict, field: str) -> str:
     return _na((payload.get("containment") or {}).get(field), ".3f")
 
 
+def _write_policy_large(bundle: dict, field: str) -> str:
+    """The write-criterion comparison on the larger backbone (T3, scale control)."""
+    t3 = _get(bundle, "t3") or {}
+    payload = t3.get("write_policy_17b") or {}
+    if field == "write_cut":
+        always = payload.get("always_writes")
+        self_check = payload.get("self_writes")
+        if always and self_check:
+            return f"{(always - self_check) / always:.0%}"
+        return "n/a"
+    if field == "kl_ratio":
+        always = payload.get("always_kl")
+        self_check = payload.get("self_kl")
+        if always and self_check:
+            return f"{always / self_check:.1f}x"
+        return "n/a"
+    return _na(payload.get(field), ".3f" if isinstance(payload.get(field), float) else None)
+
+
 def _merged_calibration(t7: dict) -> dict:
     """Human-vs-judge agreement as merged from the marks and the current payload."""
     return t7.get("calibration_merged") or {}
@@ -1280,6 +1299,13 @@ def headline_values(bundle: dict[str, Any]) -> dict[str, str]:
         "tMultiSessOn": _multi_oracle(bundle, "mem_on"),
         "tMultiSessFrozen": _multi_oracle(bundle, "frozen"),
         "tMultiSessRoute": _multi_oracle(bundle, "route"),
+        # ---- the write criterion on the larger backbone ----
+        "tLargeAlwaysWrites": _write_policy_large(bundle, "always_writes"),
+        "tLargeSelfWrites": _write_policy_large(bundle, "self_writes"),
+        "tLargeAlwaysKL": _write_policy_large(bundle, "always_kl"),
+        "tLargeSelfKL": _write_policy_large(bundle, "self_kl"),
+        "tLargeWriteCut": _write_policy_large(bundle, "write_cut"),
+        "tLargeKlRatio": _write_policy_large(bundle, "kl_ratio"),
     }
 
 
