@@ -504,14 +504,18 @@ more.
 the prediction that storing a premise in the weights would drag it into a later,
 unrelated topic \emph{less} than leaving it in the context. Table~\ref{tab:t5}
 refutes it: inheritance is $\tContext$ for the context arm and $\tParam$ for the
-parametric arm, with identical residue. The floor (no premise anywhere) is
+parametric arm, and over \tSeedsInertia{} seeds the two are equal in every one of them
+(\tContextRange{} against \tParamRange{}), with identical residue. The floor (no premise anywhere) is
 $\tFloor$, so the effect is real and not a prior artefact; the control arm, in
 which the premise is written and then erased, collapses onto the floor exactly.
 In other words the carry-over comes from the model conditioning on memory
 \emph{content}, not from that content occupying context tokens. A secondary
-observation deserves recording: withholding (the model saying it does not know)
-occurs at rate $\tWithholdFloor$ when there is no memory and at
-$\tWithholdMemory$ when the memory is present: \emph{having a memory makes the model more confident as well as better informed}.
+observation deserves recording, together with the honesty that its rate is
+seed-dependent while its direction is not: withholding (the model saying it does not
+know) occurs at rate $\tWithholdFloorRange$ when there is no memory and at
+$\tWithholdMemoryRange$ when the memory is present, so \emph{having a memory makes the model
+more confident as well as better informed}, but the size of that effect is not a
+constant we can quote from one draw.
 
 \paragraph{A likelihood-threshold criterion measures wording.} Described above
 and visible in Table~\ref{tab:t3loss}. It is worth stating as a general caution:

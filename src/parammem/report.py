@@ -785,6 +785,25 @@ def _multi_session(t7: dict, field: str, sub: str | None = None) -> str:
     return _na(value, ".3f") if isinstance(value, float) else _na(value)
 
 
+def _t5_seed_arms(bundle) -> list[dict]:
+    """The inertia arms for every seed the bundle carries (primary first)."""
+    t5 = _get(bundle, "t5") or {}
+    arms = [t5.get("arms") or {}]
+    for payload in t5.get("extra_seeds") or []:
+        arms.append(payload.get("arms") or {})
+    return [entry for entry in arms if entry]
+
+
+def _t5_range(bundle, arm: str, field: str) -> str:
+    values = [entry.get(arm, {}).get(field) for entry in _t5_seed_arms(bundle)]
+    values = [value for value in values if isinstance(value, (int, float))]
+    if not values:
+        return "n/a"
+    if len(values) == 1 or max(values) - min(values) < 1e-9:
+        return f"{values[0]:.3f}".rstrip("0").rstrip(".") or "0"
+    return f"{min(values):.3f}--{max(values):.3f}"
+
+
 def _merged_calibration(t7: dict) -> dict:
     """Human-vs-judge agreement as merged from the marks and the current payload."""
     return t7.get("calibration_merged") or {}
@@ -945,6 +964,12 @@ def headline_values(bundle: dict[str, Any]) -> dict[str, str]:
         "tSeedsCapacity": _na(len(_t4_seeds(bundle)) or None),
         "tFifoHotRange": _hot_range(bundle, fifo.get("policy") if fifo else "fifo"),
         "tSmartHotRange": _hot_range(bundle, smart.get("policy") if smart else "lru"),
+        # ---- inertia across seeds: the refutation is identical, the rates are not ----
+        "tSeedsInertia": _na(len(_t5_seed_arms(bundle)) or None),
+        "tContextRange": _t5_range(bundle, "context_memory", "inheritance_rate"),
+        "tParamRange": _t5_range(bundle, "param_memory", "inheritance_rate"),
+        "tWithholdFloorRange": _t5_range(bundle, "no_memory", "withholding_rate"),
+        "tWithholdMemoryRange": _t5_range(bundle, "param_memory", "withholding_rate"),
         "tCapacitySlots": _na(t4.get("config", {}).get("slots")),
         "tFloor": _na(arms.get("no_memory", {}).get("inheritance_rate"), ".2f"),
         "tContext": _na(arms.get("context_memory", {}).get("inheritance_rate"), ".2f"),

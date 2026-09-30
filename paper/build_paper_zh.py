@@ -382,11 +382,14 @@ oracle 单条 & [[tJudgeContextTarget]] & [[tScaleContextTarget]] & [[tTokContex
 \subsection{参数化记忆没有减轻上下文惯性（T5）}
 把同一条前提分别放进上下文与权重，然后切换话题。两种做法把前提带进下一话题的程度
 相同（[[tContext]] 对 [[tParam]]），干净场景上的残留也相同（[[tContextResidue]] 对
-[[tParamResidue]]）。地板条件是 [[tFloor]]，也就是哪里都没有前提；控制臂写了再擦，
-精确塌回地板。惯性的来源是模型在条件化记忆的内容，与那些内容是否占着上下文 token 无关。
+[[tParamResidue]]）。在 [[tSeedsInertia]] 个种子上，这两者**每一个种子都相等**
+（[[tContextRange]] 对 [[tParamRange]]）。地板条件是 [[tFloor]]，也就是哪里都没有前提；
+控制臂写了再擦，精确塌回地板。惯性的来源是模型在条件化记忆的内容，
+与那些内容是否占着上下文 token 无关。
 
-附带一个值得记下的观察：有记忆会让模型更自信。我不知道的比例在无记忆时是
-[[tWithholdFloor]]，有记忆时降到 [[tWithholdMemory]]。它不只是被更好地告知，
+附带一个值得记下的观察，以及一条诚实说明 —— **它的方向每个种子都成立，但幅度随种子变化**：
+有记忆会让模型更自信。我不知道的比例在无记忆时是 [[tWithholdFloorRange]]，
+有记忆时降到 [[tWithholdMemoryRange]]。它不只是被更好地告知，
 也更敢直接作答。
 
 \subsection{似然判据量到的是措辞（T3-b）}
