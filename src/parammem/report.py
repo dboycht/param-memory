@@ -776,6 +776,15 @@ def _hot_range(bundle, policy: str) -> str:
     return f"{min(fractions):.0%}--{max(fractions):.0%}"
 
 
+def _multi_session(t7: dict, field: str, sub: str | None = None) -> str:
+    """One field of the multi-session stage, or n/a while it is blocked or unrun."""
+    payload = t7.get("multi_session") or {}
+    value = payload.get(field)
+    if sub is not None and isinstance(value, dict):
+        value = value.get(sub)
+    return _na(value, ".3f") if isinstance(value, float) else _na(value)
+
+
 def _merged_calibration(t7: dict) -> dict:
     """Human-vs-judge agreement as merged from the marks and the current payload."""
     return t7.get("calibration_merged") or {}
@@ -1024,6 +1033,15 @@ def headline_values(bundle: dict[str, Any]) -> dict[str, str]:
         "tBaseErasedVirgin": _na(_erasure_field(t7, "slot_virgin")),
         "tBaseNeighbourKept": _na(_erasure_field(t7, "neighbour_kept")),
         "tBaseErasedGone": _na(_erasure_field(t7, "erased_gone")),
+        # ---- multi-session, memories extracted from the conversation (T7-i) ----
+        "tMultiItems": _multi_session(t7, "n_items"),
+        "tMultiMemories": _multi_session(t7, "n_memories"),
+        "tMultiKey": _multi_session(t7, "containment", "key"),
+        "tMultiLexical": _multi_session(t7, "containment", "lexical"),
+        "tMultiOracle": _multi_session(t7, "containment", "oracle"),
+        "tMultiFrozen": _multi_session(t7, "containment", "frozen"),
+        "tMultiRouteKey": _multi_session(t7, "routed_to_own", "key"),
+        "tMultiRouteLexical": _multi_session(t7, "routed_to_own", "lexical"),
         # ---- T8-a (B1): the retention term in the write objective ----
         "tRetentionTopTwoBase": _retention_em(t8, "0.0", "top2"),
         "tRetentionTopTwoBest": _retention_em(t8, _retention_best(t8), "top2"),
