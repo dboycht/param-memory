@@ -1507,6 +1507,17 @@ def _latex_t2(bundle) -> str:
         if arm in s.get("em", {}):
             rows.append([arm, f"{s['em'][arm]:.3f}",
                          _counts_pair(s.get("counts", {}).get(arm), "hits_first")])
+    # The causal check belongs here too: the same arms under the model-free key, where
+    # routing is perfect at both scales, so the reader can see the gap close and the
+    # two-slot cost stay put without following a sentence into the text.
+    for label, key in (("model-free key", "composition_lexical_key_small"),
+                       ("1.7B model-free key", "composition_lexical_key")):
+        payload = (data.get(key) or {}).get("summary") or {}
+        counts = payload.get("counts") or {}
+        for arm in ("oracle", "top1", "top2", "all"):
+            if arm in (payload.get("em") or {}):
+                rows.append([f"{label} {arm}", f"{payload['em'][arm]:.3f}",
+                             _counts_pair(counts.get(arm), "hits_first")])
     return _table(
         "T2: composition rules on the same writes, read with a paraphrased query. "
         "Selecting exactly one slot matches the oracle; summing destroys recall; "
