@@ -27,6 +27,8 @@ for _stream in (sys.stdout, sys.stderr):
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--bundle", default=str(ROOT / "runs" / "summary.json"))
+    ap.add_argument("--allow-partial", action="store_true",
+                    help="render even if the bundle records stages it did not collect")
     ap.add_argument("--out", default=str(ROOT / "paper" / "generated_tables.tex"))
     args = ap.parse_args()
 
@@ -36,6 +38,17 @@ def main() -> int:
               "--collect-only` first", flush=True)
         return 1
     bundle = json.loads(bundle_path.read_text(encoding="utf-8"))
+
+    # A subset run rewrites the bundle from its own stage alone. Rendering that would
+    # replace whole sections of the paper with "n/a" -- which happened, and was caught
+    # only because a test that needs the judge report went quiet. Refuse instead.
+    partial = bundle.get("_partial") or []
+    if partial and not args.allow_partial:
+        print(f"refusing to build: this bundle is partial and omits {partial}.\n"
+              f"  Re-collect everything with `python experiments/run_all.py "
+              f"--collect-only`, or pass --allow-partial if a partial render is really "
+              f"what you want.", flush=True)
+        return 1
 
     from parammem.report import build_results_latex, stage_status
 

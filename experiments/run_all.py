@@ -420,6 +420,23 @@ def main() -> int:
             continue
         bundle[stage] = data
 
+    # Which stages have reports on disk but were not collected this time? A subset run
+    # (``--only t6``) rewrites the bundle from its own stage alone, which silently turned
+    # whole sections of the paper into "n/a"; the bundle now records the omission and the
+    # table builder refuses to render it.
+    on_disk = {
+        name for name, recipe in STAGES.items()
+        if any((RUNS / entry).is_file()
+               for entry in recipe.get("inputs", []) if entry.endswith(".json"))
+    }
+    missing = sorted(on_disk - set(bundle))
+    if missing:
+        print(f"\n  WARNING: this bundle is partial; {len(missing)} stage(s) have reports "
+              f"on disk but were not collected: {missing}")
+        print("           re-run with --collect-only (no --only) before building tables")
+    bundle["_stages"] = sorted(bundle)
+    bundle["_partial"] = missing
+
     markdown = build_results_markdown(bundle)
     out = Path(args.out)
     out.parent.mkdir(parents=True, exist_ok=True)
