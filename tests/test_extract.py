@@ -103,3 +103,32 @@ def test_extract_pairs_on_empty_input_does_not_call_out():
         raise AssertionError("should not be called")
 
     assert extract_pairs(call, []) == []
+
+
+def test_observer_separates_a_failed_call_from_an_empty_finding():
+    """Those two cases look identical in a count and mean opposite things.
+
+    The first version of this function merged them, so a rate-limited run reported
+    itself as a run where the model found nothing -- which is how eight sessions of a
+    multi-session item came back as zero memories and looked like a result.
+    """
+    events: list[dict] = []
+    extract_pairs(lambda _p: (_ for _ in ()).throw(RuntimeError("HTTP 429")),
+                  ["user: hi"], retries=0, observer=events.append)
+    assert [event["status"] for event in events] == ["error"]
+    assert events[0]["error"] == "RuntimeError"
+
+    events.clear()
+    extract_pairs(lambda _p: "no durable facts here", ["user: hi"], retries=0,
+                  observer=events.append)
+    assert [event["status"] for event in events] == ["unparseable"]
+
+    events.clear()
+    extract_pairs(lambda _p: '[{"question": "q", "answer": "a"}]', ["user: hi"],
+                  retries=0, observer=events.append)
+    assert [event["status"] for event in events] == ["ok"]
+
+
+def test_observer_is_optional():
+    assert extract_pairs(lambda _p: '[{"question": "q", "answer": "a"}]',
+                         ["user: hi"]) == [{"question": "q", "answer": "a"}]

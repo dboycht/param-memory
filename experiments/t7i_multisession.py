@@ -79,7 +79,10 @@ def parse_args() -> argparse.Namespace:
                     help="cap on slots; the bank size is a configuration choice, and a "
                          "cap that silently dropped memories would bias the result, so "
                          "the script reports when it binds")
-    ap.add_argument("--min-interval", type=float, default=21.0)
+    ap.add_argument("--min-interval", type=float, default=25.0,
+                    help="seconds between calls. The organisation limit is 3 requests "
+                         "per minute, so 21s sits exactly on the boundary and a run that "
+                         "drifts over it eats 429s; 25s leaves margin")
     ap.add_argument("--timeout", type=float, default=300.0,
                     help="seconds. The judge client defaults to 90, which is right for a "
                          "one-line verdict and wrong here: extracting from a twelve-turn "
@@ -105,13 +108,15 @@ def do_extract(args) -> int:
           f"({sha256_file(args.data)[:16]}…)", flush=True)
 
     records = []
+    diagnostics: list[dict] = []
     out = Path(args.extracted)
     out.parent.mkdir(parents=True, exist_ok=True)
 
     def save() -> None:
         """Checkpoint after every item: extraction costs an hour of API time, and the
         first version wrote only at the end, so an interruption threw away every session
-        already paid for."""
+        already paid for. The per-session diagnostics are saved with it, because an
+        empty extraction and a failed call are indistinguishable in a count."""
         total = sum(len(record["memories"]) for record in records)
         out.write_text(json.dumps({
             "note": "Memory items extracted from every session of each multi-session "
@@ -125,6 +130,10 @@ def do_extract(args) -> int:
             "n_items": len(records),
             "n_memories": total,
             "mean_memories_per_item": total / len(records) if records else None,
+            "diagnostics": diagnostics,
+            "call_status_counts": {
+                status: sum(1 for d in diagnostics if d["status"] == status)
+                for status in ("ok", "unparseable", "error")},
             "elapsed_s": time.perf_counter() - t0,
         }, ensure_ascii=False, indent=2), encoding="utf-8")
 
@@ -136,11 +145,22 @@ def do_extract(args) -> int:
             turns = flatten_turns(session)
             if not turns:
                 continue
-            pairs = extract_pairs(judge.complete, turns)
+            seen: list[dict] = []
+
+            def observe(fields, seen=seen, item_id=item["question_id"],
+                        session_index=session_index):
+                fields = dict(fields, item=item_id, session=session_index,
+                              finish=judge.last_finish_reason)
+                seen.append(fields)
+                diagnostics.append(fields)
+
+            pairs = extract_pairs(judge.complete, turns, observer=observe)
             item_pairs.extend({"question": pair["question"], "answer": pair["answer"],
                                "session": session_index} for pair in pairs)
+            status = seen[-1]["status"] if seen else "empty-input"
             print(f"  item {index}/{len(items)} session {session_index}: "
-                  f"{len(pairs)} memories (total {len(item_pairs)})", flush=True)
+                  f"{len(pairs)} memories (total {len(item_pairs)}) [{status}, "
+                  f"finish={seen[-1].get('finish', '') if seen else ''}]", flush=True)
         records.append({
             "question_id": item["question_id"],
             "question": str(item.get("question", "")),
@@ -151,8 +171,19 @@ def do_extract(args) -> int:
         save()
 
     total = sum(len(r["memories"]) for r in records)
+    counts = {status: sum(1 for d in diagnostics if d["status"] == status)
+              for status in ("ok", "unparseable", "error")}
     print(f"\n  {total} memories from {len(records)} items "
           f"({total / len(records) if records else 0:.1f} per item)")
+    print(f"  call outcomes: {counts}")
+    if counts["error"]:
+        print(f"  WARNING: {counts['error']} call(s) failed outright (rate limit or "
+              f"transport). Those sessions contribute zero memories and must never be "
+              f"read as 'the model found no durable fact'.", flush=True)
+    if counts["unparseable"]:
+        print(f"  NOTE: {counts['unparseable']} call(s) returned something that did not "
+              f"parse; check the finish reasons before attributing them to the model.",
+              flush=True)
     print(f"extraction written to {out.resolve()}")
     return 0
 

@@ -56,24 +56,40 @@ def build_extraction_prompt(turns: list[str]) -> str:
     return f"{EXTRACTION_INSTRUCTIONS}\n\nExcerpt:\n{body}"
 
 
-def extract_pairs(call, turns: list[str], retries: int = 1) -> list[dict[str, str]]:
+def extract_pairs(call, turns: list[str], retries: int = 1, observer=None
+                  ) -> list[dict[str, str]]:
     """Ask a model to turn ``turns`` into memory items.
 
     ``call`` is any ``prompt -> reply`` callable, so this is testable without a network
-    and the experiment can hand it the same rate-limited client the judge uses. A reply
-    that parses to nothing is retried once and then dropped: an invented memory would be
-    written into the weights and read back indistinguishable from a real one, so the
-    failure mode has to be "we lost a memory", never "we stored something made up".
+    and the experiment can hand it the same rate-limited client the judge uses.
+
+    The return value is only the pairs; **an empty list does not distinguish "the model
+    found no durable fact" from "every call failed"**. Those two cases look identical in
+    a count and have opposite meanings, and the first version of this function merged
+    them, so a rate-limited run reported itself as a run that found nothing. Pass
+    ``observer`` to receive one dict per attempt (``status``, ``finish``, ``chars``,
+    ``error``) and record it: a caller that does not look at the failure mode cannot
+    tell the two apart.
     """
     if not turns:
         return []
     prompt = build_extraction_prompt(turns)
-    for _ in range(max(1, retries + 1)):
+
+    def report(**fields) -> None:
+        if observer is not None:
+            observer(fields)
+
+    for attempt in range(1, max(1, retries + 1) + 1):
         try:
-            reply = call(prompt)
-        except Exception:               # a transport failure is retried, then dropped
+            reply = call(prompt) or ""
+        except Exception as error:                  # transport or rate-limit failure
+            report(attempt=attempt, status="error", chars=0, error=type(error).__name__,
+                   finish="")
             continue
-        pairs = parse_pairs(reply or "")
+        pairs = parse_pairs(reply)
+        finish = getattr(call, "last_finish_reason", "") if hasattr(call, "last_finish_reason") else ""
+        report(attempt=attempt, status="ok" if pairs else "unparseable",
+               chars=len(reply), error="", finish=str(finish))
         if pairs:
             return pairs
     return []
