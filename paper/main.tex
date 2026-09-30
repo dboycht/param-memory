@@ -395,6 +395,20 @@ $\tLexTopOne{}$), and the sum is worth $\tLexSum{}$ under either key. That is th
 form of this section's finding: the failure a better key repairs is routing, and the
 failure it cannot reach is reading two memories at once.
 
+\paragraph{What the two-slot collapse actually is.} Before trying to repair it we measured
+it without training anything, over \tMechProbes{} probes. The written updates are nearly
+orthogonal to one another (pairwise cosine \tMechUpdateCosine{}, never above
+\tMechUpdateCosineMax{}), so the slots are not fighting over the same weight directions,
+and a rival slot perturbs the logits by a large fraction of the effect its own memory has
+(\tMechRivalOverOwn{}), which is what makes a distractor lethal rather than merely
+present. Neither of those is the cause, though. Reading two slots does not produce the sum
+of the two single-slot effects: the measured response is \tMechResidual{} of that sum, so
+the failure is manufactured at read time. The probability of the correct value token falls
+from \tMechOwnProb{} with the right slot alone to \tMechTopTwoProb{} with the two
+best-routed slots and \tMechAllProb{} with the whole bank open. A repair on the write side
+would have to undo an interaction that exists only when reading, which is the reason the
+repair below does not work.
+
 \paragraph{Testing a repair for the composition failure.} The boundary is not
 retrieval: the correct slot is among the two best-routed ones on
 \tRetentionRouteTwo{} of the probes, yet two-slot recall is only

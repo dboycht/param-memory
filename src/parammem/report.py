@@ -833,6 +833,23 @@ def _lex_composition(bundle: dict, field: str) -> str:
     return _na((summary.get("em") or {}).get(field), ".3f")
 
 
+def _mechanism(bundle: dict, field: str, sub: str | None = None) -> str:
+    """One statistic of the two-slot mechanism diagnostic (T2-b).
+
+    These were measured in the batch that produced them and then never made it into the
+    paper, so the conclusion asserted the mechanism while the text reported no
+    measurement of it. The diagnostic separates weight overlap, distractor dominance,
+    destructive summation and non-linearity, and the last of those is the one the
+    conclusion leans on.
+    """
+    t2 = _get(bundle, "t2") or {}
+    payload = t2.get("mechanism") or {}
+    value = payload.get(field)
+    if sub is not None and isinstance(value, dict):
+        value = value.get(sub)
+    return _na(value, ".3f")
+
+
 def _merged_calibration(t7: dict) -> dict:
     """Human-vs-judge agreement as merged from the marks and the current payload."""
     return t7.get("calibration_merged") or {}
@@ -1200,6 +1217,17 @@ def headline_values(bundle: dict[str, Any]) -> dict[str, str]:
         "tLexSum": _lex_composition(bundle, "all"),
         "tLexRouting": _lex_composition(bundle, "routing"),
         "tLexGap": _lex_composition(bundle, "gap"),
+        # ---- why two slots collapse: the mechanism diagnostic (T2-b) ----
+        "tMechProbes": _na((_get(bundle, "t2") or {}).get("mechanism", {}).get("n_probes")),
+        "tMechUpdateCosine": _mechanism(bundle, "pairwise_update_cosine_mean"),
+        "tMechUpdateCosineMax": _mechanism(bundle, "pairwise_update_cosine_max"),
+        "tMechPerturbation": _mechanism(bundle, "logit_perturbation_cosine"),
+        "tMechRivalOverOwn": _mechanism(bundle, "rival_over_own_perturbation"),
+        "tMechResidual": _mechanism(bundle, "linearity_residual_over_actual"),
+        "tMechOwnProb": _mechanism(bundle, "value_token_probability", "own"),
+        "tMechRivalProb": _mechanism(bundle, "value_token_probability", "rival"),
+        "tMechTopTwoProb": _mechanism(bundle, "value_token_probability", "top2"),
+        "tMechAllProb": _mechanism(bundle, "value_token_probability", "all"),
     }
 
 
