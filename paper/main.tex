@@ -472,7 +472,11 @@ is \emph{not} seed-stable is the claim we originally made about those four: they
 the memories in use, but on the memories \emph{not} in use three of them drop one
 survivor in one of the three seeds, while LFU keeps all three in every seed. That is a
 small independent reproduction of the finding that simple LFU is hard to beat, and it is
-also a reminder that a tie observed once is not a tie.
+also a reminder that a tie observed once is not a tie. The
+same five policies behave the same way on the larger backbone, where the counts do not
+move at all: FIFO again keeps $\tFifoHotLarge$ of the memories in use against
+$\tSmartHotLarge$ for the retentive policies, with $\tErasedLarge$ slots verified
+bit-identical to never-written.
 
 \paragraph{Persistence.} Table~\ref{tab:t6} shows two separate processes. The
 read process's side path is virgin before loading ($\tVirgin$), so its
@@ -604,17 +608,18 @@ verbosity structure instead.
 \label{sec:limits}
 
 \begin{itemize}\itemsep2pt
-\item \textbf{Scale.} All four headline results except the forgetting experiments are
-  repeated on a 1.7B backbone and every one of them survives: the composition shape (Table~\ref{tab:t2}: the sum is
+\item \textbf{Scale.} Every headline result is repeated on a 1.7B
+  backbone and every one of them survives: the composition shape (Table~\ref{tab:t2}: the sum is
   still worthless and the selection rule still introduces no loss of its own), the
   criterion that decides what to write (Table~\ref{tab:t3}: the same
   $\tLargeSelfWrites$ writes against $\tLargeAlwaysWrites$, with the drift margin
-  \emph{widening} from \tSelfKlRatio{} to \tLargeKlRatio{}), and the
-  real-content diagnostic (Table~\ref{tab:t7}), and the inertia refutation, which survives
-  with a margin instead of an exact tie: the two media are equal at 0.6B and the
-  parametric arm is ahead at 1.7B (Table~\ref{tab:t5}). What does \emph{not} survive is the
-  router, whose accuracy falls from $\tRouterAcc{}$ to $\tScaleTwoRouter{}$. That scale effect shifts the bottleneck from interference to retrieval; it does not remove it, although Section~\ref{sec:routing} shows that half of it is a key choice rather than a capacity limit: a model-free lexical key closes the 1.7B gap to $\tKeyBestTopLarge{}$. The forgetting experiments remain
-  0.6B-only, and 3B and above is untested on this hardware.
+  \emph{widening} from \tSelfKlRatio{} to \tLargeKlRatio{}), the
+  real-content diagnostic (Table~\ref{tab:t7}), the inertia refutation, which survives
+  with a margin instead of an exact tie (Table~\ref{tab:t5}), and the eviction experiment,
+  where the counts are identical ($\tFifoHotLarge$ against $\tSmartHotLarge$, with
+  $\tErasedLarge$ slots verified, Table~\ref{tab:t4}). What does \emph{not} survive is the
+  router, whose accuracy falls from $\tRouterAcc{}$ to $\tScaleTwoRouter{}$. That scale effect shifts the bottleneck from interference to retrieval; it does not remove it, although Section~\ref{sec:routing} shows that half of it is a key choice rather than a capacity limit: a model-free lexical key closes the 1.7B gap to $\tKeyBestTopLarge{}$.
+  What is left untested is 3B and above, which this hardware cannot hold.
 \item \textbf{The base model pays.} Writing moves the frozen backbone: after a
   $12$-memory stream the generic prompts are no longer answered verbatim and the
   all-position KL is $\approx 1$ nat. Parametric memory is not free, and the cost

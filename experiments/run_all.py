@@ -100,7 +100,7 @@ STAGES: dict[str, dict] = {
     "t4": {
         "script": "t4_capacity.py",
         "inputs": ["t4_capacity.json", "t4_capacity_seed1.json",
-                   "t4_capacity_seed2.json"],
+                   "t4_capacity_seed2.json", "t4_capacity_17b.json"],
         # Three seeds. The eviction assertions are deterministic (every erased slot is
         # checked bit-for-bit), but *which* memories survive under each policy is not,
         # so the retention numbers are reported as a range rather than as one draw.

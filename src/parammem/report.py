@@ -954,6 +954,32 @@ def _inertia_large(bundle: dict, arm: str, field: str) -> str:
     return _na(row.get(field), ".3f")
 
 
+def _capacity_large(bundle: dict, field: str) -> str:
+    """The eviction stage on the larger backbone (T4, scale control).
+
+    Same per-policy records as the 0.6B macros, read from the payload the collector keeps
+    separate so a larger run cannot be averaged into the smaller one's seeds.
+    """
+    t4 = _get(bundle, "t4") or {}
+    payload = t4.get("capacity_17b") or {}
+    records = {row.get("policy"): row for row in payload.get("records", [])}
+    if not records:
+        return "n/a"
+    if field == "policies":
+        return str(len(records))
+    if field == "erased":
+        ok = sum(row.get("erased_virgin_ok", 0) for row in records.values())
+        total = sum(row.get("erased_checked", 0) for row in records.values())
+        return f"{ok}/{total}"
+    if field in ("fifo_hot", "smart_hot"):
+        policy = "fifo" if field == "fifo_hot" else "utility_time"
+        row = records.get(policy) or {}
+        resident = (row.get("resident") or {}).get("hot")
+        hits = (row.get("oracle_hits") or {}).get("hot")
+        return f"{hits}/{resident}" if resident else "n/a"
+    return "n/a"
+
+
 def _merged_calibration(t7: dict) -> dict:
     """Human-vs-judge agreement as merged from the marks and the current payload."""
     return t7.get("calibration_merged") or {}
@@ -1132,6 +1158,11 @@ def headline_values(bundle: dict[str, Any]) -> dict[str, str]:
         "tParamResidueLarge": _inertia_large(bundle, "param_memory", "residue_rate"),
         "tWithholdFloorLarge": _inertia_large(bundle, "no_memory", "withholding_rate"),
         "tWithholdMemoryLarge": _inertia_large(bundle, "param_memory", "withholding_rate"),
+        # ---- the eviction stage on the larger backbone ----
+        "tCapacityPoliciesLarge": _capacity_large(bundle, "policies"),
+        "tErasedLarge": _capacity_large(bundle, "erased"),
+        "tFifoHotLarge": _capacity_large(bundle, "fifo_hot"),
+        "tSmartHotLarge": _capacity_large(bundle, "smart_hot"),
         "tCapacitySlots": _na(t4.get("config", {}).get("slots")),
         "tFloor": _na(arms.get("no_memory", {}).get("inheritance_rate"), ".2f"),
         "tContext": _na(arms.get("context_memory", {}).get("inheritance_rate"), ".2f"),

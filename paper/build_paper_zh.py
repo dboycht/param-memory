@@ -352,6 +352,8 @@ oracle 减 top-1 恰好等于路由错误，说明选择规则本身不引入损
 但在**没被使用**的记忆上，三种里有三种在三个种子中的一个种子上掉了一个存活者，
 而 **LFU 每个种子都全保**。这既是对"简单 LFU 难以被超越"的小小独立复现，
 也提醒一句：**只观察一次的"打平"未必是打平。**
+在更大的基座上这五种策略表现得一模一样，**计数分毫不动**：FIFO 依然只留下 [[tFifoHotLarge]] 个
+正在被使用的记忆，保序策略留下 [[tSmartHotLarge]]，而 [[tErasedLarge]] 个槽被逐位验证为从未写过。
 
 \subsection{跨进程（T6）}
 新进程里，加载前 \texttt{virgin} 为 \texttt{[[tVirgin]]}；重启后召回 [[tSixOracle]]，
@@ -491,14 +493,16 @@ $\lambda_{\mathrm{ret}}$ 取 [[tRetentionBest]]）：
 \section{限制}
 \label{sec:limits}
 \begin{itemize}\setlength\itemsep{2pt}
-\item \textbf{规模。}除遗忘实验以外，**其余头条结论都在 1.7B 上重跑并存活**，也就是组合结论、
+\item \textbf{规模。}**每一个头条结论都在 1.7B 上重跑并存活**：组合结论、
 写入判据（T3：同样是 [[tLargeSelfWrites]] 次写入对 [[tLargeAlwaysWrites]]，
-而漂移优势从 [[tSelfKlRatio]] **扩大到** [[tLargeKlRatio]]）、真实内容诊断，
-以及惯性否证 —— 它在更大基座上由"精确相等"变成"**参数臂更强**"
-（[[tParamLarge]] 对 [[tContextLarge]]），结论因此没有变弱。
+漂移优势从 [[tSelfKlRatio]] **扩大到** [[tLargeKlRatio]]）、真实内容诊断、
+惯性否证（在更大基座上由"精确相等"变成"**参数臂更强**"，
+[[tParamLarge]] 对 [[tContextLarge]]，因此结论没有变弱）、
+以及遗忘实验（计数完全相同：[[tFifoHotLarge]] 对 [[tSmartHotLarge]]，
+擦除 [[tErasedLarge]] 个槽逐位验证）。
 没有存活的是路由器，它的准确率从 [[tRouterAcc]] 掉到 [[tScaleTwoRouter]]，
-瓶颈因此从干扰挪到了检索，而没有消失。遗忘实验仍然只有 0.6B，
-3B 及以上受本机 8 GB 显存限制未测。
+瓶颈因此从干扰挪到了检索，而没有消失。
+仍未测的是 3B 及以上 —— 这台机器装不下。
 \item \textbf{基座要付代价。}写入会移动冻结主干。流进 [[tStreamItems]] 条记忆后，
 通用问题不再被逐字答对，全位置 KL 约 $1$ nat。参数化记忆是有代价的，
 而且代价随写入次数增长。
