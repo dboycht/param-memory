@@ -105,6 +105,29 @@ def do_extract(args) -> int:
           f"({sha256_file(args.data)[:16]}…)", flush=True)
 
     records = []
+    out = Path(args.extracted)
+    out.parent.mkdir(parents=True, exist_ok=True)
+
+    def save() -> None:
+        """Checkpoint after every item: extraction costs an hour of API time, and the
+        first version wrote only at the end, so an interruption threw away every session
+        already paid for."""
+        total = sum(len(record["memories"]) for record in records)
+        out.write_text(json.dumps({
+            "note": "Memory items extracted from every session of each multi-session "
+                    "LongMemEval item. The extraction never sees the reference answer, "
+                    "and the read query is the benchmark's own question, so retrieval is "
+                    "a real search over every extracted memory rather than a lookup.",
+            "status": f"{len(records)}/{len(items)} items",
+            "complete": len(records) == len(items),
+            "data_sha256": sha256_file(args.data),
+            "items": records,
+            "n_items": len(records),
+            "n_memories": total,
+            "mean_memories_per_item": total / len(records) if records else None,
+            "elapsed_s": time.perf_counter() - t0,
+        }, ensure_ascii=False, indent=2), encoding="utf-8")
+
     t0 = time.perf_counter()
     for index, item in enumerate(items, start=1):
         sessions = item.get("haystack_sessions") or []
@@ -125,25 +148,11 @@ def do_extract(args) -> int:
             "n_sessions": len(sessions),
             "memories": item_pairs,
         })
+        save()
 
     total = sum(len(r["memories"]) for r in records)
-    payload = {
-        "note": "Memory items extracted from every session of each multi-session "
-                "LongMemEval item. The extraction never sees the reference answer, and "
-                "the read query is the benchmark's own question, so retrieval is a real "
-                "search over every extracted memory rather than a lookup.",
-        "data_sha256": sha256_file(args.data),
-        "items": records,
-        "n_items": len(records),
-        "n_memories": total,
-        "mean_memories_per_item": total / len(records) if records else None,
-        "elapsed_s": time.perf_counter() - t0,
-    }
-    out = Path(args.extracted)
-    out.parent.mkdir(parents=True, exist_ok=True)
-    out.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
     print(f"\n  {total} memories from {len(records)} items "
-          f"({payload['mean_memories_per_item']:.1f} per item)")
+          f"({total / len(records) if records else 0:.1f} per item)")
     print(f"extraction written to {out.resolve()}")
     return 0
 

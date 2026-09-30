@@ -192,6 +192,33 @@ def main() -> int:
     print(f"loading {cfg.model_id} with {len(pairs)} real memories ...", flush=True)
 
     results: dict[str, dict] = {}
+    out = Path(args.out)
+    out.parent.mkdir(parents=True, exist_ok=True)
+
+    def save(stage: str) -> None:
+        """Write after every arm.
+
+        The first version of this script wrote only at the end, and when the run was
+        interrupted the completed arms were lost with it -- full fine-tune had already
+        finished and its numbers existed only in memory. A long multi-arm experiment has
+        to be resumable by inspection, so each arm lands on disk as soon as it exists.
+        """
+        out.write_text(json.dumps({
+            "note": "Same LongMemEval single-session pairs as the T7 diagnostic. The slot "
+                    "bank is compared against training the same memories into the weights, "
+                    "which is the cheapest thing a reviewer will ask about. Retrieval-only "
+                    "arms live in T7-e.",
+            "status": stage,
+            "complete": stage == "done",
+            "n_items": len(pairs),
+            "steps": args.steps,
+            "total_rank": cfg.rank * cfg.n_slots,
+            "optimiser_full": args.optimiser_full,
+            "lr_full": args.lr_full,
+            "results": results,
+            "model_path": cfg.model_id,
+            "elapsed_s": time.perf_counter() - t0,
+        }, ensure_ascii=False, indent=2), encoding="utf-8")
 
     bb = Backbone.load(cfg)
     bb.set_read_slots([])
@@ -200,6 +227,7 @@ def main() -> int:
     results["frozen"] = {"containment": containment(bb, pairs),
                          "backbone_drift": backbone_drift(bb, anchors),
                          "erasable": True}
+    save("frozen")
 
     print(f"  arm full_ft ({args.steps} steps at lr={args.lr_full}, all parameters) ...",
           flush=True)
@@ -207,6 +235,7 @@ def main() -> int:
     results["full_ft"] = {"containment": containment(bb, pairs),
                           "backbone_drift": backbone_drift(bb, anchors),
                           "erasable": False}
+    save("full_ft")
     del bb
     torch.cuda.empty_cache()
 
@@ -217,6 +246,7 @@ def main() -> int:
     results["one_adapter"] = {"containment": containment(bb, pairs),
                               "backbone_drift": backbone_drift(bb, anchors),
                               "erasable": False}
+    save("one_adapter")
     del bb
     torch.cuda.empty_cache()
 
@@ -228,22 +258,8 @@ def main() -> int:
                         "backbone_drift": backbone_drift(bb, anchors),
                         "erasable": True, "slots_written": written,
                         "erasure_check": erasure_check(bb, pairs, list(range(written)))}
+    save("done")
 
-    summary = {
-        "note": "Same LongMemEval single-session pairs as the T7 diagnostic. The slot "
-                "bank is compared against training the same memories into the weights, "
-                "which is the cheapest thing a reviewer will ask about. Retrieval-only "
-                "arms live in T7-e.",
-        "n_items": len(pairs),
-        "steps": args.steps,
-        "total_rank": cfg.rank * cfg.n_slots,
-        "results": results,
-        "model_path": cfg.model_id,
-        "elapsed_s": time.perf_counter() - t0,
-    }
-    out = Path(args.out)
-    out.parent.mkdir(parents=True, exist_ok=True)
-    out.write_text(json.dumps(summary, ensure_ascii=False, indent=2), encoding="utf-8")
     print(f"\n  {'arm':<14}{'containment':>13}{'backbone KL':>13}{'erasable':>10}")
     for name, row in results.items():
         print(f"  {name:<14}{row['containment']:>13.3f}{row['backbone_drift']:>13.4f}"
