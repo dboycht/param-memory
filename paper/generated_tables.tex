@@ -440,6 +440,28 @@ scale control 1.7B, containment (mem\_on) & 1.000 \\
 
 \begin{table}[t]
 \centering
+\caption{T7-e: the context arms with the oracle turn and with real retrieval. Replacing the oracle with similarity retrieval changes nothing measurable, so the oracle convention is not what makes the context arms look the way they do; retrieving three turns instead of one costs more tokens and buys little.}
+\label{tab:t7retrieval}
+\begin{tabular}{lrr}
+\toprule
+arm & containment & prompt tokens \\
+\midrule
+\texttt{0.6B frozen} & 0.017 & 60 \\
+\texttt{0.6B context target} & 0.517 & 117 \\
+\texttt{0.6B rag top1} & 0.517 & 117 \\
+\texttt{0.6B rag top3} & 0.550 & 219 \\
+\texttt{0.6B context all} & 0.683 & 1688 \\
+\texttt{1.7B frozen} & 0.067 & 60 \\
+\texttt{1.7B context target} & 0.533 & 117 \\
+\texttt{1.7B rag top1} & 0.533 & 117 \\
+\texttt{1.7B rag top3} & 0.567 & 221 \\
+\texttt{1.7B context all} & 0.683 & 1688 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[t]
+\centering
 \caption{T8-a: the write objective also protects earlier memories (B1). $\lambda_{\mathrm{ret}} = 0$ reproduces the T2 composition result. \texttt{top2} is recall with the two best-routed slots active; base KL is the damage the bank does to generic prompts while in use.}
 \label{tab:t8}
 \begin{tabular}{lccc}

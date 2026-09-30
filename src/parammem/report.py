@@ -1660,6 +1660,7 @@ def build_results_latex(bundle: dict[str, Any]) -> str:
         _latex_t5(bundle),
         _latex_t6(bundle),
         _latex_t7(bundle),
+        _latex_t7_retrieval(bundle),
         _latex_t8(bundle),
     ]
     return "\n".join(parts)
@@ -1682,6 +1683,40 @@ def _latex_t8(bundle) -> str:
         "damage the bank does to generic prompts while in use.",
         "tab:t8", ["lambda_ret", "top2", "oracle", "base KL"],
         rows, "lccc", mono_columns=frozenset({1, 2}))
+
+
+def _latex_t7_retrieval(bundle) -> str:
+    """The context arms with and without the oracle, side by side.
+
+    The objection this answers is that handing the context arm the gold turn flatters it.
+    Replacing the oracle with similarity retrieval changes nothing measurable, and that is
+    easier to check as a table than as a clause in a paragraph.
+    """
+    t7 = _get(bundle, "t7") or {}
+    rows = []
+    for label, key in (("0.6B", "baselines"), ("1.7B", "scale_17b")):
+        payload = (t7.get(key) or {})
+        if key == "scale_17b":
+            payload = payload.get("baselines") or {}
+        arms = payload.get("arms") or {}
+        if not arms:
+            continue
+        for arm in ("frozen", "context_target", "rag_top1", "rag_top3", "context_all"):
+            row = arms.get(arm)
+            if not row:
+                continue
+            rows.append([f"{label} {arm.replace('_', ' ')}",
+                         f"{row['containment']:.3f}",
+                         f"{row['mean_prompt_tokens']:.0f}"])
+    if not rows:
+        return f"% T7 retrieval {NOT_AVAILABLE}"
+    return _table(
+        "T7-e: the context arms with the oracle turn and with real retrieval. Replacing "
+        "the oracle with similarity retrieval changes nothing measurable, so the oracle "
+        "convention is not what makes the context arms look the way they do; retrieving "
+        "three turns instead of one costs more tokens and buys little.",
+        "tab:t7retrieval", ["arm", "containment", "prompt tokens"], rows, "lrr",
+        frozenset({0}))
 
 
 def _latex_t7(bundle) -> str:
