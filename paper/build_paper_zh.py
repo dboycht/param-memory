@@ -345,7 +345,8 @@ oracle 几乎不受换键影响（0.6B 是 [[tLexOracleSmall]]、1.7B 是 [[tLex
 [[tRealCollisionTwoHurt]] 损害对 [[tRealCollisionTwoHelped]] 帮助（$p$ 为 [[tRealCollisionTwoP]]），
 "多开两个"是 [[tRealCollisionThreeHurt]] 对 0（$p$ 为 [[tRealCollisionThreeP]]），
 整库全开是 [[tRealCollisionAllHurt]] 对 [[tRealCollisionAllHelped]]（$p$ 为 [[tRealCollisionAllP]]）。
-⇒ **两槽这一步在 [[tRealCollisionItems]] 题上是"提示性"而未达显著**，再往后每一步都毫不含糊。
+**两槽这一步是整条曲线上最小的效应，而它在 [[tRealCollisionItems]] 题上已经显著** ——
+**"只读了几道题"这个解释因此被排除**。
 
 \subsection{该写什么（T3）}
 把 $5$ 条虚构事实与 [[tKnownConfirmed]] 条已验证常识混成一条流。全写需要
