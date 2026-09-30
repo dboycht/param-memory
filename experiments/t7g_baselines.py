@@ -15,6 +15,12 @@ Arms:
 ``slots``          the paper's scheme: one memory per slot, read by routing
 =================  ==============================================================
 
+All arms see the **same number of item-gradient-steps** (``items`` x ``steps``). That is
+not equal compute: the fine-tune arm updates every parameter on every step, so it
+receives *more* compute than the adapter arms rather than less, which makes any result
+in the paper's favour a conservative one and must not be described as an equal-FLOP
+comparison.
+
 Retrieval-only arms are already covered by T7-e (``rag_top1``, ``rag_top3``), so this
 does not duplicate them. Each arm reports containment on the same probes, the backbone
 drift it inflicts (all-position KL against the frozen model, so a method that wrecks
@@ -59,11 +65,19 @@ def parse_args() -> argparse.Namespace:
     ap.add_argument("--lr", type=float, default=1e-3,
                     help="learning rate for the adapter arms, which is the rate the "
                          "slot writes use in every other experiment")
-    ap.add_argument("--lr-full", type=float, default=1e-5,
+    ap.add_argument("--lr-full", type=float, default=1e-4,
                     help="learning rate for the full fine-tune arm. A full model needs "
                          "a much smaller step than an adapter; running it at 1e-3 "
                          "destroys the backbone in two steps (measured: all-position KL "
                          "12.8) and would make the comparison a straw man")
+    ap.add_argument("--optimiser-full", default="sgd",
+                    choices=("sgd", "adamw"),
+                    help="AdamW keeps two moment estimates per parameter, which on a "
+                         "0.6B backbone puts this card at 7.85 of 8 GB and thrashes "
+                         "(measured: one arm did not finish in nineteen minutes). SGD "
+                         "with momentum keeps one buffer and is the default for that "
+                         "reason; it is a hardware constraint, and it is reported with "
+                         "the result rather than left implicit")
     ap.add_argument("--rank", type=int, default=4)
     ap.add_argument("--alpha", type=float, default=16.0)
     ap.add_argument("--lambda-kl", type=float, default=1.0)
@@ -94,7 +108,11 @@ def train_full_backbone(bb: Backbone, pairs, args, anchors) -> None:
     bb.set_read_slots([])
     for parameter in bb.model.parameters():
         parameter.requires_grad_(True)
-    optimiser = torch.optim.AdamW(list(bb.model.parameters()), lr=args.lr_full)
+    params = list(bb.model.parameters())
+    if args.optimiser_full == "adamw":
+        optimiser = torch.optim.AdamW(params, lr=args.lr_full)
+    else:
+        optimiser = torch.optim.SGD(params, lr=args.lr_full, momentum=0.9)
     for _ in range(args.steps):
         optimiser.zero_grad()
         total = None
