@@ -378,8 +378,9 @@ during training -- reaches \tKeyLearnedTopLarge{} top-1 and \tKeyLearnedEmLarge{
 end-to-end on the larger backbone, against \tKeyLastTopLarge{} for the raw hidden state it
 was meant to improve and \tKeyBestTopLarge{} for the model-free overlap it was meant to
 beat. On the smaller backbone it is worse than the raw key outright (\tKeyLearnedTop{}
-against \tKeyLastTop{}), and its paired record there is negative: no probe helped and
-three hurt. So training does buy a real improvement over the raw key once the backbone is
+against \tKeyLastTop{}), and its paired record there is negative: \tKeyPairLearnedHelped{}
+probes helped against \tKeyPairLearnedHurt{} hurt ($p = \tKeyPairLearnedP{}$). So training
+does buy a real improvement over the raw key once the backbone is
 large enough for the raw key to be weak, and it still does not reach the signal that needs
 no training at all. Borda voting across the four keys ties the best single key exactly at
 both scales (\tKeyVoteTop{} and \tKeyVoteTopLarge{}) and adds nothing over it. The pattern

@@ -811,6 +811,9 @@ def _learned_key(bundle: dict, arm: str, field: str, scale: str = "") -> str:
     if field == "paired":
         entry = (payload.get("paired_vs_last") or {}).get(arm) or {}
         return _na(entry.get("sign_p"), ".4f")
+    if field in ("helped", "hurt"):
+        entry = (payload.get("paired_vs_last") or {}).get(arm) or {}
+        return _na(entry.get(field))
     return _na((payload.get("rates") or {}).get(arm, {}).get(field), ".3f")
 
 
@@ -1353,6 +1356,8 @@ def headline_values(bundle: dict[str, Any]) -> dict[str, str]:
         "tKeyVoteTop": _learned_key(bundle, "voting", "top1"),
         "tKeyVoteEm": _learned_key(bundle, "voting", "em"),
         "tKeyPairLearnedP": _learned_key(bundle, "learned", "paired"),
+        "tKeyPairLearnedHelped": _learned_key(bundle, "learned", "helped"),
+        "tKeyPairLearnedHurt": _learned_key(bundle, "learned", "hurt"),
         "tKeyPairVoteP": _learned_key(bundle, "voting", "paired"),
         # the same two candidates on the larger backbone
         "tKeyLearnedTopLarge": _learned_key(bundle, "learned", "top1", "17b"),

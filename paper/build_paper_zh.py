@@ -309,7 +309,8 @@ oracle 减 top-1 恰好等于路由错误，说明选择规则本身不引入损
 在更大的基座上 top1 是 [[tKeyLearnedTopLarge]]、端到端 [[tKeyLearnedEmLarge]]，
 而它本要改进的原始隐状态是 [[tKeyLastTopLarge]]、它本要超越的纯词面信号是 [[tKeyBestTopLarge]]；
 在更小的基座上它**干脆比原始键还差**（[[tKeyLearnedTop]] 对 [[tKeyLastTop]]），
-配对记录也是负的：没有一条被帮到、三条被损害。
+配对记录也是负的：帮到 [[tKeyPairLearnedHelped]] 条、损害 [[tKeyPairLearnedHurt]] 条
+（$p$ 为 [[tKeyPairLearnedP]]）。
 也就是说，**当基座大到足以让原始键变弱时，训练确实带来了真实改进，却仍然够不到那个不需要训练的信号**。
 把四个键做 Borda 投票聚合，在两个尺度上都只是**恰好追平最好的单键**
 （[[tKeyVoteTop]] 与 [[tKeyVoteTopLarge]]），没有增量。
