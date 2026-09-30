@@ -443,7 +443,7 @@ predecessors buys a large reduction in backbone damage and a small gain in the
 many-slot condition, while the two-slot repair we hypothesised is unsupported.
 
 \paragraph{Deciding what to remember.} Table~\ref{tab:t3} compares write
-criteria on a stream mixing $5$ fictional facts with $13$ verified-known facts.
+criteria on a stream mixing $5$ fictional facts with $\tKnownConfirmed$ verified-known facts.
 Writing everything costs $\tAlwaysWrites$ gradient writes, of which
 $\tAlwaysWasted$ are spent on facts the model already answers, and moves the
 frozen backbone by $\tAlwaysKL$ nats. The self-check criterion spends
@@ -465,7 +465,7 @@ $\tForcedParisKL$ nats against $\tVerboseParisKL$ for the sentence the model
 actually produces, even though the answer is right.
 
 \paragraph{Forgetting is exact, and only the dumb policy is bad.}
-Table~\ref{tab:t4} streams $12$ memories into $6$ slots, of which the first $3$
+Table~\ref{tab:t4} streams $\tStreamItems$ memories into $\tCapacitySlots$ slots, of which the first $3$
 are accessed repeatedly. Every eviction restores its slot to the virgin state:
 \tErasedTotal{} slots verified bit-identical to never-written, \tErased{} of them
 in each policy, identically across \tSeedsCapacity{} seeds, because those are
@@ -534,7 +534,8 @@ retrieval would make the context arms look worse and the parametric arm better. 
 the oracle with similarity retrieval over the session's turns, and it changes nothing
 measurable. Exact-match containment is identical -- \tRagTopOne{} retrieved against
 \tOracleContextBase{} oracle-selected at 0.6B, and \tRagTopOneLarge{} against
-\tOracleContextLarge{} at 1.7B -- and under the judge the retrieved arm is level with the
+\tOracleContextLarge{} at 1.7B, with a frozen floor of \tFrozenBase{} and
+\tAllContextBase{} for the history-carrying arm -- and under the judge the retrieved arm is level with the
 oracle within noise (\tJudgeRagOne{} against \tJudgeContextTarget{}). Retrieving three
 turns instead of one buys \tRagTopThree{} for \tRagTopThreeTokens{} prompt tokens against
 \tRagTopOneTokens{}, so the second and third turns mostly cost. That parity is a property

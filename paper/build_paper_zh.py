@@ -387,6 +387,7 @@ oracle 单条 & [[tJudgeContextTarget]] & [[tScaleContextTarget]] & [[tTokContex
 检索更差会让上下文臂更难看、参数臂更好看。我们把 oracle 换成**对会话内各轮做相似度检索**，
 结果**测不出任何变化**：精确匹配口径下二者完全相同 —— 0.6B 是 [[tRagTopOne]]（检索）对
 [[tOracleContextBase]]（oracle 选取），1.7B 是 [[tRagTopOneLarge]] 对 [[tOracleContextLarge]]；
+冻结地板是 [[tFrozenBase]]，而把整段历史都塞进去的臂是 [[tAllContextBase]]；
 判官口径下检索臂与 oracle 也在噪声内相当（[[tJudgeRagOne]] 对 [[tJudgeContextTarget]]）。
 检索三条轮只能换来 [[tRagTopThree]]，却要 [[tRagTopThreeTokens]] 个 prompt token
 （单条是 [[tRagTopOneTokens]]），所以第二、三条基本是白花的。
