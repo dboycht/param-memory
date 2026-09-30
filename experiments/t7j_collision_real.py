@@ -29,6 +29,7 @@ import torch
 
 from parammem.bench.longmemeval import (contains_answer, load_oracle,
                                         select_single_session, sha256_file)
+from parammem.eval.paired import sign_test_p
 from parammem.memory.writer import write_slot
 from parammem.model import GENERIC_ANCHORS, Backbone, BackboneConfig, resolve_model_path
 
@@ -120,7 +121,12 @@ def main() -> int:
             row[f"dose_{dose}"] = hit
         bb.set_read_slots(written)
         all_answer = bb.answer(item["question"])
-        hits["all"] += int(contains_answer(all_answer, str(item["answer"])))
+        all_hit = int(contains_answer(all_answer, str(item["answer"])))
+        hits["all"] += all_hit
+        # Stored per question as well, because the paired test needs the whole-bank arm at
+        # the same granularity as the doses; keeping it only in the aggregate was a bug
+        # that surfaced as a KeyError after the entire run had finished.
+        row["all"] = all_hit
         per_question.append(row)
         if (index + 1) % 10 == 0:
             print(f"    read {index + 1}/{len(items)}", flush=True)
@@ -128,6 +134,19 @@ def main() -> int:
     n = len(items)
     rates = {str(dose): hits[dose] / n for dose in DOSES}
     rates["all"] = hits["all"] / n
+
+    # A rate difference on thirty questions is not evidence by itself; the per-question
+    # outcomes allow the paired test the rest of the paper uses. "Hurt" means the question
+    # was answered with the correct slot alone and stopped being answered once more slots
+    # were opened, which is the direction the composition claim predicts.
+    paired = {}
+    for label, key in (("one_extra", "dose_1"), ("two_extra", "dose_2"),
+                       ("four_extra", "dose_4"), ("whole_bank", "all")):
+        hurt = sum(1 for row in per_question if row["dose_0"] and not row[key])
+        helped = sum(1 for row in per_question if not row["dose_0"] and row[key])
+        paired[label] = {"hurt": hurt, "helped": helped,
+                         "tied": n - hurt - helped, "sign_p": sign_test_p(helped, hurt)}
+
     summary = {
         "note": "Whether the read-time composition failure also appears on real benchmark "
                 "content. Items are written one per slot exactly as in the T7-d "
@@ -142,6 +161,7 @@ def main() -> int:
         "rates": rates,
         "floor_rate": sum(row["floor"] for row in per_question) / n,
         "mean_extra_slots": statistics.mean(DOSES),
+        "paired_vs_single_slot": paired,
         "per_question": per_question,
         "elapsed_s": time.perf_counter() - t0,
     }
@@ -153,6 +173,10 @@ def main() -> int:
     for dose in DOSES:
         print(f"  {1 + dose:<16}{rates[str(dose)]:>13.3f}")
     print(f"  {'all ' + str(n):<16}{rates['all']:>13.3f}")
+    print()
+    for label, row in paired.items():
+        print(f"  paired {label:<12} hurt {row['hurt']:>2} / helped {row['helped']:>2} "
+              f"(p = {row['sign_p']:.4f})")
     print(f"\nreport written to {out.resolve()}")
     return 0
 

@@ -1027,6 +1027,15 @@ def _collision_real(bundle: dict, field: str) -> str:
         return _na(payload.get("floor_rate"), ".3f")
     if field == "items":
         return _na(payload.get("n_items"))
+    if field.startswith("paired_"):
+        # paired_<label>_<hurt|helped|p>, where the label itself may contain underscores;
+        # only the trailing metric is a single token.
+        body = field[len("paired_"):]
+        label, _sep, metric = body.rpartition("_")
+        entry = (payload.get("paired_vs_single_slot") or {}).get(label) or {}
+        if metric == "p":
+            return _na(entry.get("sign_p"), ".4f")
+        return _na(entry.get(metric))
     return _na(rates.get(field), ".3f")
 
 
@@ -1446,6 +1455,14 @@ def headline_values(bundle: dict[str, Any]) -> dict[str, str]:
         "tRealCollisionThree": _collision_real(bundle, "2"),
         "tRealCollisionFive": _collision_real(bundle, "4"),
         "tRealCollisionAll": _collision_real(bundle, "all"),
+        "tRealCollisionTwoHurt": _collision_real(bundle, "paired_one_extra_hurt"),
+        "tRealCollisionTwoHelped": _collision_real(bundle, "paired_one_extra_helped"),
+        "tRealCollisionTwoP": _collision_real(bundle, "paired_one_extra_p"),
+        "tRealCollisionAllHurt": _collision_real(bundle, "paired_whole_bank_hurt"),
+        "tRealCollisionAllHelped": _collision_real(bundle, "paired_whole_bank_helped"),
+        "tRealCollisionAllP": _collision_real(bundle, "paired_whole_bank_p"),
+        "tRealCollisionThreeHurt": _collision_real(bundle, "paired_two_extra_hurt"),
+        "tRealCollisionThreeP": _collision_real(bundle, "paired_two_extra_p"),
         # ---- does real retrieval beat the oracle convention? (T7-e) ----
         "tRagTopOne": _probe_baseline(bundle, "rag_top1", "containment"),
         "tRagTopThree": _probe_baseline(bundle, "rag_top3", "containment"),

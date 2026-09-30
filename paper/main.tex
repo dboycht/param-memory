@@ -414,7 +414,14 @@ thing that varies is how many memories the read path holds at once. Containment 
 \tRealCollisionOne{} with the single correct slot to \tRealCollisionTwo{} with one
 distractor, \tRealCollisionThree{} with two, \tRealCollisionFive{} with four, and
 \tRealCollisionAll{} with the entire bank, against a frozen floor of
-\tRealCollisionFloor{}. The mechanism behaves on real content as it does on generated
+\tRealCollisionFloor{}. The effect is one-directional at every dose: opening more slots never
+improved a question, and the paired counts are \tRealCollisionTwoHurt{} against
+\tRealCollisionTwoHelped{} at the two-slot step ($p = \tRealCollisionTwoP{}$),
+\tRealCollisionThreeHurt{} against nothing at three ($p = \tRealCollisionThreeP{}$), and
+\tRealCollisionAllHurt{} against \tRealCollisionAllHelped{} with the whole bank open
+($p = \tRealCollisionAllP{}$). The two-slot step is therefore suggestive rather than
+significant on \tRealCollisionItems{} questions, while every step beyond it is
+unambiguous. The mechanism behaves on real content as it does on generated
 content, and one difference is worth stating: the two-slot drop is gentler here than on the
 synthetic episodes, so the generator exaggerates the size of the effect without creating it.
 
