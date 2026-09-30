@@ -29,12 +29,16 @@ __all__ = [
     "sha256_file",
     "load_oracle",
     "select_single_session",
+    "select_multi_session",
+    "select_by_type",
+    "MULTI_SESSION_PREFIX",
     "evidence_turns",
     "containment",
     "contains_answer",
 ]
 
 SINGLE_SESSION_PREFIX = "single-session-"
+MULTI_SESSION_PREFIX = "multi-session-"
 
 
 def sha256_file(path: str | Path) -> str:
@@ -48,6 +52,27 @@ def sha256_file(path: str | Path) -> str:
 
 def load_oracle(path: str | Path) -> list[dict[str, Any]]:
     return json.loads(Path(path).read_text(encoding="utf-8"))
+
+
+def select_by_type(
+    raw: Iterable[dict[str, Any]], prefix: str, subset: int, offset: int = 0
+) -> list[dict[str, Any]]:
+    """``subset`` questions at ``offset`` from the pool whose type starts with ``prefix``.
+
+    Same ordering rule as :func:`select_single_session`, generalised so the multi-session
+    questions can be measured with the identical pipeline. The paper argued that evidence
+    spread across several sessions cannot fit in one slot; running it turns that argument
+    into a measurement instead of leaving it as an expectation.
+    """
+    pool = [d for d in raw if str(d.get("question_type", "")).startswith(prefix)]
+    pool.sort(key=lambda d: d["question_id"])
+    return pool[offset: offset + subset]
+
+
+def select_multi_session(
+    raw: Iterable[dict[str, Any]], subset: int, offset: int = 0
+) -> list[dict[str, Any]]:
+    return select_by_type(raw, MULTI_SESSION_PREFIX, subset, offset)
 
 
 def select_single_session(

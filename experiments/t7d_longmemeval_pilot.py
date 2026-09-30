@@ -35,6 +35,8 @@ from pathlib import Path
 import torch
 
 from parammem.bench import protocol as P
+from parammem.bench.longmemeval import (MULTI_SESSION_PREFIX, SINGLE_SESSION_PREFIX,
+                                        select_by_type)
 from parammem.memory.router import route
 from parammem.memory.writer import write_slot
 from parammem.model import GENERIC_ANCHORS, Backbone, BackboneConfig, resolve_model_path
@@ -66,6 +68,10 @@ def parse_args() -> argparse.Namespace:
                     help="32 truncated long reference answers, which both depressed "
                          "the weights arm and made the judge call it incomplete")
     ap.add_argument("--manual-samples", type=int, default=10)
+    ap.add_argument("--question-type", choices=("single", "multi"), default="single",
+                    help="which LongMemEval pool to draw from. 'multi' runs the same "
+                         "pipeline on questions whose evidence sits in several sessions, "
+                         "which is where the one-slot read path should fail")
     ap.add_argument("--out", default="runs/t7d_longmemeval.json")
     return ap.parse_args()
 
@@ -111,13 +117,12 @@ def main() -> int:
     raw = json.loads(data_path.read_text(encoding="utf-8"))
     digest = sha256(data_path)
 
-    singles = [d for d in raw
-               if str(d.get("question_type", "")).startswith("single-session")]
-    singles.sort(key=lambda d: d["question_id"])
-    chosen = singles[args.offset: args.offset + args.subset]
-    negatives = singles[args.offset + args.subset:
-                        args.offset + args.subset + args.negatives]
-    print(f"file sha256 {digest[:16]}…  single-session pool {len(singles)}  "
+    prefix = MULTI_SESSION_PREFIX if args.question_type == "multi" else SINGLE_SESSION_PREFIX
+    pool = [d for d in raw if str(d.get("question_type", "")).startswith(prefix)]
+    pool.sort(key=lambda d: d["question_id"])
+    chosen = select_by_type(raw, prefix, args.subset, args.offset)
+    negatives = select_by_type(raw, prefix, args.negatives, args.offset + args.subset)
+    print(f"file sha256 {digest[:16]}…  {args.question_type} pool {len(pool)}  "
           f"offset {args.offset}  subset {len(chosen)}  negatives {len(negatives)}",
           flush=True)
 
