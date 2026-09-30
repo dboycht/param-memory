@@ -76,34 +76,30 @@ own block, read implicitly through the forward pass, so the memory content never
 
 \paragraph{Contributions.}
 \begin{enumerate}\itemsep2pt
-\item A rank-blocked side path in which writing, reading and erasing are all
-  independently checkable: writes are asserted to touch one slot only, erasure is
-  asserted to return the slot to its virgin state bit-for-bit, and reads can be
-  ablated slot-by-slot on a byte-identical model (Section~\ref{sec:method},
-  Table~\ref{tab:t1}).
-\item The finding that read-time \emph{composition} is the binding constraint:
-  the sum of the slots is worthless, one selected slot is as good as an oracle,
-  and two selected slots already lose most of the benefit
-  (Table~\ref{tab:t2}).
-\item A retention term in the write objective, tested against that constraint and
-  reported with its non-replication: it cuts backbone damage from \tRetentionKlBase{}
-  to \tRetentionKlBest{} nats and improves the all-slots condition from
-  \tRetentionAllBase{} to \tRetentionAllBest{} ($p = \tRetentionAllP{}$), but it does \emph{not} repair two-slot recall: an earlier, smaller run suggested it did, and four times the sample refuted it (Table~\ref{tab:t8}).
-\item A scoped diagnostic on real benchmark content, compared against delivering the
-  same information through the context with the \emph{same} router and graded by an
-  LLM judge calibrated against human marks: the parametric arm answers every
-  question correctly at zero extra prompt tokens (Table~\ref{tab:t7}).
-\item A label-free write criterion (ask the model first) that matches full-write
-  recall at a fraction of the write cost and the backbone drift, plus a
-  refutation of the likelihood-based criterion it replaces (Table~\ref{tab:t3},
-  Table~\ref{tab:t3loss}).
-\item Exact erasure at capacity: every eviction restores its slot to the virgin
-  state, an ``important'' slot survives repeated overflow, and only the dumbest
-  eviction policy actually loses memories that were in use (Table~\ref{tab:t4}).
-\item Persistence across processes, in which a side path that is provably virgin
-  before loading still recalls what it learned in an earlier process, and remains
-  exactly erasable afterwards (Table~\ref{tab:t6}).
-\item Two negative results that constrain the claim (Section~\ref{sec:negative}).
+\item A rank-blocked side path whose three operations are independently checkable:
+  writes are asserted to touch one slot only, erasure is asserted to return the slot
+  to its virgin state bit-for-bit, and reads can be ablated slot-by-slot on a
+  byte-identical model. The same property holds at capacity and across a process
+  restart (Tables~\ref{tab:t1}, \ref{tab:t4}, \ref{tab:t6}).
+\item The finding that read-time \emph{composition} is the binding constraint: the sum
+  of the slots is worthless, one selected slot is as good as an oracle, and two
+  selected slots already lose most of the benefit. The residual gap equals the routing
+  error exactly, on both backbones we test (Table~\ref{tab:t2}).
+\item A label-free write criterion that reaches full-write recall with
+  $\tSelfWrites$ writes instead of $\tAlwaysWrites$ and $\tSelfKL$ nats of backbone
+  drift instead of $\tAlwaysKL$, together with a refutation of the likelihood-based
+  criterion it replaces (Tables~\ref{tab:t3}, \ref{tab:t3loss}).
+\item A scoped diagnostic on real benchmark content in which the \emph{same} router
+  delivers the \emph{same} information through the context, graded by a judge
+  calibrated against human marks: the parametric arm answers every question correctly
+  at zero extra prompt tokens, while context delivery pays
+  $\tTokContextTarget{}$--$\tTokContextAll{}$ (Table~\ref{tab:t7}).
+\item Negative results we report instead of burying: parametric memory does not reduce
+  context inertia; a likelihood threshold measures wording; and a retention term that
+  looked like a repair of two-slot recall at $n = \tRetentionSmallProbes{}$ does not
+  replicate at $n = \tRetentionProbes{}$, although it does cut backbone damage from
+  \tRetentionKlBase{} to \tRetentionKlBest{} nats
+  (Tables~\ref{tab:t8}, Section~\ref{sec:negative}).
 \end{enumerate}
 
 \section{Related work}
@@ -127,12 +123,18 @@ blocks inside one adapter. WISE~\cite{wise} observes an impossibility triangle f
 lifelong editing (reliability, generalization, locality) and uses a main/side
 memory split, which is the structure we instantiate. AlphaEdit~\cite{alphaedit}
 projects edits into the null space of preserved knowledge, a technique we apply
-per slot in the anchor term.
+per slot in the anchor term. What none of them offer is a slot that can be written,
+read and erased independently at runtime on a frozen backbone; that combination is
+what we test, and the erasure half of it is what makes the bit-identical claims
+possible.
 
 \paragraph{Fact editing.} ROME/MEMIT-style editors~\cite{rome,memit} write facts
 into weights offline and are evaluated mostly on ripple consistency;
 \cite{rippleedits} reports that a simple context-editing baseline can top that
-metric, a warning that we take seriously (Section~\ref{sec:limits}).
+metric, a warning that we take seriously (Section~\ref{sec:limits}). Our protocol
+therefore carries that baseline explicitly: the context arms of
+Table~\ref{tab:t7} receive the same facts by editing the prompt, and they are the
+comparison we report against.
 
 \paragraph{Agent memory.} MemGPT/Letta, Mem0, A-MEM, MemoryBank, MemoRAG and
 Zep~\cite{memgpt,mem0,amem,memorybank,memoRAG,zep} are the systems practitioners

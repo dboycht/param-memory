@@ -82,3 +82,42 @@ def test_machine_writing_markers_stay_below_the_density_threshold():
         'the "not X, but Y" antithesis is the most reliable machine-writing tell')
     assert not re.search("不是[^。；]{0,40}?而是", chinese)
     assert chinese.count("不是") <= 5, f"{chinese.count('不是')} negations in the template"
+
+
+def test_the_paper_has_the_sections_the_conventions_expect():
+    """Abstract -> Introduction (with contributions) -> Related work -> Method ->
+    Evaluation -> Results -> Limitations -> Conclusion, related work as section 2."""
+    text = EN.read_text(encoding="utf-8")
+    order = [m.group(1) for m in re.finditer(r"\\section\{([^}]*)\}", text)]
+    assert order[0] == "Introduction"
+    assert order[1].lower().startswith("related work"), (
+        f"related work should be section 2, found {order[1]!r}")
+    for required in ("Method", "Results", "Limitations", "Conclusion"):
+        assert required in order, f"missing section {required!r}"
+
+
+def test_the_abstract_cites_nothing():
+    """Venue guidance is explicit that abstracts carry no citations."""
+    body = re.search(r"\\begin\{abstract\}(.*?)\\end\{abstract\}",
+                     EN.read_text(encoding="utf-8"), re.S).group(1)
+    assert "\\cite" not in body
+
+
+def test_the_contribution_list_is_short_enough_to_read():
+    """Reviewers are told to summarise the contributions; guidance is 3-5 one-sentence
+    bullets, each tied to evidence. Ours was eight."""
+    text = EN.read_text(encoding="utf-8")
+    block = re.search(r"\\paragraph\{Contributions\.\}(.*?)\\end\{enumerate\}",
+                      text, re.S)
+    assert block, "no contributions list found"
+    items = re.findall(r"\\item(?![a-zA-Z])", block.group(1))
+    assert 3 <= len(items) <= 5, f"{len(items)} contribution bullets (guidance: 3-5)"
+    refs = re.findall(r"\\ref\{[^}]*\}", block.group(1))
+    assert len(refs) >= len(items) - 1, (
+        "most contribution bullets should point at the table or section that shows them")
+
+
+def test_no_overclaiming_vocabulary():
+    text = EN.read_text(encoding="utf-8")
+    for word in ("obviously", "clearly", "we believe", "trivially", "proves that"):
+        assert not re.search(rf"\b{re.escape(word)}\b", text, re.I), word

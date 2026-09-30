@@ -136,21 +136,47 @@ $R = K \cdot r$ 被切成 $K$ 个连续块，第 $k$ 块就是第 $k$ 个槽。�
 
 \subsection{贡献}
 \begin{enumerate}\setlength\itemsep{2pt}
-\item 一条旁路，其写入、读取、擦除三者都能独立检查：写入被断言只触碰一个槽，
-擦除被断言把槽还原成从未写过的逐位状态，读取可以在逐字节相同的模型上逐槽消融。
-\item 读时组合是约束所在。全部相加毫无价值，只选一个槽约等于 oracle，
-选两个就损失大部分收益，而 oracle 与 top-1 之差恰好等于路由错误。
-\item 一个无标签的写入判据（先问模型），在同等召回下把写入次数与基座漂移都降到零头，
-并给出它所替代的似然判据的否证。
-\item 容量下的精确擦除。每次驱逐都把槽还原为初始态，被标记为重要的槽能扛过反复溢出，
-只有最笨的淘汰策略会丢掉正在被使用的记忆。
-\item 跨进程持久化。加载前后可证明未写过的旁路，能回忆起上一个进程写进去的东西，
-并且之后仍然可以精确擦除。
-\item 两条负结果（上下文惯性假设、似然型写入判据）与一条未复现的修复尝试（B1 保留项）。
-它们限定了我们主张的边界。
-\item 一个范围受限的真实内容诊断。同一个路由器把同样的信息送进上下文，
-再由一个与人工标注校准过的 LLM 判官打分，参数臂在零额外 token 下全部答对。
+\item 一条秩块旁路，三种操作都能独立检查：写入被断言只触碰一个槽，擦除被断言把槽还原成
+从未写过的逐位状态，读取可以在逐字节相同的模型上逐槽消融。这三条在容量上限处与进程重启后同样成立。
+\item 读时组合是约束所在：全部相加毫无价值，只选一个槽约等于 oracle，选两个就损失大部分收益；
+而 oracle 与 top-1 之差恰好等于路由错误，在我们测的两个规模上都如此。
+\item 一个无标签的写入判据，用 [[tSelfWrites]] 次写入达到全写的召回（全写 [[tAlwaysWrites]] 次），
+基座漂移 [[tSelfKL]] nats（全写 [[tAlwaysKL]] nats），并给出它所替代的似然判据的否证。
+\item 一个范围受限的真实内容诊断：同一个路由器把同样的信息送进上下文，由与人工标注校准过的
+LLM 判官打分；参数臂在零额外 token 下全部答对，而上下文递送要付
+[[tTokContextTarget]] 到 [[tTokContextAll]] 个 token。
+\item 我们报告而没有埋掉的负结果：参数化记忆没有减轻上下文惯性；似然阈值量到的是措辞；
+以及一个在 $n = [[tRetentionSmallProbes]]$ 时看起来修好了两槽召回的保留项，
+在 $n = [[tRetentionProbes]]$ 时没有复现，尽管它确实把基座损伤从
+[[tRetentionKlBase]] 降到 [[tRetentionKlBest]] nats。
 \end{enumerate}
+
+\section{相关工作}
+\label{sec:related}
+
+\paragraph{运行时参数化记忆。}Titans 是最近的先例：一个在测试时按“惊讶度”更新的神经长期记忆，
+其衰减起到遗忘作用。它改动主干，我们冻结主干。GradMem 用测试时梯度把上下文信息写进
+memory token，是与我们设定最接近的工作，但它没有遗忘机制，而那正是我们测得最仔细的一维。
+TTT 一类方法把上下文压缩进权重，并报告长上下文下的延迟收益；其中一篇给出一个数：
+在 128K 上，全注意力的朴素逐 token 开销是它所需开销的 $2.7$ 倍。这些工作都没有提供逐条擦除。
+
+\paragraph{槽位与适配器。}ProCL 把 LoRA 适配器组织成结构化的“程序记忆”槽，按输入条件注意力检索，
+动机来自互补学习系统，在架构上是与我们槽位想法最近的邻居。它的设定是有任务数据集的任务增量微调，
+不遗忘；它的槽是彼此独立的适配器，而不是同一个适配器内部的秩块。WISE 观察到终身编辑的
+“不可能三角”（可靠性、泛化性、局部性），并用主副记忆分离来应对，那正是我们实例化的结构。
+AlphaEdit 把编辑投影到被保护知识的零空间，我们在锚定项里逐槽使用了这个技术。
+它们都没有提供一种能在运行时、在冻结主干上被独立写入、读取和擦除的槽；
+我们测的就是这个组合，而其中的擦除一半，正是“逐位相同”这类主张得以成立的原因。
+
+\paragraph{事实编辑。}ROME 与 MEMIT 一类编辑器离线把事实写进权重，评价指标主要是涟漪一致性；
+有工作报告说一个简单的上下文编辑基线就能在这个指标上超过它们，这个警告我们认真对待
+（见 §\ref{sec:limits}）。因此我们的协议把这条基线明确带上：§\ref{sec:results} 里的上下文臂
+就是用编辑提示词的方式把同样的事实交给模型，而它们正是我们报告的对照。
+
+\paragraph{智能体记忆。}MemGPT/Letta、Mem0、A-MEM、MemoryBank、MemoRAG 与 Zep 是实践中
+真正被使用的系统。它们都把记忆存在上下文层或外部存储里，再检索回提示词；
+没有一个做运行时参数更新。我们的设定因此是空着的，这也意味着没有现成的基线协议可以继承。
+§\ref{sec:protocol} 定义了一套。
 
 \section{方法}
 \label{sec:method}
@@ -420,6 +446,12 @@ def render(template: str, values: dict[str, str]) -> str:
     if missing:
         raise SystemExit(f"template references macros that do not exist: {missing}")
     text = PLACEHOLDER.sub(lambda m: tex_escape(values[m.group(1)]), template)
+    # A generated value written in LaTeX style (``\tSomeMacro``) instead of as a
+    # ``[[placeholder]]`` resolves to nothing and only fails later, inside xelatex,
+    # with an "undefined control sequence" pointing at the wrong line.
+    stray = sorted(set(re.findall(r"\\t[A-Z]\w+", text)))
+    if stray:
+        raise SystemExit(f"template wrote generated values as LaTeX commands: {stray}")
     # The prose is written with **bold** because it is far easier to read and edit
     # that way, but LaTeX would print the asterisks. Convert, then assert nothing is
     # left: an unmatched ** would otherwise reach the PDF unnoticed.
