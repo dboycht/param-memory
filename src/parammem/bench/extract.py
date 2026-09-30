@@ -83,8 +83,11 @@ def extract_pairs(call, turns: list[str], retries: int = 1, observer=None
         try:
             reply = call(prompt) or ""
         except Exception as error:                  # transport or rate-limit failure
-            report(attempt=attempt, status="error", chars=0, error=type(error).__name__,
-                   finish="")
+            # The message matters: "RuntimeError" alone does not say whether this was a
+            # rate limit, an authentication problem or a malformed request, and those
+            # need different responses.
+            report(attempt=attempt, status="error", chars=0,
+                   error=f"{type(error).__name__}: {str(error)[:180]}", finish="")
             continue
         pairs = parse_pairs(reply)
         finish = getattr(call, "last_finish_reason", "") if hasattr(call, "last_finish_reason") else ""

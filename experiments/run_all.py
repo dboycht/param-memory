@@ -96,18 +96,41 @@ STAGES: dict[str, dict] = {
     },
     "t4": {
         "script": "t4_capacity.py",
-        "inputs": ["t4_capacity.json"],
-        "full": ["--stream", "12", "--slots", "6", "--hot", "3",
-                 "--out", "runs/t4_capacity.json"],
-        "quick": ["--stream", "6", "--slots", "3", "--hot", "2", "--steps", "4",
-                  "--policies", "fifo", "utility_time", "--out", "runs/t4_quick.json"],
+        "inputs": ["t4_capacity.json", "t4_capacity_seed1.json",
+                   "t4_capacity_seed2.json"],
+        # Three seeds. The eviction assertions are deterministic (every erased slot is
+        # checked bit-for-bit), but *which* memories survive under each policy is not,
+        # so the retention numbers are reported as a range rather than as one draw.
+        "phases": [
+            ["--stream", "12", "--slots", "6", "--hot", "3", "--base-seed", "0",
+             "--out", "runs/t4_capacity.json"],
+            ["--stream", "12", "--slots", "6", "--hot", "3", "--base-seed", "1",
+             "--out", "runs/t4_capacity_seed1.json"],
+            ["--stream", "12", "--slots", "6", "--hot", "3", "--base-seed", "2",
+             "--out", "runs/t4_capacity_seed2.json"],
+        ],
+        "quick_phases": [
+            ["--stream", "6", "--slots", "3", "--hot", "2", "--steps", "4",
+             "--policies", "fifo", "utility_time", "--out", "runs/t4_quick.json"],
+        ],
     },
     "t5": {
         "script": "t5_inertia.py",
-        "inputs": ["t5_inertia.json"],
-        "full": ["--candidates", "30", "--episodes", "12", "--out", "runs/t5_inertia.json"],
-        "quick": ["--candidates", "8", "--episodes", "2", "--steps", "4",
-                  "--out", "runs/t5_quick.json"],
+        "inputs": ["t5_inertia.json", "t5_inertia_seed1.json", "t5_inertia_seed2.json"],
+        # The refutation is reported from one draw in the paper; three seeds make the
+        # "context and weights are equally sticky" claim a range instead.
+        "phases": [
+            ["--candidates", "30", "--episodes", "12", "--base-seed", "0",
+             "--out", "runs/t5_inertia.json"],
+            ["--candidates", "30", "--episodes", "12", "--base-seed", "1",
+             "--out", "runs/t5_inertia_seed1.json"],
+            ["--candidates", "30", "--episodes", "12", "--base-seed", "2",
+             "--out", "runs/t5_inertia_seed2.json"],
+        ],
+        "quick_phases": [
+            ["--candidates", "8", "--episodes", "2", "--steps", "4",
+             "--out", "runs/t5_quick.json"],
+        ],
     },
     "t6": {
         "script": "t6_persistence.py",
@@ -286,6 +309,15 @@ def collect(stage: str, recipe: dict, mode: str) -> dict:
             merged["mechanism"] = by_name["t2b_mechanism.json"]
         if "t2d_composable.json" in by_name:
             merged["composable"] = by_name["t2d_composable.json"]
+        return merged
+    if stage in ("t4", "t5"):
+        by_name = dict(pairs)
+        primary = "t4_capacity.json" if stage == "t4" else "t5_inertia.json"
+        merged = dict(by_name.get(primary) or {})
+        extra = [by_name[name] for name in sorted(by_name)
+                 if "seed" in name and name != primary]
+        if extra:
+            merged["extra_seeds"] = extra
         return merged
     if stage == "t3":
         by_name = dict(pairs)

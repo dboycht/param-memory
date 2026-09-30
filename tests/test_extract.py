@@ -116,7 +116,10 @@ def test_observer_separates_a_failed_call_from_an_empty_finding():
     extract_pairs(lambda _p: (_ for _ in ()).throw(RuntimeError("HTTP 429")),
                   ["user: hi"], retries=0, observer=events.append)
     assert [event["status"] for event in events] == ["error"]
-    assert events[0]["error"] == "RuntimeError"
+    # The message must survive, not just the class name: reporting "RuntimeError" alone
+    # sent me chasing a rate limit when the account was actually out of credit.
+    assert events[0]["error"].startswith("RuntimeError:")
+    assert "HTTP 429" in events[0]["error"]
 
     events.clear()
     extract_pairs(lambda _p: "no durable facts here", ["user: hi"], retries=0,
