@@ -814,6 +814,25 @@ def _learned_key(bundle: dict, arm: str, field: str, scale: str = "") -> str:
     return _na((payload.get("rates") or {}).get(arm, {}).get(field), ".3f")
 
 
+def _lex_composition(bundle: dict, field: str) -> str:
+    """The 1.7B composition arms re-run with the model-free key (T2, --key-mode lexical).
+
+    This is the causal version of the claim that the oracle-to-top-1 gap is routing: the
+    gap is closed by fixing the router rather than inferred from a correlation.
+    """
+    t2 = _get(bundle, "t2") or {}
+    payload = t2.get("composition_lexical_key") or {}
+    summary = payload.get("summary") or {}
+    if field == "routing":
+        return _na(summary.get("route_top1_accuracy"), ".3f")
+    if field == "gap":
+        em = summary.get("em") or {}
+        if em.get("oracle") is None or em.get("top1") is None:
+            return "n/a"
+        return f"{em['oracle'] - em['top1']:.3f}"
+    return _na((summary.get("em") or {}).get(field), ".3f")
+
+
 def _merged_calibration(t7: dict) -> dict:
     """Human-vs-judge agreement as merged from the marks and the current payload."""
     return t7.get("calibration_merged") or {}
@@ -1174,6 +1193,13 @@ def headline_values(bundle: dict[str, Any]) -> dict[str, str]:
         "tKeyVoteTopLarge": _learned_key(bundle, "voting", "top1", "17b"),
         "tKeyVoteEmLarge": _learned_key(bundle, "voting", "em", "17b"),
         "tKeyBestEmLarge": _learned_key(bundle, "hybrid", "em", "17b"),
+        # ---- the same composition arms with the good key (causal check) ----
+        "tLexOracle": _lex_composition(bundle, "oracle"),
+        "tLexTopOne": _lex_composition(bundle, "top1"),
+        "tLexTopTwo": _lex_composition(bundle, "top2"),
+        "tLexSum": _lex_composition(bundle, "all"),
+        "tLexRouting": _lex_composition(bundle, "routing"),
+        "tLexGap": _lex_composition(bundle, "gap"),
     }
 
 

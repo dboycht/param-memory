@@ -57,6 +57,7 @@ STAGES: dict[str, dict] = {
     "t2": {
         "script": "t2_composition.py",
         "inputs": ["t2_paraphrase.json", "t2_paraphrase_17b.json",
+                   "t2_paraphrase_17b_lexkey.json",
                    "t2c_router_keys.json", "t2c_router_keys_17b.json",
                    "t2e_learned_key.json", "t2e_learned_key_17b.json",
                    "t2b_mechanism.json", "t2d_composable.json"],
@@ -310,6 +311,8 @@ def collect(stage: str, recipe: dict, mode: str) -> dict:
         merged = dict(by_name.get("t2_paraphrase.json") or {})
         if "t2_paraphrase_17b.json" in by_name:
             merged["scale_17b"] = by_name["t2_paraphrase_17b.json"]
+        if "t2_paraphrase_17b_lexkey.json" in by_name:
+            merged["composition_lexical_key"] = by_name["t2_paraphrase_17b_lexkey.json"]
         if "t2c_router_keys.json" in by_name:
             merged["router_keys"] = by_name["t2c_router_keys.json"]
         if "t2c_router_keys_17b.json" in by_name:

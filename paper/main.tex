@@ -384,6 +384,17 @@ where content words are distinctive; real benchmark items about a single entity 
 almost all of their surface form, so whether a lexical component helps there is a
 separate question, and Section~\ref{sec:limits} leaves it open.
 
+\paragraph{Fixing the router closes the routing gap and leaves the collision.} Re-running
+the 1.7B composition arms under the model-free key turns the arithmetic above from a
+correlation into a causal check. Routing reaches $\tLexRouting{}$, one selected slot
+answers $\tLexTopOne{}$ against an oracle of $\tLexOracle{}$, and the oracle-minus-top-1
+gap falls to $\tLexGap{}$ from the $\tScaleTwoOracle{}-\tScaleTwoTopOne{}$ it was under the
+last-token key. So the whole of that gap was retrieval, and none of it was the slots. The
+two-slot cost, by contrast, survives perfect routing ($\tLexTopTwo{}$ against
+$\tLexTopOne{}$), and the sum is worth $\tLexSum{}$ under either key. That is the sharpest
+form of this section's finding: the failure a better key repairs is routing, and the
+failure it cannot reach is reading two memories at once.
+
 \paragraph{Testing a repair for the composition failure.} The boundary is not
 retrieval: the correct slot is among the two best-routed ones on
 \tRetentionRouteTwo{} of the probes, yet two-slot recall is only
