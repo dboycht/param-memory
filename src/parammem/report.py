@@ -1523,6 +1523,17 @@ def _latex_t3(bundle) -> str:
              f"{r['written_known']}/{r['known_total']}",
              str(r["missed_unknown"]), f"{r['retained_unknown']}/{r['written_unknown']}",
              f"{r['anchor_kl']:.2f}"] for r in data.get("records", [])]
+    # The scale control belongs in the table, not only in a sentence: a reader checking
+    # whether the criterion survives a larger backbone should be able to see the rows.
+    for record in (data.get("write_policy_17b") or {}).get("records", []):
+        if record.get("policy") not in ("always", "selfcheck"):
+            continue
+        rows.append([f"1.7B {record['policy']}", str(record["n_writes"]),
+                     f"{record['written_unknown']}/{record['unknown_total']}",
+                     f"{record['written_known']}/{record['known_total']}",
+                     str(record["missed_unknown"]),
+                     f"{record['retained_unknown']}/{record['written_unknown']}",
+                     f"{record['anchor_kl']:.2f}"])
     table = _table(
         "T3: write criteria. ``wasted on known'' counts gradient writes spent on "
         "facts the model already answers; ``anchor KL'' is the price paid by the "
@@ -1560,6 +1571,16 @@ def _latex_t4(bundle) -> str:
                      f"{r['routed_hits']}/{r['n_survivors']}",
                      "yes" if r["important_retained"] else "NO",
                      f"{r['anchor_kl']:.2f}"])
+    # Same reasoning as T3: the scale control is a row, not a remark.
+    for record in (data.get("capacity_17b") or {}).get("records", []):
+        hot, chot = record["oracle_hits"]["hot"], record["resident"]["hot"]
+        cold, ccold = record["oracle_hits"]["cold"], record["resident"]["cold"]
+        rows.append([f"1.7B {record['policy']}", str(record["evictions"]),
+                     f"{record['erased_virgin_ok']}/{record['erased_checked']}",
+                     f"{hot}/{chot}", f"{cold}/{ccold}",
+                     f"{record['routed_hits']}/{record['n_survivors']}",
+                     "yes" if record["important_retained"] else "NO",
+                     f"{record['anchor_kl']:.2f}"])
     return _table(
         f"T4: capacity and forgetting. {cfg.get('stream')} memories stream into "
         f"{cfg.get('slots')} slots; the first {cfg.get('hot')} are accessed repeatedly. "
@@ -1576,10 +1597,15 @@ def _latex_t5(bundle) -> str:
     rows = [[arm, f"{v['inheritance_rate']:.2f}",
              f"{v['residue_rate']:.2f}", f"{v['withholding_rate']:.2f}"]
             for arm, v in data.get("arms", {}).items()]
+    for arm, values in (data.get("inertia_17b") or {}).get("arms", {}).items():
+        rows.append([f"1.7B {arm}", f"{values['inheritance_rate']:.2f}",
+                     f"{values['residue_rate']:.2f}",
+                     f"{values['withholding_rate']:.2f}"])
     return _table(
         "T5: context inertia, on scenarios whose floor (no premise anywhere) is "
-        "zero. Storing the premise in the weights drags it into the next topic "
-        "exactly as much as leaving it in the context, so the hypothesis is refuted.",
+        "zero. Storing the premise in the weights drags it into the next topic at "
+        "least as much as leaving it in the context, so the hypothesis is refuted: "
+        "the two are equal at 0.6B and the parametric arm is ahead at 1.7B.",
         "tab:t5", ["arm", "inheritance", "residue", "withholding"], rows, "lrrr",
         frozenset({0}))
 

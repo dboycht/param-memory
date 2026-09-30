@@ -310,6 +310,8 @@ criterion & writes & target & wasted & missed & recall & anchor KL \\
 \texttt{surprise} & 9 & 3/5 & 6/13 & 2 & 3/3 & 1.20 \\
 \texttt{selfcheck} & 5 & 5/5 & 0/13 & 0 & 5/5 & 0.54 \\
 \texttt{explicit} & 1 & 1/5 & 0/13 & 4 & 1/1 & 0.10 \\
+\texttt{1.7B always} & 22 & 5/5 & 17/17 & 0 & 5/5 & 2.97 \\
+\texttt{1.7B selfcheck} & 5 & 5/5 & 0/17 & 0 & 5/5 & 0.45 \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -341,13 +343,18 @@ policy & evictions & erased & accessed & untouched & routed & stamp & anchor KL 
 \texttt{lfu} & 6 & 6/6 & 3/3 & 3/3 & 5/6 & yes & 1.30 \\
 \texttt{utility} & 6 & 6/6 & 3/3 & 3/3 & 5/6 & yes & 1.02 \\
 \texttt{utility\_time} & 6 & 6/6 & 3/3 & 3/3 & 5/6 & yes & 1.02 \\
+\texttt{1.7B fifo} & 6 & 6/6 & 1/1 & 4/5 & 4/6 & yes & 0.61 \\
+\texttt{1.7B lru} & 6 & 6/6 & 3/3 & 3/3 & 5/6 & yes & 1.37 \\
+\texttt{1.7B lfu} & 6 & 6/6 & 3/3 & 2/3 & 5/6 & yes & 1.11 \\
+\texttt{1.7B utility} & 6 & 6/6 & 3/3 & 3/3 & 5/6 & yes & 1.37 \\
+\texttt{1.7B utility\_time} & 6 & 6/6 & 3/3 & 3/3 & 5/6 & yes & 1.37 \\
 \bottomrule
 \end{tabular}
 \end{table}
 
 \begin{table}[t]
 \centering
-\caption{T5: context inertia, on scenarios whose floor (no premise anywhere) is zero. Storing the premise in the weights drags it into the next topic exactly as much as leaving it in the context, so the hypothesis is refuted.}
+\caption{T5: context inertia, on scenarios whose floor (no premise anywhere) is zero. Storing the premise in the weights drags it into the next topic at least as much as leaving it in the context, so the hypothesis is refuted: the two are equal at 0.6B and the parametric arm is ahead at 1.7B.}
 \label{tab:t5}
 \begin{tabular}{lrrr}
 \toprule
@@ -357,6 +364,10 @@ arm & inheritance & residue & withholding \\
 \texttt{context\_memory} & 1.00 & 0.42 & 0.00 \\
 \texttt{param\_memory} & 1.00 & 0.42 & 0.00 \\
 \texttt{param\_off} & 0.00 & 0.00 & 0.17 \\
+\texttt{1.7B no\_memory} & 0.00 & 0.00 & 0.00 \\
+\texttt{1.7B context\_memory} & 0.83 & 0.42 & 0.17 \\
+\texttt{1.7B param\_memory} & 1.00 & 0.42 & 0.00 \\
+\texttt{1.7B param\_off} & 0.00 & 0.00 & 0.00 \\
 \bottomrule
 \end{tabular}
 \end{table}
