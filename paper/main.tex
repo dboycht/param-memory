@@ -28,34 +28,23 @@ Exactly Erasable Slots, Read Without Context}
 \input{generated_tables}
 
 \begin{abstract}
-Long-term memory in LLM agents lives in the context window, where remembered tokens
-compete with the tokens needed to reason and remembered content is indistinguishable
-from the current working set. We study an alternative: a capacity-bounded side path of
-low-rank memory slots on a frozen backbone, written at runtime by gradient steps, read
-through the forward pass, and forgotten by erasing a rank block.
-
-On a 0.6B model with a fictional benchmark and a five-part isolation protocol, writes
-touch only their own slot (per-slot recall $4/4$; target cross-entropy $\approx 0$),
-and erasure is exact: an erased slot is bit-identical to a never-written one, at all
-\tErasedTotal{} evictions and after a process restart. The binding constraint is
-read-time composition. Summing the slots destroys recall ($\tSum{}$); selecting one
-slot by query-key similarity recovers it ($\tTopOne{}$ against an oracle of
-$\tOracle{}$ on paraphrased queries, with the residual gap equal to the routing
-error). A label-free self-check reaches full-write recall with $\tSelfWrites$ writes
-instead of $\tAlwaysWrites$, and $\tSelfKL$ nats of backbone drift instead of
-$\tAlwaysKL$.
-
-Two hypotheses fail. A likelihood-threshold surprise criterion measures wording rather
-than knowledge, and parametric memory does not reduce context inertia: a premise in
-the weights carries into the next topic as much as one in the context ($\tContext$
-against $\tParam$). What the mechanism buys is durability and exact forgetting.
-
-On \tLongMemSubset{} LongMemEval single-session questions with the history absent, the
-written arm reproduces \tLongMemOn{} of the reference answers at no extra prompt-token
-cost, while context delivery answers \tJudgeContextTarget{} to \tJudgeContextAll{} and
-costs \tTokContextTarget{} to \tTokContextAll{} tokens. Our first run of that
-comparison showed the arms as indistinguishable; the difference came from our own
-generation budget.
+Long-term memory in LLM agents lives in the context window, where it competes with the
+tokens needed to reason and is indistinguishable from the current working set. We study
+an alternative: a capacity-bounded side path of low-rank slots on a frozen backbone,
+written by gradient steps, read through the forward pass, and forgotten by erasing a rank
+block. On a 0.6B model, writes touch only their own slot; erasure is bit-identical to a
+never-written slot across \tErasedTotal{} evictions and a process restart; and the binding
+constraint turns out to be read-time composition, since summing the slots destroys recall
+($\tSum{}$) while selecting one by query-key similarity recovers it ($\tTopOne{}$ against
+an oracle of $\tOracle{}$), with the residual gap equal to the routing error. A label-free
+self-check reaches full-write recall using $\tSelfWrites$ writes instead of
+$\tAlwaysWrites$, and $\tSelfKL$ nats of backbone drift instead of $\tAlwaysKL$. Two
+hypotheses fail, and we report them: a likelihood-threshold surprise criterion measures
+wording rather than knowledge, and parametric memory does not reduce context inertia. On
+\tLongMemSubset{} LongMemEval single-session questions with the history absent, the
+written arm reproduces $\tLongMemOn{}$ of the reference answers at no extra prompt-token
+cost, while context delivery answers $\tJudgeContextTarget{}$ to $\tJudgeContextAll{}$ and
+pays $\tTokContextTarget{}$ to $\tTokContextAll{}$ tokens.
 \end{abstract}
 
 \section{Introduction}

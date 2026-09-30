@@ -103,31 +103,17 @@ TEMPLATE = r"""% 中文审阅稿 —— 由 paper/build_paper_zh.py 生成，请
 \end{center}
 
 \section{摘要}
-LLM 智能体的长期记忆目前放在上下文窗口里。这条通道有两个代价：记住的 token 会挤占
-推理所需的 token，而被记住的内容与当前工作集看起来完全一样。我们换了一条路：
-在冻结主干上挂一组容量受限的低秩记忆槽，运行时用梯度写入，前向传播时读出来，
-遗忘靠擦除一个秩块。
-
-在 0.6B 模型上，配合一个完全虚构的基准与一套五段式隔离协议，我们得到三件事。
-写入只落到自己的槽上（本槽召回 $4/4$，写完目标交叉熵约为 [[tTargetCE]]）。
-擦除是精确的：被擦除的槽与从未写过的槽逐位相同，[[tErasedTotal]] 次驱逐全部如此，
-进程重启后依然成立。真正的约束出现在读取端：把所有槽加起来，召回是 [[tSum]]；
-按查询键相似度只选一个槽，召回恢复到 [[tTopOne]]，而 oracle 上限是 [[tOracle]]，
-两者之差恰好等于路由错误，这里用的是改写过的问法。无标签的自我核对判据用
-[[tSelfWrites]] 次写入达到全写的召回，全写需要 [[tAlwaysWrites]] 次；
-基座漂移是 [[tSelfKL]] nats，全写是 [[tAlwaysKL]] nats。
-
-有两个假设失败了，我们把它们写出来。基于似然阈值的惊讶度判据量到的是措辞：
-强制裸值作答要 [[tForcedParisKL]] nats，模型自己那句话只要 [[tVerboseParisKL]] nats。
-参数化记忆也减少不了上下文惯性。前提存进权重之后，被带进下一个话题的程度
-（[[tParam]]）与留在上下文里（[[tContext]]）一样。这个机制真正买到的是持久与精确遗忘。
-
-在真实基准内容上我们做了一次范围受限的诊断，取 [[tLongMemSubset]] 道 LongMemEval
-single-session 题，历史完全不在场。参数臂复现了 [[tLongMemOn]] 的参考答案，
-不额外占用 prompt token；把同样的信息放进上下文，答对率是 [[tJudgeContextTarget]]
-到 [[tJudgeContextAll]]，代价是 [[tTokContextTarget]] 到 [[tTokContextAll]] 个 token。
-我们第一版对比的结论是两种介质分不出高下，那是我们自己的生成预算截断造成的。
-这件事也写在论文里。
+LLM 智能体的长期记忆放在上下文窗口里，既要挤占推理所需的 token，又与当前工作集无法区分。
+我们换了一条路：在冻结主干上挂一组容量受限的低秩记忆槽，用梯度写入、经前向传播读取、
+靠擦除一个秩块遗忘。在 0.6B 模型上，写入只落到自己的槽；被擦除的槽与从未写过的槽逐位相同，
+[[tErasedTotal]] 次驱逐与一次进程重启都如此；真正的约束是读时组合：把槽全加起来召回为
+[[tSum]]，按查询键相似度只选一个则恢复到 [[tTopOne]]（oracle [[tOracle]]），两者之差恰好等于
+路由错误。无标签的自我核对用 [[tSelfWrites]] 次写入达到全写的召回（全写 [[tAlwaysWrites]] 次），
+基座漂移 [[tSelfKL]] nats（全写 [[tAlwaysKL]] nats）。有两个假设失败了，我们如实报告：
+基于似然阈值的惊讶度判据量到的是措辞，参数化记忆也没有减少上下文惯性。在 [[tLongMemSubset]]
+道 LongMemEval single-session 题（历史完全不在场）上，参数臂复现 [[tLongMemOn]] 的参考答案
+且不额外占用 prompt token，而把同样信息放进上下文只能答对 [[tJudgeContextTarget]] 到
+[[tJudgeContextAll]]，并付出 [[tTokContextTarget]] 到 [[tTokContextAll]] 个 token。
 
 \section{引言}
 
