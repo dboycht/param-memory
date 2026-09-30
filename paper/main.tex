@@ -541,7 +541,7 @@ verbosity structure instead.
   LongMemEval~\cite{longmembench} on this machine instead of waving at it: its
   oracle split is small enough that a pilot is minutes of compute, so compute is
   \emph{not} the obstacle. Two obstacles are. First, a memory item here is a
-  $(q,v)$ pair, while a benchmark turn is a sentence, so a turn$\rightarrow$pair extraction step is required. That is genuine new code, and noisy extraction lands directly in the weights. We have since written that step, with the extraction parser unit-tested against the reply shapes a hosted model returns; what we do not yet have is a
+  $(q,v)$ pair, while a benchmark turn is a sentence, so a turn$\rightarrow$pair extraction step is needed. That is genuine new code, and noisy extraction lands directly in the weights. We have since written that step, with the extraction parser unit-tested against the reply shapes a hosted model returns; what we do not yet have is a
   measured multi-session result, because the extraction calls depend on a hosted
   credential that was suspended mid-batch, so the claim stays where the measurement is. Second, and more fundamental: the benchmark's hard
   question types (multi-session and temporal reasoning) require combining evidence
@@ -571,9 +571,14 @@ verbosity structure instead.
 
 \section{Conclusion}
 
-A side path of rank-blocked slots does three things well and one thing only
-partly. It writes without disturbing its neighbours, it reads without spending
-context, and it forgets in a way that can be verified bit-for-bit, including across a process restart. On real benchmark content, delivering the same information
+A side path of rank-blocked slots does three things well and refuses a fourth. It writes
+without disturbing its neighbours, it reads without spending context, and it forgets in a
+way that can be verified bit-for-bit, including across a process restart. What it will not
+do is hold several memories in play at once. The sum of the slots is worthless, two
+selected slots already lose most of the benefit, and the reason is now measured rather
+than assumed: the two-slot effect is not the sum of the single-slot effects, so the
+failure is created at read time, and neither write-side repair we tried reaches it. On
+real benchmark content, delivering the same information
 through the context with the \emph{same} router answers \tJudgeContextTarget{} to
 \tJudgeContextAll{} of the questions while paying \tTokContextTarget{} to
 \tTokContextAll{} extra prompt tokens per question; the parametric arm answers
