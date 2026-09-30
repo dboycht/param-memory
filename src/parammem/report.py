@@ -887,22 +887,36 @@ def _multi_oracle(bundle: dict, field: str) -> str:
 
 
 def _write_policy_large(bundle: dict, field: str) -> str:
-    """The write-criterion comparison on the larger backbone (T3, scale control)."""
+    """The write-criterion comparison on the larger backbone (T3, scale control).
+
+    Reads the same per-policy records as the 0.6B macros: the payload has a ``records``
+    list, not top-level totals, and an earlier version of this helper looked for fields
+    that never existed and quietly reported n/a.
+    """
     t3 = _get(bundle, "t3") or {}
     payload = t3.get("write_policy_17b") or {}
+    records = {row.get("policy"): row for row in payload.get("records", [])}
+    self_row = records.get("selfcheck") or {}
+    always_row = records.get("always") or {}
+    if field == "always_writes":
+        return _na(always_row.get("n_writes"))
+    if field == "self_writes":
+        return _na(self_row.get("n_writes"))
+    if field == "always_kl":
+        return _na(always_row.get("anchor_kl"), ".2f")
+    if field == "self_kl":
+        return _na(self_row.get("anchor_kl"), ".2f")
     if field == "write_cut":
-        always = payload.get("always_writes")
-        self_check = payload.get("self_writes")
+        always, self_check = always_row.get("n_writes"), self_row.get("n_writes")
         if always and self_check:
             return f"{(always - self_check) / always:.0%}"
         return "n/a"
     if field == "kl_ratio":
-        always = payload.get("always_kl")
-        self_check = payload.get("self_kl")
+        always, self_check = always_row.get("anchor_kl"), self_row.get("anchor_kl")
         if always and self_check:
             return f"{always / self_check:.1f}x"
         return "n/a"
-    return _na(payload.get(field), ".3f" if isinstance(payload.get(field), float) else None)
+    return "n/a"
 
 
 def _merged_calibration(t7: dict) -> dict:
