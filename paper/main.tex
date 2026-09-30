@@ -366,7 +366,16 @@ itself is not evidence that it is the right slot. Paired on the same probes, the
 significant at 1.7B (\tKeyPairHelpedLarge{} probes helped, \tKeyPairHurtLarge{} hurt,
 $p = \tKeyPairPLarge{}$) and absent at 0.6B (\tKeyPairHelpedSmall{} against
 \tKeyPairHurtSmall{}, $p = \tKeyPairPSmall{}$): the key matters more as the backbone
-grows. One boundary is essential here. These queries come from our synthetic generator,
+grows. The two things a reader would reach for next are training a key and voting over
+several keys, and neither helps. A projection trained by InfoNCE over augmented views of
+the canonical queries -- self-supervised, with the paraphrased probes never seen during
+training -- routes \tKeyLearnedTop{} and reaches \tKeyLearnedEm{} end-to-end, which is
+\emph{worse} than the raw hidden state it was meant to improve (\tKeyLastTop{}) and worse
+than the model-free overlap it was meant to beat (\tKeyBestTop{}); paired against the raw
+key it helps on no probe and hurts on three ($p = \tKeyPairLearnedP{}$). Borda voting
+across the four keys ties the best single key exactly (\tKeyVoteTop{},
+\tKeyVoteEm{}) and adds nothing over it. The pattern is consistent with the rest of this
+section: the signal that survives is the plainest one. One boundary is essential here. These queries come from our synthetic generator,
 where content words are distinctive; real benchmark items about a single entity share
 almost all of their surface form, so whether a lexical component helps there is a
 separate question, and Section~\ref{sec:limits} leaves it open.
