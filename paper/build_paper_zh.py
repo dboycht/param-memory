@@ -479,7 +479,7 @@ oracle 单条 & [[tJudgeContextTarget]] & [[tScaleContextTarget]] & [[tTokContex
 用自己的措辞时，惊讶度才是未知的代理量。
 
 \subsection{两槽崩塌到底是什么（T2-b）}
-在动手修理之前，我们先**不训练任何东西**把它测清楚，共 [[tMechProbes]] 个探针。
+在尝试修复之前，我们先**不训练任何东西**把它测清楚，共 [[tMechProbes]] 个探针。
 写入的更新彼此几乎正交（两两余弦 [[tMechUpdateCosine]]，最高不超过 [[tMechUpdateCosineMax]]），
 所以槽位并**没有在权重方向上互相抢夺**；而对手槽对 logit 的扰动量，达到了它自己那条记忆效果的
 很大一部分（[[tMechRivalOverOwn]]），这就是干扰项会致命的原因。
@@ -560,7 +560,7 @@ $\lambda_{\mathrm{ret}}$ 取 [[tRetentionBest]]）：
 **障碍不在抽取，而在题目本身**：参考答案**只是对话里原字符串的题目只有 [[tExtractCeiling]] 道**，
 其余题目**任何抽取都不可能把它当作字符串搬过来** —— 因为 [[tCompositionalShare]] 的题目问的是**聚合量**
 （多少个、一共多少、占百分之几、相差多少），必须在**若干条记忆上做运算**；
-另有 [[tAbstainShare]] 的参考答案是**"信息不足"**这类弃答，任何记忆都装不下这个字符串。
+另有 [[tAbstainShare]] 的参考答案是**"信息不足"**这类弃答，任何记忆都无法以字符串形式承载它。
 所以**字符串包含在这里就是错的度量**：那些贴着地板的数字（激活该题自己那条记忆的臂是 [[tMultiOracle]]，
 冻结地板 [[tMultiFrozen]]）**恰恰是"天花板只有 [[tExtractCeiling]] 道"所预言的结果**，
 而**不能**读成"记忆是空的"。真正可测的是路由，而路由的表现与合成结论**同向**：
