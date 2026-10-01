@@ -103,6 +103,13 @@ def main() -> int:
     outdir.mkdir(parents=True)
 
     sources = ["main.tex", "generated_tables.tex"]
+    # Figures travel with the sources: main.tex inputs the generated one and the schematic
+    # from figures/, and a bundle missing either fails to compile on arXiv's side rather
+    # than here. Globbed rather than listed, so a figure added later is carried along
+    # without anyone remembering to edit this line.
+    sources += [p.name for p in sorted((ROOT / "paper").glob("generated_figure_*.tex"))]
+    figure_dir = ROOT / "paper" / "figures"
+    figure_files = sorted(figure_dir.glob("*.tex")) if figure_dir.is_dir() else []
     # arXiv's own preflight checklist: "All announced content is archival and
     # cannot be removed. Make sure that data you do not want archived is not part
     # of your upload, for example TeX comments in your source." Our working files
@@ -119,6 +126,15 @@ def main() -> int:
         (outdir / name).write_text("\n".join(kept) + "\n", encoding="utf-8")
         stripped_report.append(f"{name}: {removed} comment lines removed")
 
+    for path in figure_files:
+        text = path.read_text(encoding="utf-8")
+        kept = [line for line in text.splitlines()
+                if not line.lstrip().startswith("%")]
+        target = outdir / "figures" / path.name
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text("\n".join(kept) + "\n", encoding="utf-8")
+        stripped_report.append(f"figures/{path.name}: copied")
+
     main_tex = (ROOT / "paper" / "main.tex").read_text(encoding="utf-8")
     abstract = latex_to_plain(extract_abstract(main_tex), values)
     (outdir / "abstract.txt").write_text(abstract + "\n", encoding="utf-8")
@@ -127,6 +143,13 @@ def main() -> int:
     if unresolved:
         print(f"WARNING: unresolved macros in the plain-text abstract: "
               f"{sorted(set(unresolved))}", flush=True)
+
+    table_count = len(re.findall(r"\\begin\{table\}", (ROOT / "paper"
+                                                      / "generated_tables.tex")
+                                .read_text(encoding="utf-8")))
+    figure_count = sum(len(re.findall(r"\\begin\{figure\}",
+                                      path.read_text(encoding="utf-8")))
+                       for path in figure_files)
 
     (outdir / "SUBMIT-CHECKLIST.md").write_text(
         f"""# arXiv 提交清单（`{ROOT.name}`）
@@ -148,7 +171,8 @@ def main() -> int:
 ## 我来做的部分（已生成，可直接上传）
 
 - 源文件包：`{outdir / 'param-memory-arxiv.tar.gz'}`
-  （里面只有 `main.tex` + `generated_tables.tex`，都在压缩包根目录，arXiv 要的就是这个形态）
+  （里面是 {len(sources)} 个源文件，图另在 `figures/` 子目录下 —— 主文件在压缩包根目录，
+  arXiv 要的就是这个形态）
   已按 arXiv preflight 提示**剥掉整行注释**（{'; '.join(stripped_report)}）——
   归档内容不可撤销，而工作副本里的注释含流程备注，不该公开。
 - 摘要纯文本：`{outdir / 'abstract.txt'}`
@@ -162,21 +186,21 @@ def main() -> int:
 | Cross-list | `cs.LG` |
 | Title | 见 `main.tex` 的 `\\title` |
 | Abstract | 直接粘贴 `abstract.txt` 全文 |
-| Comments | `11 pages, 9 tables. Code: {args.repo_url}` |
+| Comments | `{table_count} tables, {figure_count} figures. Code: {args.repo_url}` |
 | License | 由你选（见上） |
 
 ## 提交后建议核对
 
 - arXiv 会用**它自己的编译器**编译；若报错，日志里会指出行号 —— 我们在本地已用
   `pdflatex` 干净编译验证过（见下），所以大概率没问题。
-- 生成 PDF 后，确认两处：① 表格是否完整（共 9 张）；② 参考文献是否正常显示
+- 生成 PDF 后，确认两处：① 表格是否完整；② 参考文献是否正常显示
   （我们用的是 `thebibliography` 内联，不依赖 `.bbl` 文件）。
 - 预印本会**公开留时间戳**。若你之后要投双盲会议，多数会议允许预印本，但投稿正文里
   不要写"我们的预印本"这类会暴露身份的话。
 
 ## 本地已做过的验证
 
-- 源文件包解压到**干净目录**后 `pdflatex` 连编两遍，均 `exit=0` 并产出 11 页 PDF；
+- 源文件包解压到**干净目录**后 `pdflatex` 连编两遍，均 `exit=0` 并产出 PDF；
 - 摘要纯文本已检查无残留宏。
 """,
         encoding="utf-8",
@@ -186,6 +210,12 @@ def main() -> int:
     with tarfile.open(tarball, "w:gz") as handle:
         for name in sources:
             handle.add(outdir / name, arcname=name)
+        # The figures live under their own directory because main.tex inputs them as
+        # figures/mechanism, so the archive has to keep that path. Omitting them here was
+        # invisible until the verification pass compiled the extracted copy and reported the
+        # missing file, which is exactly what that pass is for.
+        for path in figure_files:
+            handle.add(outdir / "figures" / path.name, arcname=f"figures/{path.name}")
 
     # ---- verify: extract somewhere clean and compile it there ----------------
     check = outdir / "_verify"
