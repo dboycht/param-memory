@@ -114,7 +114,7 @@ LLM 智能体的长期记忆放在上下文窗口里，既要挤占推理所需�
 道 LongMemEval single-session 题（历史完全不在场）上，参数臂复现 [[tLongMemOn]] 的参考答案
 且不额外占用 prompt token，而把同样信息放进上下文只能答对 [[tJudgeContextTarget]] 到
 [[tJudgeContextAll]]，并付出 [[tTokContextTarget]] 到 [[tTokContextAll]] 个 token。
-另外两项对照值得一提：在**条目-梯度步数相同**的条件下，槽位方案能复现这 30 条记忆中的
+在**条目-梯度步数相同**的条件下，槽位方案能复现这 30 条记忆中的
 [[tBaseSlots]]，而全量微调只到 [[tBaseFull]]、等秩单适配器只到 [[tBaseAdapter]]；
 而**只用模型之外的手段**换一个检索键，就能把 1.7B 的路由从 [[tKeyLastTopLarge]] 抬到
 [[tKeyBestTopLarge]]。
@@ -137,6 +137,7 @@ LLM 智能体的长期记忆放在上下文窗口里，既要挤占推理所需�
 $R = K \cdot r$ 被切成 $K$ 个连续块，第 $k$ 块就是第 $k$ 个槽。写入可以只作用于一个块，
 读取可以只加回一个块，擦除就是把该块的初始 $A_k$ 恢复，把 $B_k$ 清零。
 擦除因此成了一个可以逐位验证的命题，而不再是一个大致的感觉。
+下面按这个顺序展开：方法给机制，结果给测量，负结果给两个失败的假设。
 
 \subsection{贡献}
 \begin{enumerate}\setlength\itemsep{2pt}

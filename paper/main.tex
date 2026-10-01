@@ -44,11 +44,10 @@ wording, not knowledge, and parametric memory does not reduce context inertia. O
 \tLongMemSubset{} LongMemEval single-session questions with the history absent, the
 written arm reproduces $\tLongMemOn{}$ of the reference answers at no extra prompt-token
 cost, while context delivery answers $\tJudgeContextTarget{}$ to $\tJudgeContextAll{}$ and
-pays $\tTokContextTarget{}$ to $\tTokContextAll{}$ tokens. Two checks round it out: at
-equal item-gradient-steps the bank recalls $\tBaseSlots{}$ of those thirty memories where
-full fine-tuning reaches $\tBaseFull{}$ and one equal-rank adapter $\tBaseAdapter{}$, and
-a model-free change of retrieval key lifts 1.7B routing from $\tKeyLastTopLarge{}$ to
-$\tKeyBestTopLarge{}$.
+pays $\tTokContextTarget{}$ to $\tTokContextAll{}$ tokens. At equal item-gradient-steps the
+bank recalls $\tBaseSlots{}$ of those thirty memories where full fine-tuning reaches
+$\tBaseFull{}$ and one equal-rank adapter $\tBaseAdapter{}$, and a model-free change of
+retrieval key lifts 1.7B routing from $\tKeyLastTopLarge{}$ to $\tKeyBestTopLarge{}$.
 \end{abstract}
 
 \section{Introduction}
@@ -75,8 +74,11 @@ another positive result would have been.
 
 \paragraph{What we build.} A frozen backbone plus a side path of $K$ memory slots,
 each occupying a contiguous block of a single low-rank adapter's rank dimension
-(Section~\ref{sec:method}). A slot is written by gradient steps restricted to its
-own block, read implicitly through the forward pass, so the memory content never enters the context, and forgotten by restoring that block to its initial state, which makes forgetting \emph{verifiable}.
+(Section~\ref{sec:method}). A slot is written by gradient steps restricted to its own block,
+read implicitly through the forward pass, so the memory content never enters the context,
+and forgotten by restoring that block to its initial state, which makes forgetting
+\emph{verifiable}. Section~\ref{sec:method} gives the mechanism, Section~\ref{sec:results}
+the measurements, and Section~\ref{sec:negative} the two hypotheses that failed.
 
 \paragraph{Contributions.}
 \begin{enumerate}\itemsep2pt
@@ -328,6 +330,8 @@ below that measures truncation instead of memory.
 \section{Results}
 \label{sec:results}
 
+\subsection{Writing lands; reading is the constraint}
+
 \paragraph{Writes land, and only where intended.} Table~\ref{tab:t1} is best read
 for its controls: the write isolation assertion passes
 everywhere, the erased condition is string-identical to prompt-only
@@ -468,6 +472,12 @@ actually evaluated on improves one-directionally: reading \emph{every} slot goes
 predecessors buys a large reduction in backbone damage and a small gain in the
 many-slot condition, while the two-slot repair we hypothesised is unsupported.
 
+\subsection{Deciding what to write, and how it is forgotten}
+
+The paragraphs so far are about the read path. The next three fix the pipeline around it:
+which facts are worth a write, what happens when the bank overflows, and whether it survives
+a restart.
+
 \paragraph{Deciding what to remember.} Table~\ref{tab:t3} compares write
 criteria on a stream mixing $5$ fictional facts with $\tKnownConfirmed$ verified-known facts.
 Writing everything costs $\tAlwaysWrites$ gradient writes, of which
@@ -514,6 +524,13 @@ read process's side path is virgin before loading ($\tVirgin$), so its
 $\tSixOracle$ oracle recall can only come from disk; routed recall is $\tRouted$,
 equal to its routing accuracy. Erasing a restored slot still returns it to the
 virgin state and the memory does not come back, so forgetting survives a restart. Without that property, a ``forgotten'' memory would be one reboot away from resurrection.
+
+\subsection{On real benchmark content}
+
+Everything above is generated, which is what makes the controls possible and also what makes
+a reader suspect them. The rest of this section repeats the comparison on LongMemEval,
+starting with the memory bank against the two things a practitioner would otherwise do:
+leave the facts in the context, or train them into the weights.
 
 \paragraph{Real content, under oracle indexing.} Table~\ref{tab:t7} reports a
 controlled diagnostic on LongMemEval's oracle split~\cite{longmembench}: the 30
@@ -569,6 +586,22 @@ of a short single-session subset; on the multi-session questions, where the evid
 spread over several sessions, we do not expect it to survive, and
 Section~\ref{sec:limits} says why.
 
+\paragraph{Why not simply train the same memories in?} Delivering the facts through the
+context is the cheap alternative to a memory bank; training them into the weights is the
+expensive one, and a reviewer will ask about it. Three arms, all given the same number of
+item-gradient-steps (thirty items, twelve steps each, so the fine-tune arm updates every
+parameter on every step and therefore receives \emph{more} compute, not less): full
+fine-tuning reaches \tBaseFull{} containment, a single adapter with the same total rank as
+the bank reaches \tBaseAdapter{}, and the slot bank reaches \tBaseSlots{}. The bank is
+also the gentlest on the frozen backbone, at \tBaseSlotsKl{} nats of all-position KL
+against \tBaseFullKl{} for the fine-tune and \tBaseAdapterKl{} for the joint adapter, and
+it is the only arm that can forget one memory afterwards: erasing a single slot leaves it
+provably virgin (\tBaseErasedVirgin{}), its neighbour still answers
+(\tBaseNeighbourKept{}), and the erased question is no longer answered
+(\tBaseErasedGone{}). The caveat is that all three arms stop at the bank's budget, so this
+is a claim about equal budgets rather than about what fine-tuning could reach given
+more.
+
 \paragraph{The same pipeline on the multi-session questions, and what it does not show.}
 We ran the identical protocol on \tMultiSessN{} multi-session questions, where the evidence
 is spread across sessions. It scores the same as the single-session subset
@@ -605,22 +638,6 @@ does narrow with scale, because a larger backbone uses the context better
 (\tScaleFrozen{} of these questions are answered from its prior, against
 \tLongMemFrozen{} at 0.6B). So the cost advantage is scale-invariant and the quality advantage is not. That is the honest reading of a two-point curve. This is a
 scoped diagnosis, not a LongMemEval result.
-
-\paragraph{Why not simply train the same memories in?} Delivering the facts through the
-context is the cheap alternative to a memory bank; training them into the weights is the
-expensive one, and a reviewer will ask about it. Three arms, all given the same number of
-item-gradient-steps (thirty items, twelve steps each, so the fine-tune arm updates every
-parameter on every step and therefore receives \emph{more} compute, not less): full
-fine-tuning reaches \tBaseFull{} containment, a single adapter with the same total rank as
-the bank reaches \tBaseAdapter{}, and the slot bank reaches \tBaseSlots{}. The bank is
-also the gentlest on the frozen backbone, at \tBaseSlotsKl{} nats of all-position KL
-against \tBaseFullKl{} for the fine-tune and \tBaseAdapterKl{} for the joint adapter, and
-it is the only arm that can forget one memory afterwards: erasing a single slot leaves it
-provably virgin (\tBaseErasedVirgin{}), its neighbour still answers
-(\tBaseNeighbourKept{}), and the erased question is no longer answered
-(\tBaseErasedGone{}). The caveat is that all three arms stop at the bank's budget, so this
-is a claim about equal budgets rather than about what fine-tuning could reach given
-more.
 
 \section{Negative results}
 \label{sec:negative}
