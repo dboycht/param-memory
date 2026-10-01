@@ -94,7 +94,11 @@ the measurements, and Section~\ref{sec:negative} the two hypotheses that failed.
   selected slots already lose most of the benefit. The residual gap equals the routing
   error exactly, on both backbones we test, and the key that drives the selection turns
   out to matter more than the slot mechanism: a model-free lexical overlap lifts 1.7B
-  routing from $\tKeyLastTopLarge{}$ to $\tKeyBestTopLarge{}$ (Table~\ref{tab:t2}).
+  routing from $\tKeyLastTopLarge{}$ to $\tKeyBestTopLarge{}$ (Table~\ref{tab:t2}). The same
+  constraint reappears on real benchmark questions: a reader able to do the arithmetic answers
+  \tHostedContext{} of them given the extracted facts against \tHostedTopOne{} given only the
+  best-routed fact, with a second fact adding nothing, which locates the limit in what the read
+  path delivers rather than in what the reader understands (Section~\ref{sec:results}).
 \item A label-free write criterion that reaches full-write recall with
   $\tSelfWrites$ writes instead of $\tAlwaysWrites$ and $\tSelfKL$ nats of backbone
   drift instead of $\tAlwaysKL$, together with a refutation of the likelihood-based
@@ -266,8 +270,8 @@ Information gain, the loss difference before and after a tentative write, is the
 
 \subsection{Forgetting and persistence}
 
-Capacity is the integer $K$. A :class:`MemoryStore` (in the implementation, a
-dataclass) tracks per-slot utility, recency, norms and an importance flag;
+Capacity is the integer $K$. A \texttt{MemoryStore} tracks per-slot utility, recency,
+norms and an importance flag;
 ``important'' slots are excluded from eviction, which is what makes an item a
 \emph{thought stamp} in the intended sense. Utility decays with a logical clock,
 and five eviction policies are implemented: FIFO, LRU, LFU, utility and utility-with-time. The classic baselines are included deliberately, because the
@@ -287,8 +291,8 @@ memory while looking healthy.
 generated from syllables, so no answer can be produced from pre-training
 knowledge. Without this, a correct answer is not attributable to the write. For
 the same reason, the ``already known'' class used in Section~\ref{sec:results} is
-\textbf{verified by asking the model}, not assumed: of $19$ real-world
-facts, the 0.6B model answered only $13$ correctly, getting $2+2 = 2$, the number
+\textbf{verified by asking the model}, not assumed: of $\tKnownTotal$ real-world
+facts, the 0.6B model answered only $\tKnownConfirmed$ correctly, getting $2+2 = 2$, the number
 of days in a week $=1$, and the largest planet $=$ Mars. Assuming otherwise would
 have invalidated that experiment.
 
@@ -327,9 +331,13 @@ rejected in \tJudgeMergedFalsePositives{} of those rows. We report the size of t
 calibration and the fact that the judge prompt was revised once, because both bound
 what the agreement is worth: an earlier prompt produced verdicts that were ambiguous
 enough that rows had to be discarded rather than scored, which is why it was rewritten
-before the round above. Two further
-protocol points carry weight: wherever every arm answers the \emph{same} items we compare them paired (exact sign test), not by overlapping intervals, and the generation budget is treated as part of the treatment: every arm is generated with the same limit, set so that the longest reference answer fits, since a budget
-below that measures truncation instead of memory.
+before the round above.
+
+\paragraph{Paired comparisons and a fixed budget.} Two protocol points carry weight wherever
+we compare arms. Wherever every arm answers the \emph{same} items we compare them paired (exact
+sign test), not by overlapping intervals. And the generation budget is treated as part of the
+treatment: every arm is generated with the same limit, set so that the longest reference answer
+fits, since a budget below that measures truncation instead of memory.
 
 \section{Results}
 \label{sec:results}

@@ -1247,6 +1247,11 @@ def headline_values(bundle: dict[str, Any]) -> dict[str, str]:
         "tSurpriseWasted": _na(t3rec.get("surprise", {}).get("written_known")),
         "tKnownConfirmed": _na(len(t3.get("known_confirmed", []))),
         "tKnownDropped": _na(len(t3.get("known_dropped", []))),
+        # The total the protocol paragraph quotes, added from the two recorded lists rather
+        # than typed: it was written as a literal "19" in both papers while its parts were
+        # already macros, which is the kind of number that drifts silently.
+        "tKnownTotal": _na(len(t3.get("known_confirmed", []))
+                           + len(t3.get("known_dropped", []))),
         "tTau": _na(t3.get("tau"), ".3f"),
         "tErased": _na(fifo.get("erased_virgin_ok")) + "/" + _na(fifo.get("erased_checked")),
         "tErasedTotal": (
