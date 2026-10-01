@@ -149,6 +149,7 @@ def main() -> int:
                 "which is the operation a one-slot read cannot perform.",
         "n": n,
         "counts": counts,
+        "mean_memories_per_item": (sum(len(r["memories"]) for r in rows) / n if n else 0.0),
         "compositional": len(compositional),
         "compositional_rate": len(compositional) / n if n else 0.0,
         "aggregate_terms": list(aggregate),

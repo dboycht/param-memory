@@ -161,8 +161,8 @@ STAGES: dict[str, dict] = {
                    "t7d_17b.json", "t7e_17b.json", "t7f_judge_17b.json",
                    "t7h_calibration.json", "t7g_baselines.json",
                    "t7j_collision_real.json", "longmemeval_evidence_shape.json",
-                   "t7i_multisession.json", "t7i_extraction_yield.json",
-                   "t7i_composition_demand.json"],
+                   "t7i_multisession.json", "t7i_multisession_17b.json",
+                   "t7i_composition_demand.json", "t7i_hosted_reader.json"],
         # Four phases: the weights run, its pre-registered held-out replication
         # (docs/06 section 9), the context/RAG baselines, and the LLM judge. The
         # judge needs the user's API key and ~70 minutes at 3 requests/minute, so it
@@ -283,7 +283,12 @@ def collect(stage: str, recipe: dict, mode: str) -> dict:
                 merged["multi_session_oracle"] = payload
             elif "holdout" in name:
                 merged["holdout"] = payload
-            elif "17b" in name:
+            elif "17b" in name and name.startswith(("t7d", "t7e", "t7f")):
+                # Restricted to the three stages that actually have a 1.7B counterpart. A
+                # bare "17b" also matches t7i_multisession_17b.json, and it silently
+                # swallowed that stage's payload the first time the 1.7B multi-session run
+                # landed -- the fourth time in one session that a filename fragment matched
+                # a stage it had nothing to do with.
                 if name.startswith("t7d"):
                     scale["weights"] = payload
                 elif name.startswith("t7e"):
@@ -303,14 +308,16 @@ def collect(stage: str, recipe: dict, mode: str) -> dict:
                 # training baselines on the same thirty memories (full fine-tune,
                 # one equal-capacity adapter, the slot bank)
                 merged["training_baselines"] = payload
+            elif name.startswith("t7i_hosted_reader"):
+                # a capable reader given the same fact sets the read path would deliver:
+                # the control that separates comprehension from retrieval
+                merged["hosted_reader"] = payload
+            elif name.startswith("t7i_multisession_17b"):
+                merged["multi_session_large"] = payload
             elif name.startswith("t7i_composition_demand"):
                 # what the multi-session questions actually demand: the ceiling any
                 # extraction could reach, and how many ask for an aggregate
                 merged["composition_demand"] = payload
-            elif name.startswith("t7i_extraction_yield"):
-                # how much of the answer survives the extraction, which is the upstream
-                # reason the multi-session containment is near the floor
-                merged["extraction_yield"] = payload
             elif name.startswith("t7i"):
                 # multi-session items with memories extracted from the conversation
                 merged["multi_session"] = payload

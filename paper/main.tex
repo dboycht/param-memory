@@ -626,19 +626,31 @@ multi-session questions with a hosted model, and the extraction is not the obsta
 session of every question went through the extraction prompt with no parse failures at all,
 producing \tExtractMemoriesPerItem{} memories per question. The obstacle is the question
 itself. The benchmark's reference answer is a literal string in the conversation for only
-\tExtractCeiling{} of the \tMultiItems{} questions, so for the other half no extraction could
-carry it, and \tCompositionalShare{} of the questions ask for an aggregate -- how many, how
-much in total, what percentage, what difference -- that has to be computed across several
-memories; \tAbstainShare{} have an abstention as the reference answer, which no memory can
-hold as a string at all. String containment is therefore the wrong instrument here, and the
-near-floor numbers it reports (\tMultiOracle{} for the arm that activates the item's own
-memory, against a frozen \tMultiFrozen{}) are what a ceiling of \tExtractCeiling{} predicts
-rather than evidence that the memories are empty. The routing arms are measurable, and they
-behave as the synthetic study says they should: the lexical key finds the item's own memory
-\tMultiRouteLexical{} of the time against \tMultiRouteKey{} for the model key, the same
-ordering we measured on generated queries and the first sign that it holds on real text.
-What these questions need is for the read path to combine several memories, which is exactly
-what Section~\ref{sec:routing} shows it cannot do.
+\tExtractCeiling{} of the \tMultiItems{} questions, and \tCompositionalShare{} of them ask for
+an aggregate -- how many, how much in total, what percentage, what difference -- that has to
+be computed across several memories; \tAbstainShare{} have an abstention as the reference
+answer, which no memory can hold as a string. String containment is therefore the wrong
+instrument here, and the near-floor numbers it reports (\tMultiOracle{} for the arm that
+activates the item's own memory, against a frozen \tMultiFrozen{}) are what a ceiling of
+\tExtractCeiling{} predicts rather than evidence about the memories.
+
+That leaves the interesting question unanswerable by the small backbones alone, and we
+measured why: with every extracted fact placed in the prompt, the same backbones answer
+\tMultiJudgeContext{} of the questions at 0.6B and \tMultiJudgeLargeContext{} at 1.7B. Both
+sides of the comparison fail for a reason upstream of the mechanism, so neither scale can
+locate the limit, and we report that rather than a difference between two near-zero numbers.
+What can locate it is a reader capable of the arithmetic, given exactly the fact sets the
+read path would deliver. With the instruction and the reader held fixed and only the fact set
+varied, that reader answers \tHostedContext{} over the \tHostedGraded{} questions it was graded
+on when it is given everything extracted for the question, \tHostedTopOne{} when it is given
+the single best-routed fact, and \tHostedTopTwo{} when it is given the two best. In
+\tHostedIsolated{} of those questions the reader answers correctly with the full set and fails
+with one fact, which is the isolation stated at its sharpest: comprehension was demonstrably
+sufficient and the delivered fact set was not. Opening a second slot buys nothing measurable,
+which is the two-slot collapse of Section~\ref{sec:routing} reproduced on real benchmark
+questions. The control is a hosted reader rather than the mechanism's own, and the retrieval
+arms also pay the routing error of Table~\ref{tab:t7retrieval}, so this measures what the read
+path hands over, not what the mechanism adds.
 
 The same comparison on a 1.7B backbone (Table~\ref{tab:t7}) gives \tScaleWeights{} for
 the parametric arm against \tScaleContextTarget{}--\tScaleContextAll{} for context

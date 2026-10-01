@@ -785,6 +785,39 @@ def _multi_session(t7: dict, field: str, sub: str | None = None) -> str:
     return _na(value, ".3f") if isinstance(value, float) else _na(value)
 
 
+def _judged(t7: dict, stage: str, arm: str) -> str:
+    """Judge accuracy for one arm of one multi-session stage, at either scale."""
+    payload = t7.get(stage) or {}
+    return _na((payload.get("judged") or {}).get(arm), ".3f")
+
+
+def _hosted(t7: dict, arm: str) -> str:
+    """The capable-reader control: same reader and instruction, different fact set."""
+    payload = t7.get("hosted_reader") or {}
+    return _na((payload.get("judged") or {}).get(arm), ".3f")
+
+
+def _hosted_isolated(t7: dict) -> str:
+    """Questions the capable reader answers with every fact and fails with only the best.
+
+    Each is a case where comprehension was demonstrably sufficient and the delivered fact
+    set was not, which is the isolation this control exists to provide. Counted from the
+    saved per-question verdicts, so the number is reproducible from the run file.
+    """
+    payload = t7.get("hosted_reader") or {}
+    rows = payload.get("results") or []
+    if not rows:
+        return "n/a"
+    count = 0
+    for row in rows:
+        answers = row.get("answers") or {}
+        context = (answers.get("context") or {}).get("judged")
+        top_one = (answers.get("top1") or {}).get("judged")
+        if context is True and top_one is not True:
+            count += 1
+    return str(count)
+
+
 def _t5_seed_arms(bundle) -> list[dict]:
     """The inertia arms for every seed the bundle carries (primary first)."""
     t5 = _get(bundle, "t5") or {}
@@ -1353,7 +1386,7 @@ def headline_values(bundle: dict[str, Any]) -> dict[str, str]:
         "tMultiRouteLexical": _multi_session(t7, "routed_to_own", "lexical"),
         # ---- how much of the answer the extraction step keeps ----
         "tExtractMemoriesPerItem": _na(
-            ((t7.get("extraction_yield") or {}).get("mean_memories_per_item")), ".1f"),
+            (t7.get("composition_demand") or {}).get("mean_memories_per_item"), ".1f"),
         # ---- what the multi-session questions demand, measured rather than asserted ----
         "tCompositionalShare": _na(
             (t7.get("composition_demand") or {}).get("compositional_rate"), ".3f"),
@@ -1361,6 +1394,21 @@ def headline_values(bundle: dict[str, Any]) -> dict[str, str]:
             (t7.get("composition_demand") or {}).get("abstain_rate"), ".3f"),
         "tExtractCeiling": _na(
             (t7.get("composition_demand") or {}).get("ceiling_in_turns"), "d"),
+        # ---- what the local backbones do on those questions, judged rather than matched --
+        "tMultiJudgeContext": _judged(t7, "multi_session", "context"),
+        "tMultiJudgeKey": _judged(t7, "multi_session", "key"),
+        "tMultiJudgeFrozen": _judged(t7, "multi_session", "frozen"),
+        "tMultiJudgeGraded": _na((t7.get("multi_session") or {}).get("n_primary_graded"), "d"),
+        "tMultiJudgeLargeContext": _judged(t7, "multi_session_large", "context"),
+        "tMultiJudgeLargeKey": _judged(t7, "multi_session_large", "key"),
+        "tMultiJudgeLargeGraded": _na(
+            (t7.get("multi_session_large") or {}).get("n_primary_graded"), "d"),
+        # ---- the capability control: a reader that can aggregate, same fact sets ---------
+        "tHostedContext": _hosted(t7, "context"),
+        "tHostedTopTwo": _hosted(t7, "top2"),
+        "tHostedTopOne": _hosted(t7, "top1"),
+        "tHostedGraded": _na((t7.get("hosted_reader") or {}).get("n_primary_graded"), "d"),
+        "tHostedIsolated": _hosted_isolated(t7),
         # ---- T8-a (B1): the retention term in the write objective ----
         "tRetentionTopTwoBase": _retention_em(t8, "0.0", "top2"),
         "tRetentionTopTwoBest": _retention_em(t8, _retention_best(t8), "top2"),

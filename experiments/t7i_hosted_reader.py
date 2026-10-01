@@ -60,7 +60,10 @@ def parse_args() -> argparse.Namespace:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--items", type=int, default=30)
     ap.add_argument("--per-item", type=int, default=2,
-                    help="facts per item written to the bank, matching the backbone run")
+                    help="facts per item written to the bank, matching the backbone run. "
+                         "The context arm is not limited by this: it gets every fact "
+                         "extracted for the question, since an aggregate may need more "
+                         "components than the bank holds")
     ap.add_argument("--extracted", default="runs/t7i_extracted.json")
     ap.add_argument("--data", default=str(ROOT / "data" / "public" / "longmemeval_oracle.json"))
     ap.add_argument("--config", default=str(CONFIG_DEFAULT))
@@ -101,7 +104,11 @@ def main() -> int:
         question_id = str(item["question_id"])
         if question_id not in questions:
             continue
-        own = [memory for i, memory in bank if i == index]
+        # The control gets *every* fact extracted for this question, not the two the bank
+        # holds. These questions ask for an aggregate across several components, so a
+        # context arm limited to the bank's size would abstain for the right reason and be
+        # read as a capability limit.
+        own = list(item["memories"])
         question = questions[question_id]
         ranked = route_lexical(question, text_of, k=2).slots
         arm_facts = [("context", [fact_text(m) for m in own]),
