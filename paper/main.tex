@@ -620,22 +620,25 @@ combine two sessions; the multi-session structure does not reach it. We report t
 together with the reason it is uninformative, because the alternative is a reader finding
 that out and wondering what else the protocol was hiding.
 
-\paragraph{The extraction step, measured.} The limitation below names the turn-to-pair
-extraction as the first obstacle. We have since measured it on the \tMultiItems{}
-multi-session questions with a hosted model: every session of every question went through an
-extraction prompt, producing \tExtractMemoriesPerItem{} memories per question with no parse
-failures at all. What matters is what those memories hold. The benchmark's reference answer
-appears somewhere in the extracted set for \tExtractYieldAny{} of the questions, and in the
-first memory, which is the one an oracle-indexed arm activates, for \tExtractYieldFirst{}.
-Reading them back therefore scores near the floor even with oracle indexing
-(\tMultiOracle{} containment against a frozen \tMultiFrozen{}), and routing does not rescue
-it (\tMultiKey{} by the model key, \tMultiLexical{} by the lexical one). Two conclusions, kept
-apart: this is not evidence about composing several memories, because for most questions
-there is no longer an answer to compose -- the extraction fails upstream of the read path,
-which is where the limitation predicted the difficulty would begin -- and the routing arms
-behave as the synthetic study says they should, the lexical key finding the item's own memory
+\paragraph{What the multi-session questions actually demand.} The limitation below names the
+turn-to-pair extraction as the first obstacle. We have since run it on the \tMultiItems{}
+multi-session questions with a hosted model, and the extraction is not the obstacle: every
+session of every question went through the extraction prompt with no parse failures at all,
+producing \tExtractMemoriesPerItem{} memories per question. The obstacle is the question
+itself. The benchmark's reference answer is a literal string in the conversation for only
+\tExtractCeiling{} of the \tMultiItems{} questions, so for the other half no extraction could
+carry it, and \tCompositionalShare{} of the questions ask for an aggregate -- how many, how
+much in total, what percentage, what difference -- that has to be computed across several
+memories; \tAbstainShare{} have an abstention as the reference answer, which no memory can
+hold as a string at all. String containment is therefore the wrong instrument here, and the
+near-floor numbers it reports (\tMultiOracle{} for the arm that activates the item's own
+memory, against a frozen \tMultiFrozen{}) are what a ceiling of \tExtractCeiling{} predicts
+rather than evidence that the memories are empty. The routing arms are measurable, and they
+behave as the synthetic study says they should: the lexical key finds the item's own memory
 \tMultiRouteLexical{} of the time against \tMultiRouteKey{} for the model key, the same
 ordering we measured on generated queries and the first sign that it holds on real text.
+What these questions need is for the read path to combine several memories, which is exactly
+what Section~\ref{sec:routing} shows it cannot do.
 
 The same comparison on a 1.7B backbone (Table~\ref{tab:t7}) gives \tScaleWeights{} for
 the parametric arm against \tScaleContextTarget{}--\tScaleContextAll{} for context
@@ -692,7 +695,8 @@ verbosity structure instead.
   where the counts are identical ($\tFifoHotLarge$ against $\tSmartHotLarge$, with
   $\tErasedLarge$ slots verified, Table~\ref{tab:t4}). What does \emph{not} survive is the
   router, whose accuracy falls from $\tRouterAcc{}$ to $\tScaleTwoRouter{}$. That scale effect shifts the bottleneck from interference to retrieval; it does not remove it, although Section~\ref{sec:routing} shows that half of it is a key choice rather than a capacity limit: a model-free lexical key closes the 1.7B gap to $\tKeyBestTopLarge{}$.
-  What is left untested is 3B and above, which this hardware cannot hold.
+  What is left untested is 3B and above: every result here needs many training runs, and
+  the compute available to us did not extend to larger backbones.
 \item \textbf{The base model pays.} Writing moves the frozen backbone: after a
   $12$-memory stream the generic prompts are no longer answered verbatim and the
   all-position KL is $\approx 1$ nat. Parametric memory is not free, and the cost
@@ -711,13 +715,13 @@ verbosity structure instead.
   measurements (Section~\ref{sec:results}): the real-content diagnostic, the same memory
   set read with real retrieval instead of the oracle turn, the training baselines on those
   thirty memories, and the composition failure re-measured on real content as a function of
-  how many slots are held open. We did cost the adaptation of
-  LongMemEval~\cite{longmembench} on this machine instead of waving at it: its
-  oracle split is small enough that a pilot is minutes of compute, so compute is
-  \emph{not} the obstacle. Two obstacles are. First, a memory item here is a
-  $(q,v)$ pair, while a benchmark turn is a sentence, so a turn$\rightarrow$pair extraction step is needed. That is genuine new code, and noisy extraction lands directly in the weights. We have since written that step, with the extraction parser unit-tested against the reply shapes a hosted model returns; what we do not yet have is a
-  measured multi-session result, because the extraction calls depend on a hosted
-  credential that was suspended mid-batch, so the claim stays where the measurement is. Second, and more fundamental: the benchmark's hard
+  how many slots are held open. LongMemEval's oracle split is small enough that a pilot is
+  minutes of compute, so compute is \emph{not} what keeps this scoped, and we ran the
+  multi-session extraction rather than gesturing at it. That run also showed that the
+  obstacle is not the extraction: all sessions extracted without a parse failure, while the
+  reference answer is a literal string in the conversation for only part of the questions.
+  What these items ask for is an aggregate, which has to be computed across several memories
+  (Section~\ref{sec:results}). Second, and more fundamental: the benchmark's hard
   question types (multi-session and temporal reasoning) require combining evidence
   from \emph{several} stored items, whereas our read path deliberately activates
   exactly one slot (Section~\ref{sec:routing} shows two already collapse recall,

@@ -161,7 +161,8 @@ STAGES: dict[str, dict] = {
                    "t7d_17b.json", "t7e_17b.json", "t7f_judge_17b.json",
                    "t7h_calibration.json", "t7g_baselines.json",
                    "t7j_collision_real.json", "longmemeval_evidence_shape.json",
-                   "t7i_multisession.json", "t7i_extraction_yield.json"],
+                   "t7i_multisession.json", "t7i_extraction_yield.json",
+                   "t7i_composition_demand.json"],
         # Four phases: the weights run, its pre-registered held-out replication
         # (docs/06 section 9), the context/RAG baselines, and the LLM judge. The
         # judge needs the user's API key and ~70 minutes at 3 requests/minute, so it
@@ -302,6 +303,10 @@ def collect(stage: str, recipe: dict, mode: str) -> dict:
                 # training baselines on the same thirty memories (full fine-tune,
                 # one equal-capacity adapter, the slot bank)
                 merged["training_baselines"] = payload
+            elif name.startswith("t7i_composition_demand"):
+                # what the multi-session questions actually demand: the ceiling any
+                # extraction could reach, and how many ask for an aggregate
+                merged["composition_demand"] = payload
             elif name.startswith("t7i_extraction_yield"):
                 # how much of the answer survives the extraction, which is the upstream
                 # reason the multi-session containment is near the floor
