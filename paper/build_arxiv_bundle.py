@@ -30,6 +30,7 @@ import shutil
 import subprocess
 import sys
 import tarfile
+import zipfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -207,6 +208,15 @@ def main() -> int:
     )
 
     tarball = outdir / "param-memory-arxiv.tar.gz"
+    # A zip of the same contents, because arXiv's submission interface has accepted both and
+    # an upload dialog that wants one while you hold the other is a bad moment to discover
+    # that. Both archives carry identical files at identical paths.
+    zipped = outdir / "param-memory-arxiv.zip"
+    with zipfile.ZipFile(zipped, "w", zipfile.ZIP_DEFLATED) as handle:
+        for name in sources:
+            handle.write(outdir / name, arcname=name)
+        for path in figure_files:
+            handle.write(outdir / "figures" / path.name, arcname=f"figures/{path.name}")
     with tarfile.open(tarball, "w:gz") as handle:
         for name in sources:
             handle.add(outdir / name, arcname=name)
