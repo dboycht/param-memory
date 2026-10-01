@@ -11,6 +11,8 @@
 \usepackage[hidelinks]{hyperref}
 \usepackage{microtype}
 \usepackage{xcolor}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta}
 
 % NOTE: generated_tables.tex is \input *inside* the document body: it contains
 % table floats and \newcommand macros, and floats are illegal in the preamble.
@@ -156,6 +158,8 @@ updates. That leaves our setting genuinely unoccupied, and it also means there i
 \label{sec:method}
 
 \subsection{Rank-blocked slots and exact erasure}
+
+\input{figures/mechanism}
 
 The backbone $M_\theta$ is frozen. Each targeted linear projection $W_0$ gets one
 low-rank adapter $(A, B)$ with total rank $R = K \cdot r$, partitioned into $K$
@@ -428,7 +432,10 @@ improved a question, and the paired counts are \tRealCollisionTwoHurt{} against
 it is significant on \tRealCollisionItems{} questions, so the collapse is not an artefact of
 reading a handful of questions. The mechanism behaves on real content as it does on
 generated content, and one difference is worth stating: the drop is gentler here than on the
-synthetic episodes, so the generator exaggerates the size of the effect without creating it.
+synthetic episodes, so the generator exaggerates the size of the effect without creating it
+(Figure~\ref{fig:collapse}).
+
+\input{generated_figure_collapse}
 
 \paragraph{What the two-slot collapse actually is.} Before trying to repair it we measured
 it without training anything, over \tMechProbes{} probes. The written updates are nearly

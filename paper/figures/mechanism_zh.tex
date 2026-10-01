@@ -1,0 +1,66 @@
+% 机制示意图（中文审阅稿用）。几何与英文版 figures/mechanism.tex 完全一致，
+% 只替换标注文字 —— 两版看起来必须是同一张图。
+%
+% 不设任何字体，标注继承文档字体，因此与正文一致。
+% 版式规则与英文版相同（每条内容独占一个 y 带、盒宽足够容纳 \footnotesize 文字、
+% 乘积点落在 A 与 B 的空隙里），这些都是从渲染出来的坏版本里学到的。
+\begin{figure}[t]
+\centering
+\begin{tikzpicture}[x=1cm,y=1cm,every node/.style={font=\small}]
+
+  % ---- 第 1 带：旁路挂在哪里 ----------------------------------------------------------
+  \node[draw,line width=0.7pt,minimum width=3.6cm,minimum height=0.95cm,fill=black!7]
+    (backbone) at (2.40,6.05) {冻结主干 $M_\theta$};
+  \node[draw,line width=0.7pt,minimum width=4.6cm,minimum height=0.95cm,fill=white]
+    (layer) at (9.20,6.05) {某一个投影层 $W_0$};
+  \draw[-{Latex[length=2.2mm]},line width=0.8pt] (4.35,6.05) -- (6.75,6.05);
+  \node[above=0.05cm,font=\footnotesize] at (5.55,6.05) {保持不变};
+
+  % ---- 第 2 带：一个适配器，它的秩被切成 K 块 -----------------------------------------
+  \node[anchor=east,font=\small] at (3.05,4.45) {$W = W_0 + \frac{\alpha}{r}\,B\,A$};
+  \draw[-{Latex[length=2.2mm]},line width=0.7pt] (3.15,4.45) -- (3.95,4.45);
+
+  % A：一条 $K$ 个连续秩块的条带；第 2 块是当前在用的槽（填充）。
+  \foreach \i/\shade in {1/white,2/black!55,3/white,4/white} {
+    \draw[line width=0.8pt,fill=\shade] ({3.95+1.30*(\i-1)},3.90) rectangle ++(1.30,0.72);
+  }
+  \foreach \i in {1,2,3,4} {
+    \node[below=0.04cm,font=\footnotesize] at ({4.60+1.30*(\i-1)},3.90) {$A_{\i}$};
+  }
+  \node[above=0.20cm,font=\footnotesize] at (6.55,4.62)
+    {总秩 $R = K\,r$，切成 $K$ 个连续块};
+
+  % B：与每块配对的那些列，高度与 A 相同，中间留出可见空隙放乘积点。
+  \foreach \i in {1,2,3,4} {
+    \draw[line width=0.8pt,fill=white] ({9.30+0.40*(\i-1)},3.90) rectangle ++(0.40,0.72);
+  }
+  \node[below=0.04cm,font=\small] at (10.10,3.90) {$B$};
+  \node[font=\small] at (9.02,4.26) {$\cdot$};
+
+  % ---- 第 3 带：三种操作，各自一个盒子，盒子之间留缝 ----------------------------------
+  \node[draw,line width=0.7pt,minimum width=4.4cm,minimum height=1.50cm,fill=white,
+        align=left,inner sep=5pt,font=\footnotesize] (write) at (2.40,1.55)
+    {\textbf{\small 写入}\\ 梯度步只触碰\\ $A$ 的第 $k$ 块};
+  \node[draw,line width=0.7pt,minimum width=4.4cm,minimum height=1.50cm,fill=white,
+        align=left,inner sep=5pt,font=\footnotesize] (read) at (7.50,1.55)
+    {\textbf{\small 读取}\\ 用掩码选中第 $k$ 块，\\ 内容不进入上下文};
+  \node[draw,line width=0.7pt,minimum width=4.4cm,minimum height=1.50cm,fill=white,
+        align=left,inner sep=5pt,font=\footnotesize] (erase) at (12.60,1.55)
+    {\textbf{\small 擦除}\\ 恢复 $A_k$ 并把 $B_k$ 清零：\\ 与从未写过逐位相同};
+
+  % 从被填充的块引出一根虚线，分叉到三个盒子。
+  \draw[line width=0.7pt,dash pattern=on 2.2pt off 1.6pt] (5.25,3.86) -- (5.25,2.95);
+  \draw[line width=0.7pt,dash pattern=on 2.2pt off 1.6pt] (2.40,2.95) -- (12.60,2.95);
+  \foreach \x in {2.40,7.50,12.60} {
+    \draw[-{Latex[length=2.0mm]},line width=0.7pt,dash pattern=on 2.2pt off 1.6pt]
+      (\x,2.95) -- (\x,2.32);
+  }
+
+\end{tikzpicture}
+\caption{旁路的样子。每个投影层挂一个低秩适配器，它的总秩 $R$ 被切成 $K$ 个连续块，
+第 $k$ 块\emph{就是}第 $k$ 个槽。写入只触碰那一块，读取用掩码选中它、内容不进入上下文，
+擦除则恢复该块的初始因子并把配对的另一侧清零 —— 遗忘因此可以验证，而不是"差不多"。
+与"把一组适配器组织成槽"的做法相比，这里的槽是\emph{同一个适配器内部}的秩块，
+这正是三种操作能被独立检查的原因。}
+\label{fig:mechanism}
+\end{figure}

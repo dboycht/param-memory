@@ -82,6 +82,8 @@ TEMPLATE = r"""% 中文审阅稿（由 paper/build_paper_zh.py 生成，请勿�
 \usepackage{amssymb}
 \usepackage[margin=2.4cm]{geometry}
 \usepackage[hidelinks]{hyperref}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta}
 
 \newcommand{\zhbanner}[1]{\noindent\fbox{\parbox{\dimexpr\linewidth-2\fboxsep-2\fboxrule}{#1}}}
 \title{\bf 面向 LLM 智能体的旁路参数化记忆：\\可精确擦除的槽位，以及不占上下文的读取}
@@ -187,6 +189,8 @@ AlphaEdit 把编辑投影到被保护知识的零空间，我们在锚定项里�
 \label{sec:method}
 
 \subsection{秩块槽位与精确擦除}
+
+\input{figures/mechanism_zh}
 对每个目标投影，$\Delta W = \frac{\alpha}{r} B A$，其中 $A$ 按秩块划分。
 槽 $k$ 只能写 $A$ 的第 $k$ 块与 $B$ 的第 $k$ 列，读掩码决定加回哪些块。
 擦除就是恢复 $A_k^{\text{init}}$ 并把 $B_k$ 置零，所以擦除与从未写过
@@ -341,7 +345,10 @@ oracle 几乎不受换键影响（0.6B 是 [[tLexOracleSmall]]、1.7B 是 [[tLex
 两个的 [[tRealCollisionThree]]、四个的 [[tRealCollisionFive]]，再到整库全开的 [[tRealCollisionAll]]
 （冻结地板是 [[tRealCollisionFloor]]）。
 ⇒ **机制在真实内容上的表现与在生成内容上一致**。有一个差别要如实说：
-**两槽那一步在真实内容上更温和**，也就是说**生成器放大了效应的大小，却没有凭空制造它**。
+**两槽那一步在真实内容上更温和**，也就是说**生成器放大了效应的大小，却没有凭空制造它**
+（整条曲线见 图~\ref{fig:collapse}）。
+
+\input{generated_figure_collapse_zh}
 每个剂量上效应都是**单向的**（多开槽**从未**改善任何一题）：配对计数在"多开一个"这一步是
 [[tRealCollisionTwoHurt]] 损害对 [[tRealCollisionTwoHelped]] 帮助（$p$ 为 [[tRealCollisionTwoP]]），
 "多开两个"是 [[tRealCollisionThreeHurt]] 对 0（$p$ 为 [[tRealCollisionThreeP]]），

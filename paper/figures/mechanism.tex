@@ -1,0 +1,82 @@
+% The mechanism, as one figure.
+%
+% Hand-written rather than generated, because it carries no numbers: it is the geometry a
+% reader has to hold in mind, and geometry is exactly what prose conveys badly. The
+% distinction it exists to make is that the slots are rank blocks *inside* one adapter, not
+% one adapter each -- the neighbouring work that organises adapters into slots does the
+% latter, and a reader who skims will assume we do too.
+%
+% Grayscale-safe by construction: every distinction is fill, dash or line weight, never
+% colour. No font is set on the picture itself, so labels inherit the document font.
+%
+% Layout rules, each learned from a rendered version that broke them:
+%   * every band of content owns a strip of y-space with at least 0.4cm of clearance from
+%     the band above, because a label anchored "above" a shape grows upward into it;
+%   * boxes are wide enough for their text at \footnotesize, since a clipped line inside a
+%     box looks like a rendering fault rather than a mistake in the figure;
+%   * the "$\cdot$" between $A$ and $B$ goes in the gap between them, never at a coordinate
+%     that happens to fall inside a block.
+\begin{figure}[t]
+\centering
+\begin{tikzpicture}[x=1cm,y=1cm,every node/.style={font=\small}]
+
+  % ---- band 1 (y = 5.58 to 6.53): where the side path hangs off ----------------------
+  \node[draw,line width=0.7pt,minimum width=3.6cm,minimum height=0.95cm,fill=black!7]
+    (backbone) at (2.40,6.05) {frozen backbone $M_\theta$};
+  \node[draw,line width=0.7pt,minimum width=4.6cm,minimum height=0.95cm,fill=white]
+    (layer) at (9.20,6.05) {one projection layer $W_0$};
+  \draw[-{Latex[length=2.2mm]},line width=0.8pt] (4.35,6.05) -- (6.75,6.05);
+  \node[above=0.05cm,font=\footnotesize] at (5.55,6.05) {unchanged};
+
+  % ---- band 2 (y = 3.85 to 5.15): the adapter and its rank split ---------------------
+  \node[anchor=east,font=\small] at (3.05,4.45) {$W = W_0 + \frac{\alpha}{r}\,B\,A$};
+  \draw[-{Latex[length=2.2mm]},line width=0.7pt] (3.15,4.45) -- (3.95,4.45);
+
+  % A: one strip of K contiguous rank blocks; block 2 is the slot in play (filled).
+  \foreach \i/\shade in {1/white,2/black!55,3/white,4/white} {
+    \draw[line width=0.8pt,fill=\shade] ({3.95+1.30*(\i-1)},3.90) rectangle ++(1.30,0.72);
+  }
+  \foreach \i in {1,2,3,4} {
+    \node[below=0.04cm,font=\footnotesize] at ({4.60+1.30*(\i-1)},3.90) {$A_{\i}$};
+  }
+  \node[above=0.20cm,font=\footnotesize] at (6.55,4.62)
+    {total rank $R = K\,r$, in $K$ contiguous blocks};
+
+  % B: the columns that pair with each block, drawn the same height as A, with a visible
+  % gap and the product dot inside it.
+  \foreach \i in {1,2,3,4} {
+    \draw[line width=0.8pt,fill=white] ({9.30+0.40*(\i-1)},3.90) rectangle ++(0.40,0.72);
+  }
+  \node[below=0.04cm,font=\small] at (10.10,3.90) {$B$};
+  \node[font=\small] at (9.02,4.26) {$\cdot$};
+
+  % ---- band 3 (y = 0.80 to 2.30): the three operations, one box each, with gaps -------
+  \node[draw,line width=0.7pt,minimum width=4.4cm,minimum height=1.50cm,fill=white,
+        align=left,inner sep=5pt,font=\footnotesize] (write) at (2.40,1.55)
+    {\textbf{\small write}\\ gradient steps touch\\ block $k$ of $A$ only};
+  \node[draw,line width=0.7pt,minimum width=4.4cm,minimum height=1.50cm,fill=white,
+        align=left,inner sep=5pt,font=\footnotesize] (read) at (7.50,1.55)
+    {\textbf{\small read}\\ a mask selects block $k$,\\ so nothing enters the context};
+  \node[draw,line width=0.7pt,minimum width=4.4cm,minimum height=1.50cm,fill=white,
+        align=left,inner sep=5pt,font=\footnotesize] (erase) at (12.60,1.55)
+    {\textbf{\small erase}\\ restore $A_k$ and zero $B_k$:\\ bit-identical to never written};
+
+  % One connector from the shaded block, forking to the three boxes. The fork sits in the
+  % empty band between the strip's labels (y=3.85) and the boxes' tops (y=2.30).
+  \draw[line width=0.7pt,dash pattern=on 2.2pt off 1.6pt] (5.25,3.86) -- (5.25,2.95);
+  \draw[line width=0.7pt,dash pattern=on 2.2pt off 1.6pt] (2.40,2.95) -- (12.60,2.95);
+  \foreach \x in {2.40,7.50,12.60} {
+    \draw[-{Latex[length=2.0mm]},line width=0.7pt,dash pattern=on 2.2pt off 1.6pt]
+      (\x,2.95) -- (\x,2.32);
+  }
+
+\end{tikzpicture}
+\caption{The side path. One low-rank adapter per projection layer, whose total rank $R$ is
+split into $K$ contiguous blocks; block $k$ \emph{is} slot $k$. Writing touches only that
+block, reading selects it with a mask so the content never enters the context, and erasing
+restores the block's initial factor and zeroes its counterpart, which makes forgetting
+verifiable rather than approximate. The distinction from work that organises a
+\emph{collection} of adapters into slots is that here the slots are rank blocks inside a
+single adapter, and that is what makes the three operations independently checkable.}
+\label{fig:mechanism}
+\end{figure}
