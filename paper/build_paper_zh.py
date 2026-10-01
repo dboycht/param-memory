@@ -251,7 +251,7 @@ P5 仅提示词：剥掉提示词格式带来的收益。只有在配对差异�
 检索因此被 oracle 化。对照组拿到同样的信息，由同一个查询键路由器选出来放进上下文，
 唯一的变量是介质。判分走语义。词面包含判据奖励逐字复现参考答案，
 而这正是训练过的写入擅长的事，它无法比较改写作答的臂。所以真实内容结果由一个托管的
-LLM 判官打分，一次只判一个候选，并与 [[tJudgeCalibMarks]] 条人工标注校准。
+LLM 判官打分，一次只判一个候选，并与 [[tJudgeMergedMarks]] 条人工标注校准。
 标注样本匿名且打乱，判官的结论在人工标完之后才展示。我们同时报告校准规模与
 判官提示词改过一次这两件事，因为它们限定了这个一致率值多少。另有两点：
 同一批题上的比较一律用配对检验，也就是精确符号检验；生成预算被当作处理的一部分，
@@ -393,7 +393,7 @@ oracle 几乎不受换键影响（0.6B 是 [[tLexOracleSmall]]、1.7B 是 [[tLex
 oracle 单条 & [[tJudgeContextTarget]] & [[tScaleContextTarget]] & [[tTokContextTarget]] \\
 冻结（地板） & [[tJudgeFrozen]] & [[tScaleFrozen]] & 60 \\ \bottomrule
 \end{tabular}
-\caption{真实内容上的对比，判官已与人工标注校准 [[tJudgeCalibMarks]]。}
+\caption{真实内容上的对比，判官已与人工标注校准 [[tJudgeMergedMarks]]。}
 \end{table}
 
 参数臂在逐题配对中赢了 [[tJudgeWins]] 题、输了 [[tJudgeLosses]] 题，一题都没输，

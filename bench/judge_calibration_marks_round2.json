@@ -1,0 +1,7 @@
+{
+  "what": "Human marks for judge calibration, round 2",
+  "how_collected": "collected from the marked sheet by experiments/t7h_collect_marks.py, which refuses a partial sheet",
+  "standard": "does the answer convey the same information as the reference",
+  "marks": "1Y 2N 3N 4Y 5N 6Y 7Y 8N 9Y 10Y 11Y 12Y 13N 14Y 15Y 16N 17N 18Y 19N 20Y 21Y 22Y 23Y 24N",
+  "sheet": "judge_calibration_round2.md"
+}

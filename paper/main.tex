@@ -316,11 +316,12 @@ Grading is semantic. The containment measure used on the synthetic experiments r
 candidate per call, calibrated against \tJudgeMergedMarks{} human marks collected on
 an anonymised, shuffled sample with the judge's own verdicts hidden until after
 marking. The agreement is \tJudgeMergedRate{} (Wilson 95\% interval
-[\tJudgeMergedLow{}, \tJudgeMergedHigh{}]) with \tJudgeMergedFalsePositives{} cases of
-the judge accepting an answer the human rejected. We report the size of that
+[\tJudgeMergedLow{}, \tJudgeMergedHigh{}]), and the judge accepted an answer the human
+rejected in \tJudgeMergedFalsePositives{} of those rows. We report the size of that
 calibration and the fact that the judge prompt was revised once, because both bound
-what the agreement is worth: the first prompt, on the same rows, agreed on 8 of the
-10 rows whose verdict was usable. Two further
+what the agreement is worth: an earlier prompt produced verdicts that were ambiguous
+enough that rows had to be discarded rather than scored, which is why it was rewritten
+before the round above. Two further
 protocol points carry weight: wherever every arm answers the \emph{same} items we compare them paired (exact sign test), not by overlapping intervals, and the generation budget is treated as part of the treatment: every arm is generated with the same limit, set so that the longest reference answer fits, since a budget
 below that measures truncation instead of memory.
 
