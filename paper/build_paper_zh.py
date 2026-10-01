@@ -110,7 +110,8 @@ LLM 智能体的长期记忆放在上下文窗口里，既要挤占推理所需�
 靠擦除一个秩块遗忘。在 0.6B 模型上，写入只落到自己的槽；被擦除的槽与从未写过的槽逐位相同，
 [[tErasedTotal]] 次驱逐与一次进程重启都如此；真正的约束是读时组合：把槽全加起来召回为
 [[tSum]]，按查询键相似度只选一个则恢复到 [[tTopOne]]（oracle [[tOracle]]），两者之差恰好等于
-路由错误。无标签的自我核对用 [[tSelfWrites]] 次写入达到全写的召回（全写 [[tAlwaysWrites]] 次），
+路由错误。**在真实的基准题上，只给一条检索到的事实答对 [[tHostedTopOne]]，给全部抽出的事实时答对 [[tHostedContext]]。**
+无标签的自我核对用 [[tSelfWrites]] 次写入达到全写的召回（全写 [[tAlwaysWrites]] 次），
 基座漂移 [[tSelfKL]] nats（全写 [[tAlwaysKL]] nats）。有两个假设失败了，我们如实报告：
 基于似然阈值的惊讶度判据量到的是措辞，参数化记忆也没有减少上下文惯性。在 [[tLongMemSubset]]
 道 LongMemEval single-session 题（历史完全不在场）上，参数臂复现 [[tLongMemOn]] 的参考答案

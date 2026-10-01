@@ -23,7 +23,7 @@ Exactly Erasable Slots, Read Without Context}
 % Author line: real name + affiliation (user decision, 2026-09-29). Deliberately
 % no email: the user's own privacy rule keeps contact details out of public material.
 \author{Haotian Cheng \\ \small Nanjing University of Aeronautics and Astronautics}
-\date{2026-09-29}
+\date{2026-10-01}
 
 \begin{document}
 \maketitle
@@ -38,7 +38,9 @@ block. On a 0.6B model, writes touch only their own slot; erasure is bit-identic
 never-written slot across \tErasedTotal{} evictions and a process restart; and the binding
 constraint turns out to be read-time composition, since summing the slots destroys recall
 ($\tSum{}$) while selecting one by query-key similarity recovers it ($\tTopOne{}$ against
-an oracle of $\tOracle{}$), with the residual gap equal to the routing error. A label-free
+an oracle of $\tOracle{}$), with the residual gap equal to the routing error. On real
+benchmark questions one retrieved fact answers $\tHostedTopOne{}$ of them and all of them
+$\tHostedContext{}$. A label-free
 self-check reaches full-write recall using $\tSelfWrites$ writes instead of
 $\tAlwaysWrites$, and $\tSelfKL$ nats of backbone drift instead of $\tAlwaysKL$. Two
 hypotheses fail, and we report them: a likelihood-threshold surprise criterion measures
