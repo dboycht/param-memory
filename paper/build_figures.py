@@ -91,7 +91,7 @@ def build(bundle: dict, lang: str = "en") -> str:
                 r"Containment against the number of memory slots held open at read time, on "
                 r"a logarithmic axis. One slot is as good as the oracle; two already cost, "
                 r"and the loss grows monotonically until the whole bank is open, where "
-                r"$\tSum$ of the synthetic questions are answered. The real-content curve "
+                r"__SUM__ of the synthetic questions are answered. The real-content curve "
                 r"falls more gently than the synthetic one but never turns upward, so the "
                 r"generator exaggerates the size of the effect without creating it "
                 r"(Table~\ref{tab:t7collision})."),
@@ -106,9 +106,8 @@ def build(bundle: dict, lang: str = "en") -> str:
             "caption": (
                 r"读取时同时打开的槽数与包含率的关系（横轴为对数轴）。只开一个槽时与 oracle 相当；"
                 r"开到两个就已经付出代价，此后单调下降，直到整库全开时合成题全部答不出"
-                r"（$\tSum$）。真实内容的曲线比合成数据更平缓，但从不回升 —— "
-                r"也就是说生成器放大了效应的大小、并没有凭空制造它（见 "
-                r"Table~\ref{tab:t7collision}）。"),
+                r"（__SUM__）。真实内容的曲线比合成数据更平缓，但从不回升 —— "
+                r"也就是说生成器放大了效应的大小、并没有凭空制造它。"),
             "ref": r"图~\ref{fig:collapse}",
         },
     }[lang]
@@ -199,7 +198,11 @@ def build(bundle: dict, lang: str = "en") -> str:
         parts.append(f"  \\node[right=0.16cm,font=\\small] at ({sx + 1.02:.2f},{row:.2f}) "
                      f"{{{safe}}};")
     parts += ["\\end{tikzpicture}",
-              "\\caption{" + words["caption"] + "}",
+              # The count is interpolated rather than written as a macro: the Chinese copy
+              # does not define the paper's macros, it substitutes values, so a figure that
+              # named one would fail to build there. The value still comes from the bundle.
+              "\\caption{" + words["caption"].replace("__SUM__", str(v.get("tSum", "n/a")))
+              + "}",
               r"\label{fig:collapse}", r"\end{figure}", ""]
     return "\n".join(parts)
 
