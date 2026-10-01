@@ -13,11 +13,21 @@ What changes here:
 * the read query is the benchmark's **real question**, routed against every extracted
   memory of every item in the pilot, so retrieval is a genuine search rather than a
   lookup;
-* grading is containment of the gold answer, which the extraction never sees.
+* answers are graded by the **calibrated judge**, not by string containment.
 
-The cost of that honesty is noise: an extraction error is written into the weights and
-then read back as though it were memory, so the yield of the extraction step is reported
-alongside the accuracy rather than buried.
+That last change is not a preference. Measured on these thirty items
+(``t7i_composition_demand.py``): the reference answer is a literal string in the
+conversation for only half of them, and twenty-nine of the thirty ask for an aggregate --
+how many, how much in total, what percentage, what difference -- which has to be computed
+across several memories. String containment therefore has a ceiling of about a half no
+matter how good the memories are, and it cannot tell a missing fact from an unperformed
+addition.
+
+The arms follow from that. ``context`` shows the same extracted facts to the same model in
+the prompt, so it answers the question the bank cannot: whether the information is present
+at all. If the bank's arms score below it, the limit is the read path rather than the
+extraction, which is the claim this experiment exists to test. ``top2`` and ``all`` ask
+whether opening more slots composes them, which the synthetic results say it does not.
 
 Run in two stages so the network half can proceed while the GPU is busy::
 
@@ -75,6 +85,17 @@ def parse_args() -> argparse.Namespace:
     ap.add_argument("--lr", type=float, default=1e-3)
     ap.add_argument("--lambda-kl", type=float, default=1.0)
     ap.add_argument("--max-new-tokens", type=int, default=96)
+    ap.add_argument("--judge", dest="judge", action="store_true", default=True,
+                    help="grade with the calibrated judge; string containment is kept "
+                         "as a secondary column because the papers quote it")
+    ap.add_argument("--no-judge", dest="judge", action="store_false",
+                    help="skip grading, for a GPU-only smoke test of the arms")
+    ap.add_argument("--judge-items", type=int, default=0,
+                    help="grade only the first N questions, to check the plumbing on a "
+                         "handful before spending the rate limit on all of them")
+    ap.add_argument("--run-items", type=int, default=0,
+                    help="run only the first N extracted items (0 = all); a smoke test "
+                         "that prints when it binds rather than truncating silently")
     ap.add_argument("--max-memories", type=int, default=64,
                     help="cap on slots when --per-item is 0; the bank size is a "
                          "configuration choice, and a larger bank costs write time")
@@ -200,6 +221,13 @@ def do_extract(args) -> int:
 def do_run(args) -> int:
     payload = json.loads(Path(args.extracted).read_text(encoding="utf-8"))
     items = payload["items"]
+    if args.run_items > 0:
+        # An explicit limit, and it announces itself: a run that silently covered a
+        # fraction of the questions would produce a summary indistinguishable from the
+        # full one, which is the failure this flag exists to make impossible.
+        print(f"  --run-items {args.run_items}: covering {args.run_items} of "
+              f"{len(items)} extracted items", flush=True)
+        items = items[: args.run_items]
     flat = [(item_index, mem) for item_index, item in enumerate(items)
             for mem in item["memories"]]
     if args.per_item > 0:
@@ -246,6 +274,10 @@ def do_run(args) -> int:
               for slot, (_i, mem) in zip(slot_of, capped)}
     text_of = {slot: mem["question"] for slot, (_i, mem) in zip(slot_of, capped)}
 
+    # The arms. ``oracle`` is deliberately absent: activating "the item's own memory" is
+    # not a well-defined arm when the answer is an aggregate of several of them, and
+    # pretending otherwise is what made the earlier reading of this run wrong.
+    ARMS = ("frozen", "context", "key", "lexical", "top2", "all")
     results = []
     for item_index, item in enumerate(items):
         own = [slot for slot, (i, _m) in zip(slot_of, capped) if i == item_index]
@@ -254,39 +286,88 @@ def do_run(args) -> int:
         question = str(item["question"])
         bb.set_read_slots([])
         query_key = bb.query_key(question)
-        by_key = route(query_key, key_of, k=1).slots
-        by_lex = route_lexical(question, text_of, k=1).slots
+        ranked = route(query_key, key_of, k=2).slots
+        by_key, by_lex = ranked[:1], route_lexical(question, text_of, k=1).slots
+        # The control: the same extracted facts, in the prompt, in the order they were
+        # written. Same facts and same model as every other arm; only the delivery differs.
+        home = [(i, mem) for i, mem in
+                [(i, mem) for slot, (i, mem) in zip(slot_of, capped)] if i == item_index]
+        context = "\n".join(f"- {mem['question']} {mem['answer']}" for _i, mem in home)
 
         row = {"question_id": item["question_id"], "n_own_memories": len(own),
                "routed_by_key_to_own": bool(by_key and by_key[0] in own),
                "routed_by_lexical_to_own": bool(by_lex and by_lex[0] in own),
                "answers": {}}
-        for arm, active in (("key", by_key), ("lexical", by_lex),
-                            ("oracle", own[:1]), ("frozen", [])):
+        for arm, active, ctx in (("frozen", [], ""), ("context", [], context),
+                                 ("key", by_key, ""), ("lexical", by_lex, ""),
+                                 ("top2", ranked, ""), ("all", slot_of, "")):
             bb.set_read_slots(active)
-            answer = bb.answer(question)
+            answer = bb.answer(question, context=ctx)
             row["answers"][arm] = {
                 "text": answer,
                 "correct": bool(contains_answer(answer, str(item["answer"]))),
                 "exact": bool(P.exact_match(answer, str(item["answer"]))),
+                "judged": None,
+                "prompt_tokens": bb.prompt_tokens(question, context=ctx),
             }
         results.append(row)
-        print(f"  {item['question_id'][:8]}… key={row['answers']['key']['correct']} "
-              f"lexical={row['answers']['lexical']['correct']} "
-              f"oracle={row['answers']['oracle']['correct']}", flush=True)
+        print(f"  {item['question_id'][:8]}… " + " ".join(
+            f"{arm}={int(row['answers'][arm]['correct'])}" for arm in ARMS), flush=True)
 
-    def rate(arm: str) -> float:
+    # Grading by the calibrated judge, one call per question with every arm as a candidate:
+    # the rate limit is the binding constraint, and batching keeps the judge's standard
+    # identical across the arms being compared.
+    if args.judge and results:
+        from parammem.eval.judge import LLMJudge, load_api_key, load_llm_settings
+
+        settings = load_llm_settings(args.config)
+        judge = LLMJudge(api_key=load_api_key(args.config), model=settings["model"],
+                         base_url=settings["base_url"],
+                         min_interval=settings.get("min_interval", args.min_interval),
+                         timeout=settings.get("timeout", args.timeout))
+        graded = results[: args.judge_items] if args.judge_items > 0 else results
+        reference_of = {str(i["question_id"]): str(i["answer"]) for i in items}
+        print(f"  grading {len(graded)} questions with {settings['model']}, "
+              f"{settings.get('min_interval', 0)}s between calls", flush=True)
+        for row in graded:
+            candidates = {arm: entry["text"] for arm, entry in row["answers"].items()}
+            try:
+                verdicts = judge.judge_batch(reference_of[row["question_id"]], candidates)
+            except Exception as error:  # a failed grade must not lose the generation
+                print(f"    {row['question_id'][:8]}… grading failed: "
+                      f"{type(error).__name__}: {str(error)[:120]}", flush=True)
+                continue
+            for arm, verdict in verdicts.items():
+                if arm in row["answers"]:
+                    row["answers"][arm]["judged"] = verdict.correct
+            print(f"    {row['question_id'][:8]}… judged " + " ".join(
+                f"{arm}={row['answers'][arm]['judged']}" for arm in ARMS), flush=True)
+
+    def string_rate(arm: str) -> float:
         return sum(1 for row in results if row["answers"][arm]["correct"]) / len(results)
 
+    judged_rows = [row for row in results
+                   if any(row["answers"][arm]["judged"] is not None for arm in ARMS)]
+
+    def judged_rate(arm: str) -> float:
+        graded = [row for row in judged_rows if row["answers"][arm]["judged"] is not None]
+        if not graded:
+            return 0.0
+        return sum(1 for row in graded if row["answers"][arm]["judged"]) / len(graded)
+
     summary = {
-        "note": "Multi-session LongMemEval with memories extracted from the conversation "
-                "and retrieval by the real question. The oracle arm shows what the same "
-                "memories are worth when the right slot is known, so the gap between "
-                "oracle and routing is the retrieval cost rather than a memory failure.",
+        "note": "Multi-session LongMemEval with memories extracted from the conversation and "
+                "retrieval by the real question. These questions ask for an aggregate across "
+                "several memories, so string containment has a low ceiling and grading is by "
+                "the calibrated judge. The context arm is the control: the same extracted "
+                "facts, delivered in the prompt rather than read from the bank.",
         "n_items": len(results),
         "n_memories": len(slot_of),
         "cap_bound": len(capped) < len(flat),
-        "containment": {arm: rate(arm) for arm in ("key", "lexical", "oracle", "frozen")},
+        "arms": list(ARMS),
+        "containment": {arm: string_rate(arm) for arm in ARMS},
+        "judged": {arm: judged_rate(arm) for arm in ARMS},
+        "n_judged": len(judged_rows),
         "routed_to_own": {
             "key": sum(1 for row in results if row["routed_by_key_to_own"]) / len(results),
             "lexical": (sum(1 for row in results if row["routed_by_lexical_to_own"])
@@ -298,8 +379,11 @@ def do_run(args) -> int:
     out = Path(args.out)
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(summary, ensure_ascii=False, indent=2), encoding="utf-8")
-    print(f"\n  containment: " + "  ".join(
+    print(f"\n  string containment: " + "  ".join(
         f"{arm}={value:.3f}" for arm, value in summary["containment"].items()))
+    if judged_rows:
+        print(f"  judged correct over {len(judged_rows)} questions: " + "  ".join(
+            f"{arm}={value:.3f}" for arm, value in summary["judged"].items()))
     print(f"  routed to the item's own memory: key="
           f"{summary['routed_to_own']['key']:.3f} lexical="
           f"{summary['routed_to_own']['lexical']:.3f}")
