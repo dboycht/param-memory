@@ -213,9 +213,9 @@ remains is the honest residue; that an artefact of reading the slots together co
 produce it is the reading the fix rules out.
 Second,
 the anchor is evaluated at \textbf{every position} of the anchor prompts, not only
-the last: a final-position-only guard held the single-step divergence at $0.08$
-while generation still collapsed into repetition, because autoregressive decoding
-compounds a small per-step shift over the whole trajectory. With both fixes the
+the last: a guard evaluated only at the final position left the per-step divergence
+negligible while generation still collapsed into repetition, because autoregressive
+decoding compounds a small per-step shift over the whole trajectory. With both fixes the
 degenerate repetition disappears and the sum-based read improves from $1/4$ to
 $2/4$; both alternatives remain available as an ablation
 (\texttt{--anchor-mode sum}).
