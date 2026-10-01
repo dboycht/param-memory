@@ -75,7 +75,7 @@ another positive result would have been.
 \paragraph{What we build.} A frozen backbone plus a side path of $K$ memory slots,
 each occupying a contiguous block of a single low-rank adapter's rank dimension
 (Section~\ref{sec:method}). A slot is written by gradient steps restricted to its own block,
-read implicitly through the forward pass, so the memory content never enters the context,
+read implicitly through the forward pass (so the memory content never enters the context),
 and forgotten by restoring that block to its initial state, which makes forgetting
 \emph{verifiable}. Section~\ref{sec:method} gives the mechanism, Section~\ref{sec:results}
 the measurements, and Section~\ref{sec:negative} the two hypotheses that failed.
