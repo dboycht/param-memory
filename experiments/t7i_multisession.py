@@ -94,16 +94,23 @@ def parse_args() -> argparse.Namespace:
 
 
 def do_extract(args) -> int:
-    from parammem.eval.judge import LLMJudge, load_api_key
+    from parammem.eval.judge import LLMJudge, load_api_key, load_llm_settings
 
     raw = json.loads(Path(args.data).read_text(encoding="utf-8"))
     items = select_multi_session(raw, args.items, args.offset)
     key = load_api_key(args.config)
+    # The provider comes from the config file, not from this script. Hard-coding it here
+    # meant that changing the account in the config kept sending calls to the old host,
+    # which is exactly what happened when the previous provider's balance ran out.
+    settings = load_llm_settings(args.config)
     # max_tokens stays at the client default: a truncated JSON array fails to parse and
     # the memory is lost, which is exactly the failure this stage can least afford.
-    judge = LLMJudge(api_key=key, model="kimi-k2.6",
-                     base_url="https://api.moonshot.cn/v1",
-                     min_interval=args.min_interval, timeout=args.timeout)
+    judge = LLMJudge(api_key=key,
+                     model=settings["model"], base_url=settings["base_url"],
+                     min_interval=settings.get("min_interval", args.min_interval),
+                     timeout=settings.get("timeout", args.timeout))
+    print(f"  provider: {settings['base_url']}  model: {settings['model']}  "
+          f"min_interval: {settings.get('min_interval', args.min_interval)}s", flush=True)
     print(f"extracting from {len(items)} multi-session items "
           f"({sha256_file(args.data)[:16]}…)", flush=True)
 

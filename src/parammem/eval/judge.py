@@ -212,6 +212,34 @@ def load_api_key(config_path: str | Path) -> str:
     return key
 
 
+def load_llm_settings(config_path: str | Path) -> dict[str, Any]:
+    """Everything needed to reach the configured model, from one config file.
+
+    The extraction script used to hard-code a provider, so swapping the account in the
+    config changed nothing and the calls kept going to the old host. The settings live in
+    one place now and the caller only supplies the key.
+    """
+    data = json.loads(Path(config_path).read_text(encoding="utf-8"))
+    llm = data.get("llm") or {}
+    if not (llm.get("base_url") and llm.get("model")):
+        raise ValueError(f"config {config_path} has no llm.base_url/llm.model")
+    settings: dict[str, Any] = {
+        "base_url": str(llm["base_url"]),
+        "model": str(llm["model"]),
+    }
+    # 0 or absent means "no throttle"; a hosted provider may need one, and the operator
+    # knows better than we do, so the value is read rather than assumed.
+    if isinstance(llm.get("min_interval"), (int, float)) and llm["min_interval"] > 0:
+        settings["min_interval"] = float(llm["min_interval"])
+    if isinstance(llm.get("timeout"), (int, float)) and llm["timeout"] > 0:
+        settings["timeout"] = float(llm["timeout"])
+    # Only pass temperature when the config names one AND omitting it is not required by
+    # the model: an explicit value that a provider rejects is worse than a default.
+    if isinstance(llm.get("temperature"), (int, float)):
+        settings["temperature"] = float(llm["temperature"])
+    return settings
+
+
 @dataclass
 class LLMJudge:
     """A minimal chat-completions client specialised for grading.
