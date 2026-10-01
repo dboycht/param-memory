@@ -76,9 +76,11 @@ def parse_args() -> argparse.Namespace:
     ap.add_argument("--lambda-kl", type=float, default=1.0)
     ap.add_argument("--max-new-tokens", type=int, default=96)
     ap.add_argument("--max-memories", type=int, default=64,
-                    help="cap on slots; the bank size is a configuration choice, and a "
-                         "cap that silently dropped memories would bias the result, so "
-                         "the script reports when it binds")
+                    help="cap on slots when --per-item is 0; the bank size is a "
+                         "configuration choice, and a larger bank costs write time")
+    ap.add_argument("--per-item", type=int, default=0,
+                    help="take this many memories from every item instead of a prefix, so "
+                         "a capped bank still covers every question")
     ap.add_argument("--min-interval", type=float, default=25.0,
                     help="seconds between calls. The organisation limit is 3 requests "
                          "per minute, so 21s sits exactly on the boundary and a run that "
@@ -200,10 +202,19 @@ def do_run(args) -> int:
     items = payload["items"]
     flat = [(item_index, mem) for item_index, item in enumerate(items)
             for mem in item["memories"]]
-    capped = flat[: args.max_memories]
+    if args.per_item > 0:
+        # Round-robin instead of "the first N": taking a prefix of 343 memories covers
+        # only the first few items, so the routing test would ask a handful of questions.
+        # A few memories per item covers every question at the same write cost.
+        capped = [(item_index, mem)
+                  for item_index, item in enumerate(items)
+                  for mem in item["memories"][: args.per_item]]
+    else:
+        capped = flat[: args.max_memories]
+    covered = sorted({item_index for item_index, _mem in capped})
     if len(capped) < len(flat):
-        print(f"  WARNING: the slot cap binds: {len(flat)} memories extracted, "
-              f"{len(capped)} written", flush=True)
+        print(f"  slot cap: {len(flat)} memories extracted, {len(capped)} written, "
+              f"covering {len(covered)}/{len(items)} items", flush=True)
 
     cfg = BackboneConfig(model_id=resolve_model_path(args.model),
                          n_slots=max(len(capped), 2), rank=args.rank,
