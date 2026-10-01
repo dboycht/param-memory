@@ -630,8 +630,7 @@ itself. The benchmark's reference answer is a literal string in the conversation
 an aggregate -- how many, how much in total, what percentage, what difference -- that has to
 be computed across several memories; \tAbstainShare{} have an abstention as the reference
 answer, which no memory can hold as a string. String containment is therefore the wrong
-instrument here, and the near-floor numbers it reports (\tMultiOracle{} for the arm that
-activates the item's own memory, against a frozen \tMultiFrozen{}) are what a ceiling of
+instrument here, and the near-floor numbers it reports across every arm are what a ceiling of
 \tExtractCeiling{} predicts rather than evidence about the memories.
 
 That leaves the interesting question unanswerable by the small backbones alone, and we
