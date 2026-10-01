@@ -580,6 +580,23 @@ combine two sessions; the multi-session structure does not reach it. We report t
 together with the reason it is uninformative, because the alternative is a reader finding
 that out and wondering what else the protocol was hiding.
 
+\paragraph{The extraction step, measured.} The limitation below names the turn-to-pair
+extraction as the first obstacle. We have since measured it on the \tMultiItems{}
+multi-session questions with a hosted model: every session of every question went through an
+extraction prompt, producing \tExtractMemoriesPerItem{} memories per question with no parse
+failures at all. What matters is what those memories hold. The benchmark's reference answer
+appears somewhere in the extracted set for \tExtractYieldAny{} of the questions, and in the
+first memory, which is the one an oracle-indexed arm activates, for \tExtractYieldFirst{}.
+Reading them back therefore scores near the floor even with oracle indexing
+(\tMultiOracle{} containment against a frozen \tMultiFrozen{}), and routing does not rescue
+it (\tMultiKey{} by the model key, \tMultiLexical{} by the lexical one). Two conclusions, kept
+apart: this is not evidence about composing several memories, because for most questions
+there is no longer an answer to compose -- the extraction fails upstream of the read path,
+which is where the limitation predicted the difficulty would begin -- and the routing arms
+behave as the synthetic study says they should, the lexical key finding the item's own memory
+\tMultiRouteLexical{} of the time against \tMultiRouteKey{} for the model key, the same
+ordering we measured on generated queries and the first sign that it holds on real text.
+
 The same comparison on a 1.7B backbone (Table~\ref{tab:t7}) gives \tScaleWeights{} for
 the parametric arm against \tScaleContextTarget{}--\tScaleContextAll{} for context
 delivery, with the cost column unchanged (\tTokWeights{} against up to

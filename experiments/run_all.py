@@ -161,7 +161,7 @@ STAGES: dict[str, dict] = {
                    "t7d_17b.json", "t7e_17b.json", "t7f_judge_17b.json",
                    "t7h_calibration.json", "t7g_baselines.json",
                    "t7j_collision_real.json", "longmemeval_evidence_shape.json",
-                   "t7i_multisession.json"],
+                   "t7i_multisession.json", "t7i_extraction_yield.json"],
         # Four phases: the weights run, its pre-registered held-out replication
         # (docs/06 section 9), the context/RAG baselines, and the LLM judge. The
         # judge needs the user's API key and ~70 minutes at 3 requests/minute, so it
@@ -273,7 +273,10 @@ def collect(stage: str, recipe: dict, mode: str) -> dict:
             # "17b" is checked FIRST: t7e_17b.json also starts with "t7e", and
             # letting the generic prefix win would silently overwrite the 0.6B
             # baselines with the larger-backbone run's numbers.
-            if "multisession" in name:
+            # Checked with the stage prefix, not the bare word: "multisession" also
+            # appears in t7i_multisession.json, which is a different stage, and matching
+            # on the word alone swallowed its payload into the oracle-protocol slot.
+            if name.startswith("t7d") and "multisession" in name:
                 # the same diagnostic on the multi-session pool; kept separate because
                 # its result says the protocol cannot test what the paper argues about
                 merged["multi_session_oracle"] = payload
@@ -299,6 +302,10 @@ def collect(stage: str, recipe: dict, mode: str) -> dict:
                 # training baselines on the same thirty memories (full fine-tune,
                 # one equal-capacity adapter, the slot bank)
                 merged["training_baselines"] = payload
+            elif name.startswith("t7i_extraction_yield"):
+                # how much of the answer survives the extraction, which is the upstream
+                # reason the multi-session containment is near the floor
+                merged["extraction_yield"] = payload
             elif name.startswith("t7i"):
                 # multi-session items with memories extracted from the conversation
                 merged["multi_session"] = payload

@@ -1351,6 +1351,13 @@ def headline_values(bundle: dict[str, Any]) -> dict[str, str]:
         "tMultiFrozen": _multi_session(t7, "containment", "frozen"),
         "tMultiRouteKey": _multi_session(t7, "routed_to_own", "key"),
         "tMultiRouteLexical": _multi_session(t7, "routed_to_own", "lexical"),
+        # ---- how much of the answer the extraction step keeps ----
+        "tExtractYieldAny": _na(
+            ((t7.get("extraction_yield") or {}).get("answer_in_any_rate")), ".3f"),
+        "tExtractYieldFirst": _na(
+            ((t7.get("extraction_yield") or {}).get("answer_in_first_rate")), ".3f"),
+        "tExtractMemoriesPerItem": _na(
+            ((t7.get("extraction_yield") or {}).get("mean_memories_per_item")), ".1f"),
         # ---- T8-a (B1): the retention term in the write objective ----
         "tRetentionTopTwoBase": _retention_em(t8, "0.0", "top2"),
         "tRetentionTopTwoBest": _retention_em(t8, _retention_best(t8), "top2"),

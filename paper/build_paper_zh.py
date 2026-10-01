@@ -546,7 +546,16 @@ $\lambda_{\mathrm{ret}}$ 取 [[tRetentionBest]]）：
 [[tMultiEvidenceTurns]] 条含答案的轮、跨 [[tMultiEvidenceSessions]] 个会话，
 其中 [[tMultiEvidenceSpan]] 跨了不止一个会话；而我们实际评测的单会话子集是
 [[tSingleEvidenceTurns]] 条轮、[[tSingleEvidenceSessions]] 个会话、跨会话比例 [[tSingleEvidenceSpan]]。
-基于抽取的多会话结果我们**确实还没有**：抽取调用依赖一个在本批中途被暂停的托管凭据。
+**基于抽取的多会话结果我们后来也拿到了**（换了可用的模型服务之后）：
+[[tMultiItems]] 道题、每题抽出 [[tExtractMemoriesPerItem]] 条记忆、77 次调用**零解析失败**；
+但**基准的参考答案只出现在 [[tExtractYieldAny]] 的题目所抽出的记忆里**，
+出现在第一条记忆（也就是 oracle 臂会激活的那条）里的只有 [[tExtractYieldFirst]]。
+所以**即使 oracle 索引，读回来也几乎贴着地板**（[[tMultiOracle]]，冻结地板 [[tMultiFrozen]]），
+路由也救不回来（模型键 [[tMultiKey]]、词面键 [[tMultiLexical]]）。
+**结论要分开说**：这**组数字说明的是抽取、而非"能否组合多条记忆"** —— 大多数题目里**已经没有答案可供组合**，
+**失效发生在抽取这一步，位于读取路径的上游**，正是那条边界预言难点开始的地方；
+而路由的表现与合成结论**同向**：词面键找到"自己那条"的比例是 [[tMultiRouteLexical]]，
+模型键是 [[tMultiRouteKey]]，与我们用生成查询测到的顺序一致，也是该顺序在**真实文本**上的首个证据。
 \item \textbf{指标粗糙。}基座退化有一部分靠答案是否逐字相同来判断，
 它会把 $2+2=4$ 相对冻结态的 2 算作变化；KL 数字更有信息量。
 \item \textbf{种子覆盖不均。}T2 跑了五个种子、T3 三个（漂移因此是区间），T4 与 T5 正在
