@@ -72,8 +72,8 @@ switch. We state this here because Section~\ref{sec:negative} reports that we
 \textbf{refuted} it, and because that refutation is more useful to a reader than
 another positive result would have been.
 
-\paragraph{What we build.} A frozen backbone plus a side path of $K$ memory slots,
-each occupying a contiguous block of a single low-rank adapter's rank dimension
+\paragraph{What we build.} A frozen backbone plus a side path of $K$ memory slots, the
+\emph{bank}, each occupying a contiguous block of a single low-rank adapter's rank dimension
 (Section~\ref{sec:method}). A slot is written by gradient steps restricted to its own block,
 read implicitly through the forward pass (so the memory content never enters the context),
 and forgotten by restoring that block to its initial state, which makes forgetting
@@ -592,7 +592,7 @@ expensive one, and a reviewer will ask about it. Three arms, all given the same 
 item-gradient-steps (thirty items, twelve steps each, so the fine-tune arm updates every
 parameter on every step and therefore receives \emph{more} compute, not less): full
 fine-tuning reaches \tBaseFull{} containment, a single adapter with the same total rank as
-the bank reaches \tBaseAdapter{}, and the slot bank reaches \tBaseSlots{}. The bank is
+the bank reaches \tBaseAdapter{}, and the bank reaches \tBaseSlots{}. The bank is
 also the gentlest on the frozen backbone, at \tBaseSlotsKl{} nats of all-position KL
 against \tBaseFullKl{} for the fine-tune and \tBaseAdapterKl{} for the joint adapter, and
 it is the only arm that can forget one memory afterwards: erasing a single slot leaves it
